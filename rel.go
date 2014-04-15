@@ -18,5 +18,8 @@ import {
 }
 
 type Relation interface {
-	ProjectRename(colnamemap interface{}) (Relation)
+	ProjectRename(colnamemap interface{}) Relation
+	Union(rb Relation)
+	SetDiff(rb Relation)
+	
 }
