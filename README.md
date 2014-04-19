@@ -1,4 +1,4 @@
-penitent
+rel
 ========
 
 Relational Algebra in Go
