@@ -21,6 +21,7 @@ package rel
 import (
 	"fmt"
 	"reflect"
+	"strings"
 )
 
 // Tuple has similar meaning to rows in SQL
@@ -77,7 +78,7 @@ func (r relStruct) Heading() (h map[string]reflect.Type) {
 }
 
 // String returns a text representation of the Relation
-func (r relStruct) String() string {
+func (r relStruct) String() (str string) {
 	// figure out the string representation of each value
 	// within each of the tuples, and build up a 2d slice of
 	// strings with that representation.  While this is going
@@ -87,14 +88,87 @@ func (r relStruct) String() string {
 	// this for us?  It seems like a better way.
 	// well, it would be except it doesn't align fields within
 	// slices of strings.  Oh well.
+	
+	b := reflect.ValueOf(r.Body)
+	
+	d := r.Deg()
+	c := r.Card()
+	
+	
+	// create the heading
+	hdr := make([]string,2*d,2*d+1)
+	hdrsz := make([]int, 2, 2)
+	for i:= 0; i < d; i++ {
+		hdr[i*2] = r.Names[i]
+		if hdrsz[0] < len(r.Names[i]) {
+			hdrsz[0] = len(r.Names[i])
+		}
+		hdr[i*2+1] = fmt.Sprintf("%v",r.Types[i])
+	}
+	padStrings(hdr,hdrsz,"\t"," ","\n",d,2)
+	hdr = append([]string{"Relation([]struct {\n"}, hdr...)
+	hdr = append(hdr,"}{\n")
+	
+	numElem := d * c
+	// each element in the slice represents one of the struct's
+	// rows * columns.  Columns increment first, so [0] is the 
+	// first row's first column, [1] is the first row's second
+	// column, and so on.
+	
+	// str is the string of each element in the relation,
+	// num is the maximum number of characters in the fmt.Sprintf
+	// representation when delimiters and escape characters are
+	// included.
+	s := make([]string, numElem, numElem+1)
+	n := make([]int, d, d)
+	for i := 0; i < c; i++ {
+		for j := 0; j < d; j++ {
+			// flatten 2d to 1d
+			ndx := i*d + j
+			f := b.Index(i).Field(j)
+			switch f.Kind() {
+			case reflect.String:
+				s[ndx] = fmt.Sprintf("\"%s\"",f)
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+				s[ndx] = fmt.Sprintf("%d",f.Int())
+			case reflect.Float32, reflect.Float64:
+				s[ndx] = fmt.Sprintf("%f",f.Float())
+			default:
+				s[ndx] = fmt.Sprintf("%v",f)
+					
+			}
+			// we end up taking len(s[ndx]) 3 times this way
+			// if it turns out to be slow in the profiler we
+			// might want to put it into another slice
+			if n[j] < len(s[ndx]) {
+				n[j] = len(s[ndx])
+			}
+		} 
+	}
+	
+	// go back through each of the strings and pad with spaces and
+	// add newlines and tab whitespace
+	
+	if len(n) > 0 {
+		// the first column has an extra tab and {
+		n[0] = n[0]+2 
+	}
+	
+	padStrings(s,n,"\t{",",","},\n",c,d)
+	s = append(s, "})")
+	str = strings.Join(append(hdr,s...),"")
+	return
+}
 
-	// placeholder
-	return fmt.Sprintf("%v", r.Body)
-
-	// go back through each of the strings and pad with spaces
-
-	// create a human readable heading
-
-	// construct the text with some extra ascii to make it easier
-	// to understand
+func padStrings(s []string, n []int, start string, delim string, end string, c int, d int) () {
+	for i := 0; i < c; i++ {
+		// each line begins with a tab + {
+		s[i*d] = fmt.Sprintf("%s%s",start,s[i*d])
+		for j := 0; j < d-1; j++ {
+			ndx := i*d + j
+			s[ndx] = fmt.Sprintf("%s%s%s",s[ndx],delim,strings.Repeat(" ",n[j] - len(s[ndx]) + 1))
+		}
+		// each line ends with a newline but doesn't require pad
+		s[(i + 1) * d - 1] = fmt.Sprintf("%s%s",s[(i + 1) * d - 1],end)
+	}
 }

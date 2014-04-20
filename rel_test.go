@@ -63,19 +63,19 @@ var Orders = New([]struct {
 func TestString(t *testing.T) {
 	// TODO(jonlawlor): replace with table driven test?
 	out := `Relation([]struct {
-		PNO    int
-		PName  string
-		Color  string
-		Weight float64
-		City   string
-	}{
-		{1, "Nut",   "Red",   12.0, "London"},
-		{2, "Bolt",  "Green", 17.0, "Paris"},
-		{3, "Screw", "Blue",  17.0, "Oslo"},
-		{4, "Screw", "Red",   14.0, "London"},
-		{5, "Cam",   "Blue",  12.0, "Paris"},
-		{6, "Cog",   "Red",   19.0, "London"},
-	})`
+	PNO    int
+	PName  string
+	Color  string
+	Weight float64
+	City   string
+}{
+	{1, "Nut",   "Red",   12.000000, "London"},
+	{2, "Bolt",  "Green", 17.000000, "Paris"},
+	{3, "Screw", "Blue",  17.000000, "Oslo"},
+	{4, "Screw", "Red",   14.000000, "London"},
+	{5, "Cam",   "Blue",  12.000000, "Paris"},
+	{6, "Cog",   "Red",   19.000000, "London"},
+})`
 	if in := fmt.Sprintf("%v", Parts); in != out {
 		t.Errorf("String(Parts) = \"%v\", want \"%v\"", in, out)
 	}
