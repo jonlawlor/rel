@@ -48,6 +48,22 @@ type relStruct struct {
 	Body interface{}
 	}
 
+func New(v interface{}) (rel relStruct) {
+	e := reflect.TypeOf(v).Elem()
+	n := e.NumField()
+	cn := make([]string,n)
+	ct := make([]reflect.Type,n)
+	for i := 0; i < n; i++ {
+		f := e.Field(i)
+		cn[i] = f.Name
+		ct[i] = f.Type
+	}
+	rel = relStruct{cn, ct, v}
+	return
+	}
+
+
+
 func (r relStruct) Deg() int {
 	return len(r.Names)
 } 

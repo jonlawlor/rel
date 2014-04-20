@@ -2,13 +2,12 @@
 
 package rel
 
-import "fmt"
+import "testing"
 
 // data for a Suppliers, Parts & orders database, using the example provided
 // by C. J. Date in his book "Database in Depth" in Figure 1-3.
 // I think he might have a different type for the SNO and PNO columns, but int
-// probably works just as well.  We might want to define a new type?
-
+// probably works just as well.  We might want to define a type alias for it.
 
 // Suppliers relation, with candidate keys {SNO}, {SName}
 var Suppliers = []struct {
@@ -60,9 +59,8 @@ var Orders = []struct {
 	{4, 5, 400},
 }
 
-
-func main() {
-	fmt.Println("Suppliers: ", Suppliers)
-	fmt.Println("Parts: ", Parts)
-	fmt.Println("Orders: ", Orders)
-	}
+func TestNew(t *testing.T) {	
+	New(Parts)
+	New(Suppliers)
+	New(Orders)
+}
