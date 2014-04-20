@@ -19,10 +19,10 @@
 
 package rel
 
-import {
+import (
 	"reflect"
 	"fmt"
-}
+)
 
 // Tuple has similar meaning to rows in SQL
 type Tuple interface{}
@@ -35,7 +35,7 @@ type Relation interface {
 	Card() int // Cardinality; the number of tuples in the body
 }
 
-type relStruct {
+type relStruct struct {
 	// Names & Types constitute the heading of the relation
 	// using slices here instead of a map to preserve order
 	// the reason is because golang distinguishes between structs
@@ -48,26 +48,30 @@ type relStruct {
 	Body interface{}
 	}
 
-function (r relStruct) Deg() int {
+func (r relStruct) Deg() int {
 	return len(r.Names)
 } 
-function (r relStruct) Card() int {
-	return len(r.Body)
+func (r relStruct) Card() int {
+	return reflect.ValueOf(r.Body).Len()
 } 
 
 // Heading returns a map from column names to types
-function (r relStruct) Heading() (h map[string]reflect.Type) {
+func (r relStruct) Heading() (h map[string]reflect.Type) {
 	for i := 0; i < len(r.Names); i++ {
 		h[r.Names[i]] = r.Types[i]
 	}
+	return
 }
 
 // String returns a text representation of the Relation
-function (r relStruct) String() string {
+func (r relStruct) String() string {
 	// figure out the string representation of each value
 	// within each of the tuples, and build up a 2d slice of 
 	// strings with that representation.  While this is going
 	// on, figure out how long each of the strings are
+	
+	// placeholder
+	return fmt.Sprintf("%v",r)
 	
 	// go back through each of the strings and pad with spaces
 	
