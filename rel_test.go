@@ -80,3 +80,37 @@ func TestString(t *testing.T) {
 		t.Errorf("String(Parts) = \"%v\", want \"%v\"", in, out)
 	}
 }
+
+func TestDeg(t *testing.T) {
+	fix := []struct {
+		name string
+		in   int
+		out  int
+	}{
+		{"Suppliers", Suppliers.Deg(), 4},
+		{"Parts",     Parts.Deg(),     5},
+		{"Orders",    Orders.Deg(),    3},
+	}
+	for i, dt := range fix {
+            if dt.in != dt.out {
+                    t.Errorf("%d. %s.Deg() => %d, want %d", i, dt.name, dt.in, dt.out)
+            }
+    }
+}
+
+func TestCard(t *testing.T) {
+	fix := []struct {
+		name string
+		in   int
+		out  int
+	}{
+		{"Suppliers", Suppliers.Card(), 5},
+		{"Parts",     Parts.Card(),     6},
+		{"Orders",    Orders.Card(),    12},
+	}
+	for i, dt := range fix {
+            if dt.in != dt.out {
+                    t.Errorf("%d. %s.Card() => %d, want %d", i, dt.name, dt.in, dt.out)
+            }
+    }
+}
