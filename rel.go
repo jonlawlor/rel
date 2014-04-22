@@ -83,19 +83,19 @@ func New(v interface{}, ckeys [][]string) (rel Relation, err error) {
 // this ensures that the names of the keys are all in the attributes
 // of the relation
 func checkCandidateKeys(ckeys [][]string, cn []string) (err error) {
+	names := make(map[string]struct{})
+	for _, n := range cn {
+		names[n] = struct{}{}
+	}
 	for _, ck := range ckeys {
 		if len(ck) == 0 {
-			err = fmt.Errorf("null candidate key not allowed")
+			// note that this doesn't fire if ckeys is also empty
+			// but that is by design
+			err = fmt.Errorf("empty candidate key not allowed")
 			return
 		}
 		for _, k := range ck {
-			keyFound := false
-			for _, n := range cn {
-				if k == n {
-					keyFound = true
-					break
-				}
-			}
+			_, keyFound := names[k]
 			if !keyFound {
 				err = fmt.Errorf("prime attribute not found: %s", k)
 				return
@@ -171,33 +171,29 @@ func tabTable(r Relation) string {
 	tups := make(chan reflect.Value)
 	r.Tuples(tups)
 
+	// TODO(jonlawlor): abstract the per-tuple functional mapping to another
+	// method?
 	deg := r.Deg()
-BodyLoop:
-	for {
-		// pull one of the tuples
-		select {
-		case tup, ok := <-tups:
-			if !ok {
-				break BodyLoop
+	for tup := range tups {
+		// this part might be replacable with some workers that
+		// convert tuples to strings
+		fmt.Fprintf(w, "\t{")
+		for j := 0; j < deg; j++ {
+			f := tup.Field(j)
+			switch f.Kind() {
+			case reflect.String:
+				fmt.Fprintf(w, "%q,\t", f)
+			case reflect.Bool:
+				fmt.Fprintf(w, "%t,\t", f.Bool())
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+				fmt.Fprintf(w, "%d,\t", f.Int())
+			case reflect.Float32, reflect.Float64:
+				fmt.Fprintf(w, "%g,\t", f.Float())
+			default:
+				fmt.Fprintf(w, "%v,\t", f)
 			}
-			fmt.Fprintf(w, "\t{")
-			for j := 0; j < deg; j++ {
-				f := tup.Field(j)
-				switch f.Kind() {
-				case reflect.String:
-					fmt.Fprintf(w, "%q,\t", f)
-				case reflect.Bool:
-					fmt.Fprintf(w, "%t,\t", f.Bool())
-				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-					fmt.Fprintf(w, "%d,\t", f.Int())
-				case reflect.Float32, reflect.Float64:
-					fmt.Fprintf(w, "%g,\t", f.Float())
-				default:
-					fmt.Fprintf(w, "%v,\t", f)
-				}
-			}
-			fmt.Fprintf(w, "},\n")
 		}
+		fmt.Fprintf(w, "},\n")
 	}
 
 	w.Flush()
