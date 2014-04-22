@@ -32,12 +32,12 @@ var Parts = New([]struct {
 	Weight float64
 	City   string
 }{
-	{1, "Nut",   "Red",   12.0, "London"},
-	{2, "Bolt",  "Green", 17.0, "Paris"},
-	{3, "Screw", "Blue",  17.0, "Oslo"},
-	{4, "Screw", "Red",   14.0, "London"},
-	{5, "Cam",   "Blue",  12.0, "Paris"},
-	{6, "Cog",   "Red",   19.0, "London"},
+	{1, "Nut", "Red", 12.0, "London"},
+	{2, "Bolt", "Green", 17.0, "Paris"},
+	{3, "Screw", "Blue", 17.0, "Oslo"},
+	{4, "Screw", "Red", 14.0, "London"},
+	{5, "Cam", "Blue", 12.0, "Paris"},
+	{6, "Cog", "Red", 19.0, "London"},
 })
 
 // Orders relation, with candidate keys {PNO, SNO}
@@ -62,22 +62,22 @@ var Orders = New([]struct {
 
 func TestString(t *testing.T) {
 	// TODO(jonlawlor): replace with table driven test?
-	out := `Relation([]struct {
-	PNO    int
-	PName  string
-	Color  string
-	Weight float64
-	City   string
+	out := `rel.New([]struct {
+ PNO    int     
+ PName  string  
+ Color  string  
+ Weight float64 
+ City   string  
 }{
-	{1, "Nut",   "Red",   12.000000, "London"},
-	{2, "Bolt",  "Green", 17.000000, "Paris"},
-	{3, "Screw", "Blue",  17.000000, "Oslo"},
-	{4, "Screw", "Red",   14.000000, "London"},
-	{5, "Cam",   "Blue",  12.000000, "Paris"},
-	{6, "Cog",   "Red",   19.000000, "London"},
+ {1, "Nut",   "Red",   12, "London", },
+ {2, "Bolt",  "Green", 17, "Paris",  },
+ {3, "Screw", "Blue",  17, "Oslo",   },
+ {4, "Screw", "Red",   14, "London", },
+ {5, "Cam",   "Blue",  12, "Paris",  },
+ {6, "Cog",   "Red",   19, "London", },
 })`
 	if in := fmt.Sprintf("%v", Parts); in != out {
-		t.Errorf("String(Parts) = \"%v\", want \"%v\"", in, out)
+		t.Errorf("String(Parts) = \"%s\", want \"%s\"", in, out)
 	}
 }
 
@@ -88,14 +88,14 @@ func TestDeg(t *testing.T) {
 		out  int
 	}{
 		{"Suppliers", Suppliers.Deg(), 4},
-		{"Parts",     Parts.Deg(),     5},
-		{"Orders",    Orders.Deg(),    3},
+		{"Parts", Parts.Deg(), 5},
+		{"Orders", Orders.Deg(), 3},
 	}
 	for i, dt := range fix {
-            if dt.in != dt.out {
-                    t.Errorf("%d. %s.Deg() => %d, want %d", i, dt.name, dt.in, dt.out)
-            }
-    }
+		if dt.in != dt.out {
+			t.Errorf("%d. %s.Deg() => %d, want %d", i, dt.name, dt.in, dt.out)
+		}
+	}
 }
 
 func TestCard(t *testing.T) {
@@ -105,12 +105,12 @@ func TestCard(t *testing.T) {
 		out  int
 	}{
 		{"Suppliers", Suppliers.Card(), 5},
-		{"Parts",     Parts.Card(),     6},
-		{"Orders",    Orders.Card(),    12},
+		{"Parts", Parts.Card(), 6},
+		{"Orders", Orders.Card(), 12},
 	}
 	for i, dt := range fix {
-            if dt.in != dt.out {
-                    t.Errorf("%d. %s.Card() => %d, want %d", i, dt.name, dt.in, dt.out)
-            }
-    }
+		if dt.in != dt.out {
+			t.Errorf("%d. %s.Card() => %d, want %d", i, dt.name, dt.in, dt.out)
+		}
+	}
 }

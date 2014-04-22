@@ -19,24 +19,31 @@
 package rel
 
 import (
+	"bytes"
 	"fmt"
 	"reflect"
-	"strings"
+	"text/tabwriter"
 )
 
-// Tuple has similar meaning to rows in SQL
-type Tuple interface{}
+type Attribute struct {
+	Name string
+	Type reflect.Type
+}
 
 // Relation has similar meaning to tables in SQL
 type Relation interface {
 	// the headding is a set of column name:type pairs
-	Heading() map[string]reflect.Type
+	Heading() []Attribute
+
 	Deg() int  // Degree; the number of attributes
 	Card() int // Cardinality; the number of tuples in the body
+
+	Tuples(chan reflect.Value)
 }
 
-type relStruct struct {
-	// Names & Types constitute the heading of the relation
+// Simple is an implementation of Relation using a []struct
+type Simple struct {
+	// Names & Types constitute the heading of the relation.
 	// using slices here instead of a map to preserve order
 	// the reason is because golang distinguishes between structs
 	// based on the order of their fields, and users may want to
@@ -48,7 +55,10 @@ type relStruct struct {
 	Body interface{}
 }
 
-func New(v interface{}) (rel relStruct) {
+// New creates a new Relation.
+// it returns a Relation implemented using the Simple
+// structure, which keeps Tuples in a slice of struct.
+func New(v interface{}) (rel Relation) {
 	e := reflect.TypeOf(v).Elem()
 	n := e.NumField()
 	cn := make([]string, n)
@@ -58,117 +68,106 @@ func New(v interface{}) (rel relStruct) {
 		cn[i] = f.Name
 		ct[i] = f.Type
 	}
-	rel = relStruct{cn, ct, v}
+	rel = Simple{cn, ct, v}
 	return
 }
 
-func (r relStruct) Deg() int {
+// Deg returns the degree of the relation
+func (r Simple) Deg() int {
 	return len(r.Names)
 }
-func (r relStruct) Card() int {
+
+// Card returns the cardinality of the relation
+func (r Simple) Card() int {
 	return reflect.ValueOf(r.Body).Len()
 }
 
-// Heading returns a map from column names to types
-func (r relStruct) Heading() (h map[string]reflect.Type) {
-	for i := 0; i < len(r.Names); i++ {
-		h[r.Names[i]] = r.Types[i]
-	}
+// Tuples sends each tuple in the relation to a channel
+func (r Simple) Tuples(t chan reflect.Value) {
+	c := r.Card()
+	b := reflect.ValueOf(r.Body)
+
+	go func() {
+		defer close(t)
+		for i := 0; i < c; i++ {
+			t <- b.Index(i)
+		}
+	}()
 	return
+}
+
+// need to make a Map or Apply function which will evaluate a function
+// on the output of the Tuples t chan
+
+// Heading returns a map from column names to types
+func (r Simple) Heading() []Attribute {
+	deg := r.Deg()
+	h := make([]Attribute, deg)
+	for i := 0; i < deg; i++ {
+		h[i] = Attribute{r.Names[i], r.Types[i]}
+	}
+	return h
 }
 
 // String returns a text representation of the Relation
-func (r relStruct) String() (str string) {
-	// figure out the string representation of each value
-	// within each of the tuples, and build up a 2d slice of
-	// strings with that representation.  While this is going
-	// on, figure out how long each of the strings are.
+func (r Simple) String() string {
+	return tabTable(r)
+}
 
+func tabTable(r Relation) string {
 	// actually, is it possible to use the go fmt tool code to do
 	// this for us?  It seems like a better way.
 	// well, it would be except it doesn't align fields within
-	// slices of strings.  Oh well.
-	
-	b := reflect.ValueOf(r.Body)
-	
-	d := r.Deg()
-	c := r.Card()
-	
-	
-	// create the heading
-	hdr := make([]string,2*d,2*d+1)
-	hdrsz := make([]int, 2, 2)
-	for i:= 0; i < d; i++ {
-		hdr[i*2] = r.Names[i]
-		if hdrsz[0] < len(r.Names[i]) {
-			hdrsz[0] = len(r.Names[i])
-		}
-		hdr[i*2+1] = fmt.Sprintf("%v",r.Types[i])
-	}
-	padStrings(hdr,hdrsz,"\t"," ","\n",d,2)
-	hdr = append([]string{"Relation([]struct {\n"}, hdr...)
-	hdr = append(hdr,"}{\n")
-	
-	numElem := d * c
-	// each element in the slice represents one of the struct's
-	// rows * columns.  Columns increment first, so [0] is the 
-	// first row's first column, [1] is the first row's second
-	// column, and so on.
-	
-	// str is the string of each element in the relation,
-	// num is the maximum number of characters in the fmt.Sprintf
-	// representation when delimiters and escape characters are
-	// included.
-	s := make([]string, numElem, numElem+1)
-	n := make([]int, d, d)
-	for i := 0; i < c; i++ {
-		for j := 0; j < d; j++ {
-			// flatten 2d to 1d
-			ndx := i*d + j
-			f := b.Index(i).Field(j)
-			switch f.Kind() {
-			case reflect.String:
-				s[ndx] = fmt.Sprintf("\"%s\"",f)
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				s[ndx] = fmt.Sprintf("%d",f.Int())
-			case reflect.Float32, reflect.Float64:
-				s[ndx] = fmt.Sprintf("%f",f.Float())
-			default:
-				s[ndx] = fmt.Sprintf("%v",f)
-					
-			}
-			// we end up taking len(s[ndx]) 3 times this way
-			// if it turns out to be slow in the profiler we
-			// might want to put it into another slice
-			if n[j] < len(s[ndx]) {
-				n[j] = len(s[ndx])
-			}
-		} 
-	}
-	
-	// go back through each of the strings and pad with spaces and
-	// add newlines and tab whitespace
-	
-	if len(n) > 0 {
-		// the first column has an extra tab and {
-		n[0] = n[0]+2 
-	}
-	
-	padStrings(s,n,"\t{",",","},\n",c,d)
-	s = append(s, "})")
-	str = strings.Join(append(hdr,s...),"")
-	return
-}
+	// slices of struct.  Oh well.
 
-func padStrings(s []string, n []int, start string, delim string, end string, c int, d int) () {
-	for i := 0; i < c; i++ {
-		// each line begins with a tab + {
-		s[i*d] = fmt.Sprintf("%s%s",start,s[i*d])
-		for j := 0; j < d-1; j++ {
-			ndx := i*d + j
-			s[ndx] = fmt.Sprintf("%s%s%s",s[ndx],delim,strings.Repeat(" ",n[j] - len(s[ndx]) + 1))
-		}
-		// each line ends with a newline but doesn't require pad
-		s[(i + 1) * d - 1] = fmt.Sprintf("%s%s",s[(i + 1) * d - 1],end)
+	// use a buffer to write to and later turn into a string
+	s := bytes.NewBufferString("rel.New([]struct {\n")
+
+	w := new(tabwriter.Writer)
+	w.Init(s, 1, 1, 1, ' ', 0)
+
+	// create struct type
+	for _, att := range r.Heading() {
+		fmt.Fprintf(w, "\t%s\t%v\t\n", att.Name, att.Type)
 	}
+	w.Flush()
+	s.WriteString("}{\n")
+
+	// write the body
+	//TODO(jonlawlor): see if buffering the channel improves performance
+	tups := make(chan reflect.Value)
+	r.Tuples(tups)
+
+	deg := r.Deg()
+BodyLoop:
+	for {
+		// pull one of the tuples
+		select {
+		case tup, ok := <-tups:
+			if !ok {
+				break BodyLoop
+			}
+			fmt.Fprintf(w, "\t{")
+			for j := 0; j < deg; j++ {
+				f := tup.Field(j)
+				switch f.Kind() {
+				case reflect.String:
+					fmt.Fprintf(w, "%q,\t", f)
+				case reflect.Bool:
+					fmt.Fprintf(w, "%t,\t", f.Bool())
+				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+					fmt.Fprintf(w, "%d,\t", f.Int())
+				case reflect.Float32, reflect.Float64:
+					fmt.Fprintf(w, "%g,\t", f.Float())
+				default:
+					fmt.Fprintf(w, "%v,\t", f)
+				}
+			}
+			fmt.Fprintf(w, "},\n")
+		}
+	}
+
+	w.Flush()
+	s.WriteString("})")
+	return s.String()
 }
