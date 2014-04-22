@@ -53,12 +53,15 @@ type Simple struct {
 
 	// I wish there was a more precise way of representing this
 	Body interface{}
+
+	// set of candidate keys
+	CKeys [][]string
 }
 
 // New creates a new Relation.
 // it returns a Relation implemented using the Simple
 // structure, which keeps Tuples in a slice of struct.
-func New(v interface{}) (rel Relation) {
+func New(v interface{}, ckeys [][]string) (rel Relation, err error) {
 	e := reflect.TypeOf(v).Elem()
 	n := e.NumField()
 	cn := make([]string, n)
@@ -68,7 +71,37 @@ func New(v interface{}) (rel Relation) {
 		cn[i] = f.Name
 		ct[i] = f.Type
 	}
-	rel = Simple{cn, ct, v}
+	err = checkCandidateKeys(ckeys, cn)
+	if err != nil {
+		return
+	}
+	rel = Simple{cn, ct, v, ckeys}
+	return
+}
+
+// checkCandidateKeys checks the set of candidate keys
+// this ensures that the names of the keys are all in the attributes
+// of the relation
+func checkCandidateKeys(ckeys [][]string, cn []string) (err error) {
+	for _, ck := range ckeys {
+		if len(ck) == 0 {
+			err = fmt.Errorf("null candidate key not allowed")
+			return
+		}
+		for _, k := range ck {
+			keyFound := false
+			for _, n := range cn {
+				if k == n {
+					keyFound = true
+					break
+				}
+			}
+			if !keyFound {
+				err = fmt.Errorf("prime attribute not found: %s", k)
+				return
+			}
+		}
+	}
 	return
 }
 
