@@ -103,7 +103,7 @@ func distinct(v interface{}, e reflect.Type) []reflect.Value {
 	for i := 0; i < c; i++ {
 		m.SetMapIndex(b.Index(i), blank)
 	}
-	
+
 	// from tests it seems like the order of reflect.MapKeys() is
 	// not randomized, but we can't rely on that. (as of go 1.2)
 	// TODO(jonlawlor): change the string tests to be order independent.

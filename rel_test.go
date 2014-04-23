@@ -88,6 +88,84 @@ func TestString(t *testing.T) {
 	}
 }
 
+func BenchmarkSimpleNewTiny(b *testing.B) {
+	// test the time it takes to make a new relation with a given size
+	exRel := exampleRel2(10)
+	ck := [][]string{[]string{"foo"}}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		New(exRel, ck)
+	}
+}
+func BenchmarkSimpleStringTiny(b *testing.B) {
+	// test the time it takes to turn a relation into a string
+	exRel, _ := New(exampleRel2(10), [][]string{[]string{"foo"}})
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		fmt.Sprintf("%v", exRel)
+	}
+}
+func BenchmarkSimpleNewSmall(b *testing.B) {
+	// test the time it takes to make a new relation with a given size
+	exRel := exampleRel2(1000)
+	ck := [][]string{[]string{"foo"}}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		New(exRel, ck)
+	}
+}
+func BenchmarkSimpleStringSmall(b *testing.B) {
+	// test the time it takes to turn a relation into a string
+	exRel, _ := New(exampleRel2(1000), [][]string{[]string{"foo"}})
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		fmt.Sprintf("%v", exRel)
+	}
+}
+func BenchmarkSimpleNewMedium(b *testing.B) {
+	// test the time it takes to make a new relation with a given size
+	exRel := exampleRel2(100000)
+	ck := [][]string{[]string{"foo"}}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		New(exRel, ck)
+	}
+}
+func BenchmarkSimpleStringMedium(b *testing.B) {
+	// test the time it takes to turn a relation into a string
+	exRel, _ := New(exampleRel2(100000), [][]string{[]string{"foo"}})
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		fmt.Sprintf("%v", exRel)
+	}
+}
+func BenchmarkSimpleNewLarge(b *testing.B) {
+	// test the time it takes to make a new relation with a given size
+	exRel := exampleRel2(10000000)
+	ck := [][]string{[]string{"foo"}}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		New(exRel, ck)
+	}
+}
+
+// I would create a StringLarge version but I am getting oom errors on
+// construction of the large slices.  Maybe it would be better to
+// have a tuple generator channel or something?
+
+type exTup2 struct {
+	foo int
+	bar string
+}
+
+// exampleRel2 creates an example relation with given cardinality
+func exampleRel2(c int) (recs []exTup2) {
+	for i := 0; i < c; i++ {
+		recs = append(recs, exTup2{i, "test"})
+	}
+	return
+}
+
 func TestDeg(t *testing.T) {
 	fix := []struct {
 		name string
