@@ -3,18 +3,15 @@
 // Depth" by C. J. Date.  Therefore all terminology should be the same as
 // used in that book.  There are some notable differences from SQL - the
 // biggest of which is that all Relations are automatically distinct.
+// Also, all relations have at least one candidate key, there are two
+// relations with no attributes, and there is no primary key in the base
+// interface.
 //
 // The current implementation:
 // It makes heavy use of reflection, but should provide some interesting
 // ways of programming in go.  Because it uses so much reflection, it is
 // difficult to implement in an idiomatic way.
 //
-// general outline of stuff todo:
-// implement relations with structs that hold slices of structs, and also
-// include some type information.  Then, each of the relational operators:
-// projectrename (in place of just project and rename), restrict,
-// thetajoin, setdiff, union, groupby, update, assignment, etc. will all
-// be implemented with some reflection.
 
 package rel
 
@@ -25,6 +22,8 @@ import (
 	"text/tabwriter"
 )
 
+// Attribute represents a name:type pair which defines the heading
+// of the relation
 type Attribute struct {
 	Name string
 	Type reflect.Type
@@ -32,7 +31,7 @@ type Attribute struct {
 
 // Relation has similar meaning to tables in SQL
 type Relation interface {
-	// the headding is a set of column name:type pairs
+	// the headding is a slice of column name:type pairs
 	Heading() []Attribute
 
 	Deg() int  // Degree; the number of attributes
@@ -51,17 +50,25 @@ type Simple struct {
 	Names []string
 	Types []reflect.Type
 
-	// I wish there was a more precise way of representing this
-	Body interface{}
+	// I wish there was a more precise way of representing this?
+	Body []reflect.Value
 
 	// set of candidate keys
 	CKeys [][]string
+
+	// the type of the tuples contained within the relation
+	tupleType reflect.Type
 }
 
 // New creates a new Relation.
 // it returns a Relation implemented using the Simple
 // structure, which keeps Tuples in a slice of struct.
-func New(v interface{}, ckeys [][]string) (rel Relation, err error) {
+func New(v interface{}, ckeys [][]string) (rel Simple, err error) {
+	//TODO(jonlawlor): allow callers to provide different inputs,
+	// like map[struct{...}]struct{} or chan struct{...} which could also
+	// represent a relation, and also error out if we can't figure out
+	// how to construct a relation from the input
+
 	e := reflect.TypeOf(v).Elem()
 	n := e.NumField()
 	cn := make([]string, n)
@@ -71,12 +78,32 @@ func New(v interface{}, ckeys [][]string) (rel Relation, err error) {
 		cn[i] = f.Name
 		ct[i] = f.Type
 	}
+	if len(ckeys) == 0 {
+		// all relations have a candidate key of all of their
+		// attributes
+		// TODO(jonlawlor): this feels like a clumsy way of doing this.
+		ckeys = append(ckeys, []string{})
+		copy(ckeys[0], cn)
+	}
 	err = checkCandidateKeys(ckeys, cn)
 	if err != nil {
 		return
 	}
-	rel = Simple{cn, ct, v, ckeys}
+	rel = Simple{cn, ct, distinct(v, e), ckeys, e}
+
 	return
+}
+
+// change interface struct slice to the slice of unique
+func distinct(v interface{}, e reflect.Type) []reflect.Value {
+	m := reflect.MakeMap(reflect.MapOf(e, reflect.TypeOf(struct{}{})))
+	b := reflect.ValueOf(v)
+	c := b.Len()
+	blank := reflect.ValueOf(struct{}{})
+	for i := 0; i < c; i++ {
+		m.SetMapIndex(b.Index(i), blank)
+	}
+	return m.MapKeys()
 }
 
 // checkCandidateKeys checks the set of candidate keys
@@ -112,18 +139,15 @@ func (r Simple) Deg() int {
 
 // Card returns the cardinality of the relation
 func (r Simple) Card() int {
-	return reflect.ValueOf(r.Body).Len()
+	return len(r.Body)
 }
 
 // Tuples sends each tuple in the relation to a channel
 func (r Simple) Tuples(t chan reflect.Value) {
-	c := r.Card()
-	b := reflect.ValueOf(r.Body)
-
 	go func() {
 		defer close(t)
-		for i := 0; i < c; i++ {
-			t <- b.Index(i)
+		for _, tup := range r.Body {
+			t <- tup
 		}
 	}()
 	return
@@ -157,11 +181,13 @@ func tabTable(r Relation) string {
 	s := bytes.NewBufferString("rel.New([]struct {\n")
 
 	w := new(tabwriter.Writer)
-	w.Init(s, 1, 1, 1, ' ', 0)
+	// \xff is used as an escape delim; see the tabwriter docs
+	w.Init(s, 1, 1, 1, ' ', tabwriter.StripEscape)
 
-	// create struct type
+	// create struct slice type information
+	// TODO(jonlawlor): include tags?
 	for _, att := range r.Heading() {
-		fmt.Fprintf(w, "\t%s\t%v\t\n", att.Name, att.Type)
+		fmt.Fprintf(w, "\t\xff%s\xff\t\xff%v\xff\t\n", att.Name, att.Type)
 	}
 	w.Flush()
 	s.WriteString("}{\n")
@@ -182,7 +208,7 @@ func tabTable(r Relation) string {
 			f := tup.Field(j)
 			switch f.Kind() {
 			case reflect.String:
-				fmt.Fprintf(w, "%q,\t", f)
+				fmt.Fprintf(w, "\xff%q\xff,\t", f)
 			case reflect.Bool:
 				fmt.Fprintf(w, "%t,\t", f.Bool())
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
@@ -190,7 +216,7 @@ func tabTable(r Relation) string {
 			case reflect.Float32, reflect.Float64:
 				fmt.Fprintf(w, "%g,\t", f.Float())
 			default:
-				fmt.Fprintf(w, "%v,\t", f)
+				fmt.Fprintf(w, "\xff%v\xff,\t", f)
 			}
 		}
 		fmt.Fprintf(w, "},\n")
