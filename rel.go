@@ -3,14 +3,18 @@
 // Depth" by C. J. Date.  Therefore all terminology should be the same as
 // used in that book.  There are some notable differences from SQL - the
 // biggest of which is that all Relations are automatically distinct.
+// The second biggest is that there are no nulls.  If you need a type to
+// represent a null, you'll have to add it in yourself.
 // Also, all relations have at least one candidate key, there are two
 // relations with no attributes, and there is no primary key in the base
-// interface.
+// interface.  
 //
 // The current implementation:
 // It makes heavy use of reflection, but should provide some interesting
 // ways of programming in go.  Because it uses so much reflection, it is
-// difficult to implement in an idiomatic way.
+// difficult to implement in an idiomatic way.  Also, the performance 
+// leaves something to be desired!  However, once the interface is complete
+// it might be possible to implement it in more efficient ways.
 //
 
 package rel
@@ -105,7 +109,7 @@ func distinct(v interface{}, e reflect.Type) []reflect.Value {
 	}
 
 	// from tests it seems like the order of reflect.MapKeys() is
-	// not randomized, but we can't rely on that. (as of go 1.2)
+	// not randomized, (as of go 1.2) but we can't rely on that.
 	// TODO(jonlawlor): change the string tests to be order independent.
 	return m.MapKeys()
 }
@@ -229,4 +233,21 @@ func tabTable(r Relation) string {
 	w.Flush()
 	s.WriteString("})")
 	return s.String()
+}
+
+// Project creates a new relation with less than or equal degree
+// t2 has to be a new type which is a subset of the current tuple's
+// type.  We can't use a slice of strings because go can't construct
+// arbitrary types through reflection.
+func (r1 Simple) Project(t2 interface{}) (r2 Relation) {
+	// figure out which of the candidate keys (if any) to keep.
+	// only the keys that only have attributes in the new type are
+	// valid.  If we do have any keys that are still valid, then
+	// we don't have to perform distinct on the body again.
+	
+	
+	// take each of the Tuples, transform them into the new type
+	// and append them to the new tuple body
+	
+	// construct the returned relation
 }
