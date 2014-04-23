@@ -31,7 +31,7 @@ type Attribute struct {
 
 // Relation has similar meaning to tables in SQL
 type Relation interface {
-	// the headding is a slice of column name:type pairs
+	// the heading is a slice of column name:type pairs
 	Heading() []Attribute
 
 	Deg() int  // Degree; the number of attributes
@@ -94,7 +94,7 @@ func New(v interface{}, ckeys [][]string) (rel Simple, err error) {
 	return
 }
 
-// change interface struct slice to the slice of unique
+// distinct changes an interface struct slice to a slice of unique reflect.Values
 func distinct(v interface{}, e reflect.Type) []reflect.Value {
 	m := reflect.MakeMap(reflect.MapOf(e, reflect.TypeOf(struct{}{})))
 	b := reflect.ValueOf(v)
@@ -103,6 +103,10 @@ func distinct(v interface{}, e reflect.Type) []reflect.Value {
 	for i := 0; i < c; i++ {
 		m.SetMapIndex(b.Index(i), blank)
 	}
+	
+	// from tests it seems like the order of reflect.MapKeys() is
+	// not randomized, but we can't rely on that. (as of go 1.2)
+	// TODO(jonlawlor): change the string tests to be order independent.
 	return m.MapKeys()
 }
 
