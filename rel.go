@@ -239,7 +239,7 @@ func tabTable(r Relation) string {
 // t2 has to be a new type which is a subset of the current tuple's
 // type.  We can't use a slice of strings because go can't construct
 // arbitrary types through reflection.
-func (r1 Simple) Project(t2 interface{}) (r2 Relation) {
+//func (r1 Simple) Project(t2 interface{}) (r2 Relation) {
 	// figure out which of the candidate keys (if any) to keep.
 	// only the keys that only have attributes in the new type are
 	// valid.  If we do have any keys that are still valid, then
@@ -250,4 +250,4 @@ func (r1 Simple) Project(t2 interface{}) (r2 Relation) {
 	// and append them to the new tuple body
 	
 	// construct the returned relation
-}
+//}

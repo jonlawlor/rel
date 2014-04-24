@@ -105,6 +105,15 @@ func BenchmarkSimpleStringTiny(b *testing.B) {
 		fmt.Sprintf("%v", exRel)
 	}
 }
+func BenchmarkNativeNewTiny(b *testing.B) {
+	// test the time it takes to make a new relation with a given size
+	exRel := exampleRel2(10)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		nativeDistinct(exRel)
+	}
+}
+
 func BenchmarkSimpleNewSmall(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRel2(1000)
@@ -122,6 +131,16 @@ func BenchmarkSimpleStringSmall(b *testing.B) {
 		fmt.Sprintf("%v", exRel)
 	}
 }
+func BenchmarkNativeNewSmall(b *testing.B) {
+	// test the time it takes to make a new relation with a given size
+	exRel := exampleRel2(1000)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		nativeDistinct(exRel)
+	}
+}
+
+
 func BenchmarkSimpleNewMedium(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRel2(100000)
@@ -139,6 +158,16 @@ func BenchmarkSimpleStringMedium(b *testing.B) {
 		fmt.Sprintf("%v", exRel)
 	}
 }
+func BenchmarkNativeNewMedium(b *testing.B) {
+	// test the time it takes to make a new relation with a given size
+	exRel := exampleRel2(100000)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		nativeDistinct(exRel)
+	}
+}
+
+
 func BenchmarkSimpleNewLarge(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRel2(10000000)
@@ -147,6 +176,19 @@ func BenchmarkSimpleNewLarge(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		New(exRel, ck)
 	}
+}
+func nativeDistinct(tups []exTup2) []exTup2 {
+	m := make(map[exTup2]struct{})
+	for _, k := range tups {
+		m[k] = struct{}{}
+	}
+	t:= make([]exTup2,len(m))
+	i := 0
+	for k, _ := range m {
+		t[i] = k
+		i++
+	}
+	return t
 }
 
 // I would create a StringLarge version but I am getting oom errors on
