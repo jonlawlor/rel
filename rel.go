@@ -7,12 +7,12 @@
 // represent a null, you'll have to add it in yourself.
 // Also, all relations have at least one candidate key, there are two
 // relations with no attributes, and there is no primary key in the base
-// interface.  
+// interface.
 //
 // The current implementation:
 // It makes heavy use of reflection, but should provide some interesting
 // ways of programming in go.  Because it uses so much reflection, it is
-// difficult to implement in an idiomatic way.  Also, the performance 
+// difficult to implement in an idiomatic way.  Also, the performance
 // leaves something to be desired!  However, once the interface is complete
 // it might be possible to implement it in more efficient ways.
 //
@@ -108,6 +108,13 @@ func distinct(v interface{}, e reflect.Type) []reflect.Value {
 		m.SetMapIndex(b.Index(i), blank)
 	}
 
+	// I tried using the append unique method descibed in
+	// http://blog.golang.org/profiling-go-programs but it took much longer
+	// under benchmarks.  It may be because the comparison has to be done
+	// using reflect.DeepEqual(x.Interface(), y.Interface())
+	// I suspect that for large slices the map implementation is more efficent
+	// because it has lower time complexity.
+
 	// from tests it seems like the order of reflect.MapKeys() is
 	// not randomized, (as of go 1.2) but we can't rely on that.
 	// TODO(jonlawlor): change the string tests to be order independent.
@@ -175,16 +182,11 @@ func (r Simple) Heading() []Attribute {
 }
 
 // String returns a text representation of the Relation
-func (r Simple) String() string {
-	return tabTable(r)
+func (r Simple) GoString() string {
+	return goStringTabTable(r)
 }
 
-func tabTable(r Relation) string {
-	// actually, is it possible to use the go fmt tool code to do
-	// this for us?  It seems like a better way.
-	// well, it would be except it doesn't align fields within
-	// slices of struct.  Oh well.
-
+func goStringTabTable(r Relation) string {
 	// use a buffer to write to and later turn into a string
 	s := bytes.NewBufferString("rel.New([]struct {\n")
 
@@ -235,19 +237,79 @@ func tabTable(r Relation) string {
 	return s.String()
 }
 
+func (r Simple) String() string {
+	return stringTabTable(r)
+}
+
+func stringTabTable(r Relation) string {
+
+	// use a buffer to write to and later turn into a string
+	s := new(bytes.Buffer)
+
+	w := new(tabwriter.Writer)
+	// \xff is used as an escape delim; see the tabwriter docs
+	// align elements to the right as well
+	w.Init(s, 1, 1, 1, ' ', tabwriter.StripEscape&tabwriter.AlignRight)
+
+	//TODO(jonlawlor): not sure how to create the vertical seps like:
+	//+---------+---------+---------+
+	// which should go in between each of the sections of heading and body
+	// also, I don't know where the candidate keys should go.  Date
+	// does an underline but they can be overlapping, and I am not sure
+	// that unicode allows arbitrary nesting of underlines?  In any case
+	// it is not possible to arrange arbitrary candidate keys to be
+	// adjacent.
+
+	// create heading information
+	for _, att := range r.Heading() {
+		fmt.Fprintf(w, "\t\xff%s\xff\t\xff%v\xff\t\n", att.Name, att.Type)
+	}
+
+	// write the body
+	//TODO(jonlawlor): see if buffering the channel improves performance
+	tups := make(chan reflect.Value)
+	r.Tuples(tups)
+
+	// TODO(jonlawlor): abstract the per-tuple functional mapping to another
+	// method?
+	deg := r.Deg()
+	for tup := range tups {
+		// this part might be replacable with some workers that
+		// convert tuples to strings
+		for j := 0; j < deg; j++ {
+			f := tup.Field(j)
+			switch f.Kind() {
+			case reflect.String:
+				fmt.Fprintf(w, "|\t \xff%s\xff ", f)
+			case reflect.Bool:
+				fmt.Fprintf(w, "|\t %t ", f.Bool())
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+				fmt.Fprintf(w, "|\t %d ", f.Int())
+			case reflect.Float32, reflect.Float64:
+				fmt.Fprintf(w, "|\t %g ", f.Float())
+			default:
+				fmt.Fprintf(w, "|\t \xff%v\xff ", f)
+			}
+		}
+		fmt.Fprintf(w, "\t|\n")
+	}
+
+	w.Flush()
+	return s.String()
+}
+
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subset of the current tuple's
 // type.  We can't use a slice of strings because go can't construct
 // arbitrary types through reflection.
 //func (r1 Simple) Project(t2 interface{}) (r2 Relation) {
-	// figure out which of the candidate keys (if any) to keep.
-	// only the keys that only have attributes in the new type are
-	// valid.  If we do have any keys that are still valid, then
-	// we don't have to perform distinct on the body again.
-	
-	
-	// take each of the Tuples, transform them into the new type
-	// and append them to the new tuple body
-	
-	// construct the returned relation
+// figure out which of the candidate keys (if any) to keep.
+// only the keys that only have attributes in the new type are
+// valid.  If we do have any keys that are still valid, then
+// we don't have to perform distinct on the body again.
+
+// take each of the Tuples, transform them into the new type
+// and append them to the new tuple body
+
+// construct the returned relation
 //}
