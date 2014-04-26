@@ -31,7 +31,6 @@ var parts, _ = New([]struct {
 	City   string
 }{
 	{1, "Nut", "Red", 12.0, "London"},
-	{1, "Nut", "Red", 12.0, "London"},
 	{2, "Bolt", "Green", 17.0, "Paris"},
 	{3, "Screw", "Blue", 17.0, "Oslo"},
 	{4, "Screw", "Red", 14.0, "London"},

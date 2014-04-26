@@ -71,31 +71,50 @@ func New(v interface{}, ckeys [][]string) (rel Simple, err error) {
 	//TODO(jonlawlor): allow callers to provide different inputs,
 	// like map[struct{...}]struct{} or chan struct{...} which could also
 	// represent a relation, and also error out if we can't figure out
-	// how to construct a relation from the input
+	// how to construct a relation from the input.
+	// There should also be a way to construct a relation with an input
+	// that you already know is distinct, so we don't have to ensure it
+	// ourselves.
 
 	e := reflect.TypeOf(v).Elem()
-	n := e.NumField()
-	cn := make([]string, n)
-	ct := make([]reflect.Type, n)
-	for i := 0; i < n; i++ {
-		f := e.Field(i)
-		cn[i] = f.Name
-		ct[i] = f.Type
-	}
+	cn, ct := namesAndTypes(e)
+	b := make([]reflect.Value, 0, 0)
+
 	if len(ckeys) == 0 {
 		// all relations have a candidate key of all of their
 		// attributes
-		// TODO(jonlawlor): this feels like a clumsy way of doing this.
 		ckeys = append(ckeys, []string{})
 		copy(ckeys[0], cn)
+		b = distinct(v, e)
+	} else {
+		err = checkCandidateKeys(ckeys, cn)
+		if err != nil {
+			return
+		}
+		// we don't have to perform a distinct because we are
+		// assuming that the input is.
+		bs := reflect.ValueOf(v)
+		c := bs.Len()
+		b = make([]reflect.Value, c, c)
+		for i := 0; i < c; i++ {
+			b[i] = bs.Index(i)
+		}
 	}
-	err = checkCandidateKeys(ckeys, cn)
-	if err != nil {
-		return
-	}
-	rel = Simple{cn, ct, distinct(v, e), ckeys, e}
+	rel = Simple{cn, ct, b, ckeys, e}
 
 	return
+}
+
+func namesAndTypes(e reflect.Type) ([]string, []reflect.Type) {
+	n := e.NumField()
+	names := make([]string, n)
+	types := make([]reflect.Type, n)
+	for i := 0; i < n; i++ {
+		f := e.Field(i)
+		names[i] = f.Name
+		types[i] = f.Type
+	}
+	return names, types
 }
 
 // distinct changes an interface struct slice to a slice of unique reflect.Values
@@ -222,8 +241,10 @@ func goStringTabTable(r Relation) string {
 			case reflect.Bool:
 				fmt.Fprintf(w, "%t,\t", f.Bool())
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+				// TODO(jonlawlor): I'm not sure all have to be enumerated
 				fmt.Fprintf(w, "%d,\t", f.Int())
 			case reflect.Float32, reflect.Float64:
+				// TODO(jonlawlor): is there a general float type to use here?
 				fmt.Fprintf(w, "%g,\t", f.Float())
 			default:
 				fmt.Fprintf(w, "\xff%v\xff,\t", f)
@@ -249,7 +270,7 @@ func stringTabTable(r Relation) string {
 	w := new(tabwriter.Writer)
 	// \xff is used as an escape delim; see the tabwriter docs
 	// align elements to the right as well
-	w.Init(s, 1, 1, 1, ' ', tabwriter.StripEscape&tabwriter.AlignRight)
+	w.Init(s, 1, 1, 1, ' ', tabwriter.StripEscape|tabwriter.AlignRight)
 
 	//TODO(jonlawlor): not sure how to create the vertical seps like:
 	//+---------+---------+---------+
@@ -284,8 +305,10 @@ func stringTabTable(r Relation) string {
 			case reflect.Bool:
 				fmt.Fprintf(w, "|\t %t ", f.Bool())
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+				// TODO(jonlawlor): I'm not sure all have to be enumerated
 				fmt.Fprintf(w, "|\t %d ", f.Int())
 			case reflect.Float32, reflect.Float64:
+				// TODO(jonlawlor): there may be another representation
 				fmt.Fprintf(w, "|\t %g ", f.Float())
 			default:
 				fmt.Fprintf(w, "|\t \xff%v\xff ", f)
@@ -302,14 +325,109 @@ func stringTabTable(r Relation) string {
 // t2 has to be a new type which is a subset of the current tuple's
 // type.  We can't use a slice of strings because go can't construct
 // arbitrary types through reflection.
-//func (r1 Simple) Project(t2 interface{}) (r2 Relation) {
-// figure out which of the candidate keys (if any) to keep.
-// only the keys that only have attributes in the new type are
-// valid.  If we do have any keys that are still valid, then
-// we don't have to perform distinct on the body again.
+func (r1 Simple) Project(t2 interface{}) (r2 Simple) {
+	c := r1.Card()
+	ck1 := r1.CKeys
+	b2 := make([]reflect.Value, c)
 
-// take each of the Tuples, transform them into the new type
-// and append them to the new tuple body
+	// first figure out if the tuple types of the relation and
+	// projection are equivalent.  If so, convert the tuples to
+	// the (possibly new) type and then return the new relation.
+	e2 := reflect.TypeOf(t2)
+	if r1.tupleType.AssignableTo(e2) {
+		for i, tup := range r1.Body {
+			b2[i] = tup
+		}
+		return Simple{r1.Names, r1.Types, b2, ck1, e2}
+	}
 
-// construct the returned relation
-//}
+	// figure out which fields stay, and where they are in each of
+	// the tuple types.
+	fMap := fieldMap(r1.tupleType, e2)
+	// TODO(jonlawlor): error if fields in e2 are not in r1's tuples.
+
+	// assign fields from the old relation to fields in the new
+	for i, tup1 := range r1.Body {
+		tup2 := reflect.Zero(e2)
+		for _, fm := range fMap {
+			tupf2 := tup2.Field(fm.j)
+			tupf2.Set(tup1.Field(fm.i))
+		}
+		// set the field in the new tuple to the value
+		// from the old one
+		b2[i] = tup2
+	}
+
+	// figure out which of the candidate keys (if any) to keep.
+	// only the keys that only have attributes in the new type are
+	// valid.  If we do have any keys that are still valid, then
+	// we don't have to perform distinct on the body again.
+
+	// figure out the names to remove from the original data
+	remNames := make(map[string]struct{})
+	for _, n1 := range r1.Names {
+		if _, keyfound := fMap[n1]; !keyfound {
+			remNames[n1] = struct{}{}
+		}
+	}
+
+	ck2 := make([][]string, 0)
+KeyLoop:
+	for _, ck := range ck1 {
+		// if the candidate key contains a name we want to remove, then
+		// get rid of it
+		for _, k := range ck {
+			if _, keyfound := remNames[k]; keyfound {
+				break KeyLoop
+			}
+		}
+		ck2 = append(ck2, ck)
+	}
+
+	cn, ct := namesAndTypes(e2)
+	// construct the returned relation
+	return Simple{cn, ct, b2, ck2, e2}
+}
+
+// fieldMap creates a map from fields of one struct type to the fields of another
+// the returned map's values have two fields i,j , which indicate the location of
+// the field name in the input types
+// if the field is absent from either of the inputs, it is not returned.
+func fieldMap(e1 reflect.Type, e2 reflect.Type) map[string]struct {
+	i int
+	j int
+} {
+	// TODO(jonlawlor): we might want to exclude unexported fields?
+	m := make(map[string]struct {
+		i int
+		j int
+	})
+	for i := 0; i < e1.NumField(); i++ {
+		n1 := e1.Field(i).Name
+		// find the field location in the original tuples
+		for j := 0; j < e2.NumField(); j++ {
+			n2 := e2.Field(j).Name
+			if n1 == n2 {
+				m[n1] = struct {
+					i int
+					j int
+				}{i, j}
+				break
+			}
+		}
+	}
+	return m
+}
+
+// returns true if a slice of strings contains a given string
+// otherwise false
+func containsName(names []string, name string) (tf bool) {
+	tf = false
+	for _, nm := range names {
+		if nm == name {
+			tf = true
+			return
+		}
+	}
+	return
+}

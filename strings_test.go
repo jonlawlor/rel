@@ -25,7 +25,7 @@ func TestGoString(t *testing.T) {
  {6, "Cog",   "Red",   19, "London", },
 })`
 	if in := fmt.Sprintf("%#v", parts); in != out {
-		t.Errorf("String(Parts) = \"%s\", want \"%s\"", in, out)
+		t.Errorf("String(Parts) = %q, want %q", in, out)
 	}
 }
 
