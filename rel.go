@@ -79,8 +79,8 @@ func New(v interface{}, ckeys [][]string) (rel Simple, err error) {
 	e := reflect.TypeOf(v).Elem()
 	cn, ct := namesAndTypes(e)
 	b := make([]reflect.Value, 0, 0)
-
 	if len(ckeys) == 0 {
+		fmt.Println("no keyes")
 		// all relations have a candidate key of all of their
 		// attributes
 		ckeys = append(ckeys, []string{})
@@ -348,7 +348,7 @@ func (r1 Simple) Project(t2 interface{}) (r2 Simple) {
 
 	// assign fields from the old relation to fields in the new
 	for i, tup1 := range r1.Body {
-		tup2 := reflect.Zero(e2)
+		tup2 := reflect.Indirect(reflect.New(e2))
 		for _, fm := range fMap {
 			tupf2 := tup2.Field(fm.j)
 			tupf2.Set(tup1.Field(fm.i))
@@ -378,13 +378,30 @@ KeyLoop:
 		// get rid of it
 		for _, k := range ck {
 			if _, keyfound := remNames[k]; keyfound {
-				break KeyLoop
+				continue KeyLoop
 			}
 		}
 		ck2 = append(ck2, ck)
 	}
 
 	cn, ct := namesAndTypes(e2)
+	if len(ck2) == 0 {
+		// create a new primary key
+		// I'm not sure this implementation has good
+		// performance.
+		m := make(map[interface{}]struct{})
+		for _, tup2 := range b2 {
+			m[tup2.Interface()] = struct{}{}
+		}
+		b2 = make([]reflect.Value,len(m))
+		i := 0
+		for tup2 := range m {
+			b2[i] = reflect.ValueOf(tup2)
+			i++
+		}
+		ck2 = append(ck2, []string{})
+		copy(ck2[0], cn)
+	}
 	// construct the returned relation
 	return Simple{cn, ct, b2, ck2, e2}
 }
