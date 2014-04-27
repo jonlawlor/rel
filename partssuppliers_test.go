@@ -1,12 +1,15 @@
 package rel
 
-// data for a suppliers, parts & orders database, using the example provided
-// by C. J. Date in his book "Database in Depth" in Figure 1-3.
+// This file contains example data for a suppliers, parts & orders database, using
+// the example provided by C. J. Date in his book "Database in Depth" in Figure 1-3.
 // I think he might have a different type for the SNO and PNO columns, but int
 // probably works just as well.  We might want to define a type alias for it.
-// this is used for testing and examples.
 
-// suppliers relation, with candidate keys {SNO}, {SName}
+// Maybe we should make this into an example function instead of top level
+// variables?
+
+// suppliers relation, with candidate keys {SNO}
+// the {SName} key is also possible to use
 var suppliers, _ = New([]struct {
 	SNO    int
 	SName  string

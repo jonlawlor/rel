@@ -9,8 +9,8 @@ import (
 
 // type of the example relations
 type exTup2 struct {
-	foo int
-	bar string
+	Foo int
+	Bar string
 }
 
 // exampleRel2 creates an example relation with given cardinality

@@ -393,7 +393,7 @@ KeyLoop:
 		for _, tup2 := range b2 {
 			m[tup2.Interface()] = struct{}{}
 		}
-		b2 = make([]reflect.Value,len(m))
+		b2 = make([]reflect.Value, len(m))
 		i := 0
 		for tup2 := range m {
 			b2[i] = reflect.ValueOf(tup2)
