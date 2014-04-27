@@ -33,6 +33,10 @@ type Attribute struct {
 	Type reflect.Type
 }
 
+// Still need to hammer out exactly what should be in the Relation
+// interface.  Some of the relational operations can be constructed
+// from others, but their performance may be worse.
+
 // Relation has similar meaning to tables in SQL
 type Relation interface {
 	// the heading is a slice of column name:type pairs
@@ -41,7 +45,7 @@ type Relation interface {
 	Deg() int  // Degree; the number of attributes
 	Card() int // Cardinality; the number of tuples in the body
 
-	Tuples(chan reflect.Value)
+	Tuples(chan reflect.Value) // this channel needs a direction
 }
 
 // Simple is an implementation of Relation using a []struct
@@ -406,6 +410,48 @@ KeyLoop:
 	return Simple{cn, ct, b2, ck2, e2}
 }
 
+// union is a set union of two relations
+func (r1 Simple) Union(r2 Relation) Simple {
+	// TODO(jonlawlor): check that the two relations conform, and if not
+	// then panic.
+
+	// turn the first relation into a map and then add on the values from
+	// the second one, then return the keys as a new relation
+	m := make(map[reflect.Value]struct{}, r1.Card()+r2.Card())
+	for _, tup1 := range r1.Body {
+		m[tup1] = struct{}{}
+	}
+
+	// the second relation has to return its values through a channel
+	tups := make(chan reflect.Value)
+	r2.Tuples(tups)
+
+	// TODO(jonlawlor): abstract the per-tuple functional mapping to another
+	// method?  Also, it might be possible to make 2 maps instead of a single
+	// map, and populate them concurrently, and at the end merge them.
+	// It may be more efficient to store the relation bodies in maps if we
+	// always have to construct a map to do anything with them.
+	for tup2 := range tups {
+		m[tup2] = struct{}{}
+	}
+	b := make([]reflect.Value, len(m))
+	i := 0
+	for tup, _ := range m {
+		b[i] = tup
+		i++
+	}
+	// return the new relation
+	// TODO(jonlawlor): should these be copies?
+	return Simple{r1.Names, r1.Types, b, r1.CKeys, r1.tupleType}
+}
+
+/*// setdiff returns the set difference of the two relations
+func (r1 Simple) SetDiff(r2 Relation) (onlyr1 Relation, onlyr2 Relation) {
+	// TODO(jonlawlor): check that the two relations conform, and if not
+	// then panic.
+
+}
+*/
 // fieldMap creates a map from fields of one struct type to the fields of another
 // the returned map's values have two fields i,j , which indicate the location of
 // the field name in the input types
