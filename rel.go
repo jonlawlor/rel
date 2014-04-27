@@ -445,13 +445,37 @@ func (r1 Simple) Union(r2 Relation) Simple {
 	return Simple{r1.Names, r1.Types, b, r1.CKeys, r1.tupleType}
 }
 
-/*// setdiff returns the set difference of the two relations
-func (r1 Simple) SetDiff(r2 Relation) (onlyr1 Relation, onlyr2 Relation) {
+// setdiff returns the set difference of the two relations
+func (r1 Simple) SetDiff(r2 Relation) (onlyr1 Simple) {
 	// TODO(jonlawlor): check that the two relations conform, and if not
 	// then panic.
+	m := make(map[reflect.Value]struct{}, r1.Card())
+	for _, tup1 := range r1.Body {
+		m[tup1] = struct{}{}
+	}
 
+	// the second relation has to return its values through a channel
+	tups := make(chan reflect.Value)
+	r2.Tuples(tups)
+
+	// TODO(jonlawlor): abstract the per-tuple functional mapping to another
+	// method?
+	for tup2 := range tups {
+		delete(m, tup2)
+	}
+	b := make([]reflect.Value, len(m))
+	i := 0
+	for tup, _ := range m {
+		b[i] = tup
+		i++
+	}
+
+	// return the new relation
+	// TODO(jonlawlor): should these be copies?
+	onlyr1 = Simple{r1.Names, r1.Types, b, r1.CKeys, r1.tupleType}
+	return
 }
-*/
+
 // fieldMap creates a map from fields of one struct type to the fields of another
 // the returned map's values have two fields i,j , which indicate the location of
 // the field name in the input types
