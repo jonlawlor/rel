@@ -51,13 +51,32 @@ type Theta func(tup1 interface{}, tup2 interface{}) bool
 
 // Relation has similar meaning to tables in SQL
 type Relation interface {
-	// the heading is a slice of column name:type pairs
+	// Heading is a slice of column name:type pairs
 	Heading() []Attribute
+	
+	// Degree; the number of attributes
+	Deg() int  
+	
+	// Cardinality; the number of tuples in the body
+	Card() int 
 
-	Deg() int  // Degree; the number of attributes
-	Card() int // Cardinality; the number of tuples in the body
+	// Tuples takes a channel of reflect.value and keeps sending
+	// the tuples in the relation over the channel.
+	Tuples(chan reflect.Value) // this channel needs a direction?
+	
+	// Project
+	Project(t2 interface{}) (r2 Relation)
 
-	Tuples(chan reflect.Value) // this channel needs a direction
+	// Union
+	Union(r2 Relation) Relation
+	
+	// SetDiff
+	SetDiff(r2 Relation) Relation
+	
+	// I'm not sure that including GoString and String is the right
+	// way to do this.
+	GoString() string
+	String() string
 }
 
 // New creates a new Relation.

@@ -79,7 +79,7 @@ func (r Simple) String() string {
 // t2 has to be a new type which is a subset of the current tuple's
 // type.  We can't use a slice of strings because go can't construct
 // arbitrary types through reflection.
-func (r1 Simple) Project(t2 interface{}) (r2 Simple) {
+func (r1 Simple) Project(t2 interface{}) (r2 Relation) {
 	c := r1.Card()
 	ck1 := r1.CKeys
 	b2 := make([]reflect.Value, c)
@@ -161,7 +161,7 @@ KeyLoop:
 }
 
 // union is a set union of two relations
-func (r1 Simple) Union(r2 Relation) Simple {
+func (r1 Simple) Union(r2 Relation) Relation {
 	// TODO(jonlawlor): check that the two relations conform, and if not
 	// then panic.
 
@@ -196,7 +196,7 @@ func (r1 Simple) Union(r2 Relation) Simple {
 }
 
 // setdiff returns the set difference of the two relations
-func (r1 Simple) SetDiff(r2 Relation) (onlyr1 Simple) {
+func (r1 Simple) SetDiff(r2 Relation) (onlyr1 Relation) {
 	// TODO(jonlawlor): check that the two relations conform, and if not
 	// then panic.
 	m := make(map[reflect.Value]struct{}, r1.Card())
