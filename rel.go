@@ -38,41 +38,67 @@ type Attribute struct {
 type Predicate func(tup interface{}) bool
 
 // theta is the type of func used as a predicate in theta-joins
-type Theta func(tup1 interface{}, tup2 interface{}) bool 
+type Theta func(tup1 interface{}, tup2 interface{}) bool
 
 // Still need to hammer out exactly what should be in the Relation
 // interface.  Some of the relational operations can be constructed
-// from others, but their performance may be worse.
+// from others, but their performance may be worse.  The important
+// detail is that if the operations are a part of the interface then
+// they have to have the syntax RelVar.Op(Params), while if the
+// operations are defined on the interface then they can have the form
+// Op(RelVar, Params).  A common go idiom is to implement that kind of
+// function as a function, and then if the caller completes a different
+// interface, just use that form, and otherwise have a "default"
+// implementation.
 
-// also, it might be much better to use a channel to hold all of the
+// It might be much better to use a channel to hold all of the
 // data within a relation.  Then as we perform operations, the
-// operations will transform the channels, which should result in some
-// interesting concurrency.
+// operations will transform the channels, which should result
+// in some interesting concurrency.
 
 // Relation has similar meaning to tables in SQL
 type Relation interface {
 	// Heading is a slice of column name:type pairs
 	Heading() []Attribute
-	
+
 	// Degree; the number of attributes
-	Deg() int  
-	
+	Deg() int
+
 	// Cardinality; the number of tuples in the body
-	Card() int 
+	Card() int
 
 	// Tuples takes a channel of reflect.value and keeps sending
 	// the tuples in the relation over the channel.
 	Tuples(chan reflect.Value) // this channel needs a direction?
-	
+
+	// Restrict
+	// Restrict(p Predicate) Relation
+
+	// theta join
+	// JoinTheta(r2 Relation, Theta) Relation
+
+	// natural join
+	// Join(r2 Relation) Relation
+
 	// Project
 	Project(t2 interface{}) (r2 Relation)
 
 	// Union
 	Union(r2 Relation) Relation
-	
+
 	// SetDiff
 	SetDiff(r2 Relation) Relation
-	
+
+	// additional derived functions
+	// SemiDiff(r2 Relation) Relation
+	// SemiJoin(r2 Relation) Relation
+	// GroupBy(gtyp interface{}, vtyp interface{}, gfunc) Relation
+
+	// probably want to add non-Relational functions like
+	// Update
+	// Insert
+	// some kind of ordering?
+
 	// I'm not sure that including GoString and String is the right
 	// way to do this.
 	GoString() string
@@ -182,6 +208,9 @@ func checkCandidateKeys(ckeys [][]string, cn []string) (err error) {
 	return
 }
 
+// goStringTabTable is makes a gostring out of a given relation
+// this isn't a method of relation (and then named GoString()) because
+// go doesn't allow methods to be defined on interfaces.
 func goStringTabTable(r Relation) string {
 	// use a buffer to write to and later turn into a string
 	s := bytes.NewBufferString("rel.New([]struct {\n")
@@ -235,6 +264,9 @@ func goStringTabTable(r Relation) string {
 	return s.String()
 }
 
+// stringTabTable is makes a gostring out of a given relation
+// this isn't a method of relation (and then named GoString()) because
+// go doesn't allow methods to be defined on interfaces.
 func stringTabTable(r Relation) string {
 
 	// use a buffer to write to and later turn into a string
@@ -322,17 +354,4 @@ func fieldMap(e1 reflect.Type, e2 reflect.Type) map[string]struct {
 		}
 	}
 	return m
-}
-
-// returns true if a slice of strings contains a given string
-// otherwise false
-func containsName(names []string, name string) (tf bool) {
-	tf = false
-	for _, nm := range names {
-		if nm == name {
-			tf = true
-			return
-		}
-	}
-	return
 }
