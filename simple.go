@@ -167,9 +167,13 @@ func (r1 Simple) Union(r2 Relation) Relation {
 
 	// turn the first relation into a map and then add on the values from
 	// the second one, then return the keys as a new relation
-	m := make(map[reflect.Value]struct{}, r1.Card()+r2.Card())
+	
+	// for some reason the map requires this to use an Interface() call.
+	// maybe there is a better way?
+	
+	m := make(map[interface{}]struct{}, r1.Card() + r2.Card())
 	for _, tup1 := range r1.Body {
-		m[tup1] = struct{}{}
+		m[tup1.Interface()] = struct{}{}
 	}
 
 	// the second relation has to return its values through a channel
@@ -182,12 +186,12 @@ func (r1 Simple) Union(r2 Relation) Relation {
 	// It may be more efficient to store the relation bodies in maps if we
 	// always have to construct a map to do anything with them.
 	for tup2 := range tups {
-		m[tup2] = struct{}{}
+		m[tup2.Interface()] = struct{}{}
 	}
 	b := make([]reflect.Value, len(m))
 	i := 0
 	for tup, _ := range m {
-		b[i] = tup
+		b[i] = reflect.ValueOf(tup)
 		i++
 	}
 	// return the new relation
@@ -199,9 +203,9 @@ func (r1 Simple) Union(r2 Relation) Relation {
 func (r1 Simple) SetDiff(r2 Relation) (onlyr1 Relation) {
 	// TODO(jonlawlor): check that the two relations conform, and if not
 	// then panic.
-	m := make(map[reflect.Value]struct{}, r1.Card())
+	m := make(map[interface{}]struct{}, r1.Card())
 	for _, tup1 := range r1.Body {
-		m[tup1] = struct{}{}
+		m[tup1.Interface()] = struct{}{}
 	}
 
 	// the second relation has to return its values through a channel
@@ -211,12 +215,12 @@ func (r1 Simple) SetDiff(r2 Relation) (onlyr1 Relation) {
 	// TODO(jonlawlor): abstract the per-tuple functional mapping to another
 	// method?
 	for tup2 := range tups {
-		delete(m, tup2)
+		delete(m, tup2.Interface())
 	}
 	b := make([]reflect.Value, len(m))
 	i := 0
 	for tup, _ := range m {
-		b[i] = tup
+		b[i] = reflect.ValueOf(tup)
 		i++
 	}
 
