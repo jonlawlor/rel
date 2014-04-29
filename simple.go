@@ -167,11 +167,11 @@ func (r1 Simple) Union(r2 Relation) Relation {
 
 	// turn the first relation into a map and then add on the values from
 	// the second one, then return the keys as a new relation
-	
+
 	// for some reason the map requires this to use an Interface() call.
 	// maybe there is a better way?
-	
-	m := make(map[interface{}]struct{}, r1.Card() + r2.Card())
+
+	m := make(map[interface{}]struct{}, r1.Card()+r2.Card())
 	for _, tup1 := range r1.Body {
 		m[tup1.Interface()] = struct{}{}
 	}

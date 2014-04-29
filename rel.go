@@ -85,13 +85,13 @@ type Relation interface {
 
 	// Rename
 	// Rename(???) Relation
-	
+
 	// Union
 	Union(r2 Relation) Relation
 
 	// SetDiff
 	SetDiff(r2 Relation) Relation
-	
+
 	// additional derived functions
 	// SemiDiff(r2 Relation) Relation
 	// SemiJoin(r2 Relation) Relation
