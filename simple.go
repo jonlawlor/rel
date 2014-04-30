@@ -229,3 +229,47 @@ func (r1 Simple) SetDiff(r2 Relation) (onlyr1 Relation) {
 	onlyr1 = Simple{r1.Names, r1.Types, b, r1.CKeys, r1.tupleType}
 	return
 }
+
+func (r1 Simple) Restrict(p Predicate) Relation {
+	mc := MaxConcurrent
+
+	// channel of the input tuples
+	tups := make(chan reflect.Value, mc)
+	r1.Tuples(tups)
+
+	// channel of the output tuples
+	res := make(chan reflect.Value, mc)
+
+	// done is used to signal when each of the worker goroutines
+	// finishes processing the predicates
+	done := make(chan struct{})
+	go func() {
+		for i := 0; i < mc; i++ {
+			<-done
+		}
+		close(res)
+	}()
+
+	// create the worker routines, have them evaluate the predicate
+	// and if it is true, pass the tuple on to the results stream
+	// when all of the input tuples are consumed, send an empty message
+	// to the done channel, which will close res when all of the workers
+	// have finished.
+	for i := 0; i < mc; i++ {
+		go func() {
+			for tup := range tups {
+				if p(tup.Interface()) {
+					res <- tup
+				}
+			}
+			done <- struct{}{}
+		}()
+	}
+
+	// create a new body with the results and accumulate them
+	b := make([]reflect.Value, 0)
+	for tup := range res {
+		b = append(b, tup)
+	}
+	return Simple{r1.Names, r1.Types, b, r1.CKeys, r1.tupleType}
+}

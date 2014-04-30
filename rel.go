@@ -26,6 +26,13 @@ import (
 	"text/tabwriter"
 )
 
+// MaxConcurrent number of concurrent goroutines during an operation
+// operations performed in parallel each have their own set, so for
+// 2 restrict opertations running concurrently, the program will use
+// up to 2*MaxConcurrent
+// this can be modified by the caller before and after an operation
+var MaxConcurrent = 100
+
 // Attribute represents a name:type pair which defines the heading
 // of the relation
 type Attribute struct {
@@ -72,7 +79,7 @@ type Relation interface {
 	Tuples(chan reflect.Value) // this channel needs a direction?
 
 	// Restrict
-	// Restrict(p Predicate) Relation
+	Restrict(p Predicate) Relation
 
 	// theta join
 	// JoinTheta(r2 Relation, Theta) Relation
