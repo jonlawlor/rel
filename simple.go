@@ -230,9 +230,28 @@ func (r1 Simple) SetDiff(r2 Relation) (onlyr1 Relation) {
 	return
 }
 
+// Restrict applies a predicate to a relation and returns a new relation
+// Predicate is a func which accepts an interface{} of the same dynamic
+// type as the tuples of the relation, and returns a boolean.
+//
+// the implementation for Restrict creates a set of go routines to handle
+// the application of the predicate, then feeds that set of worker routines
+// the tuples from the relation.  Those workers apply the predicate, and if
+// it is true, send the tuple to the result chan.  When all of the values
+// are consumed, the workers each send a done signal to another go routine,
+// which, when all of the workers have finished, closes the result channel.
+// The result channel is accumulated into a new relation body and that body
+// is used to construct a new relation.
 func (r1 Simple) Restrict(p Predicate) Relation {
-	mc := MaxConcurrent
 
+	// figure out how many items we want to handle at the same time
+	mc := MaxConcurrent
+	if mc > r1.Card() {
+		// if the relation has fewer tuples than the maximum amount
+		// we can handle concurrently, only create buffers and go
+		// routines for each of the tuples, to save on memory.
+		mc = r1.Card()
+	}
 	// channel of the input tuples
 	tups := make(chan reflect.Value, mc)
 	r1.Tuples(tups)
@@ -273,3 +292,13 @@ func (r1 Simple) Restrict(p Predicate) Relation {
 	}
 	return Simple{r1.Names, r1.Types, b, r1.CKeys, r1.tupleType}
 }
+
+// the implementation for groupby creates a map from the groups to
+// a set of channels, and then creates those channels as new groups
+// are discovered.  Those channels each have a goroutine that concurrently
+// consumes the channel results (although that might simply be an
+// accumulation if the aggregate can't be performed on partial results)
+// and then when all of the values in the intial relation are done, every
+// group chan is closed, which should allow the group go routines to
+// complete their work, and then send a done signal to a channel which
+// can then close the result channel.
