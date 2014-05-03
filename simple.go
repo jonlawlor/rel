@@ -13,6 +13,7 @@ package rel
 
 import (
 	"reflect"
+	"sync"
 )
 
 // Simple is an implementation of Relation using a []struct
@@ -81,7 +82,6 @@ func (r Simple) String() string {
 // arbitrary types through reflection.
 func (r1 Simple) Project(t2 interface{}) (r2 Relation) {
 	c := r1.Card()
-	ck1 := r1.CKeys
 	b2 := make([]reflect.Value, c)
 
 	// first figure out if the tuple types of the relation and
@@ -92,7 +92,7 @@ func (r1 Simple) Project(t2 interface{}) (r2 Relation) {
 		for i, tup := range r1.Body {
 			b2[i] = tup
 		}
-		return Simple{r1.Names, r1.Types, b2, ck1, e2}
+		return Simple{r1.Names, r1.Types, b2, r1.CKeys, e2}
 	}
 
 	// figure out which fields stay, and where they are in each of
@@ -100,7 +100,18 @@ func (r1 Simple) Project(t2 interface{}) (r2 Relation) {
 	fMap := fieldMap(r1.tupleType, e2)
 	// TODO(jonlawlor): error if fields in e2 are not in r1's tuples.
 
+	// figure out which of the candidate keys (if any) to keep.
+	// only the keys that only have attributes in the new type are
+	// valid.  If we do have any keys that are still valid, then
+	// we don't have to perform distinct on the body again.
+
+	// We might want to assign the results of the project to either a map
+	// so that it can be re-distincted, or to a []reflect.Value if it is
+	// already distinct, based on the results of the candidate Key change
+	ck2 := subsetCandidateKeys(r1.CKeys, r1.Names, fMap)
+
 	// assign fields from the old relation to fields in the new
+	// TODO(jonlawlor): make this concurrent
 	for i, tup1 := range r1.Body {
 		tup2 := reflect.Indirect(reflect.New(e2))
 		for _, fm := range fMap {
@@ -112,32 +123,7 @@ func (r1 Simple) Project(t2 interface{}) (r2 Relation) {
 		b2[i] = tup2
 	}
 
-	// figure out which of the candidate keys (if any) to keep.
-	// only the keys that only have attributes in the new type are
-	// valid.  If we do have any keys that are still valid, then
-	// we don't have to perform distinct on the body again.
-
 	// figure out the names to remove from the original data
-	remNames := make(map[string]struct{})
-	for _, n1 := range r1.Names {
-		if _, keyfound := fMap[n1]; !keyfound {
-			remNames[n1] = struct{}{}
-		}
-	}
-
-	ck2 := make([][]string, 0)
-KeyLoop:
-	for _, ck := range ck1 {
-		// if the candidate key contains a name we want to remove, then
-		// get rid of it
-		for _, k := range ck {
-			if _, keyfound := remNames[k]; keyfound {
-				continue KeyLoop
-			}
-		}
-		ck2 = append(ck2, ck)
-	}
-
 	cn, ct := namesAndTypes(e2)
 	if len(ck2) == 0 {
 		// create a new primary key
@@ -302,3 +288,200 @@ func (r1 Simple) Restrict(p Predicate) Relation {
 // group chan is closed, which should allow the group go routines to
 // complete their work, and then send a done signal to a channel which
 // can then close the result channel.
+
+func (r1 Simple) GroupBy(t2 interface{}, vt interface{}, gfcn func(chan interface{}) interface{}) (r2 Relation) {
+	// figure out the new elements used for each of the derived types
+	e2 := reflect.TypeOf(t2) // type of the resulting relation's tuples
+	ev := reflect.TypeOf(vt) // type of the tuples put into groupby values
+
+	// note: if for some reason this is called on a grouping that includes
+	// a candidate key, then this function should instead act as a map, and
+	// we might want to have a different codepath for that.
+
+	// create the map for channels to grouping goroutines
+	groupMap := make(map[interface{}]chan interface{})
+
+	// create waitgroup that indicates that the computations are complete
+	var wg sync.WaitGroup
+
+	// create the channel of tuples from r1
+	tups := make(chan reflect.Value)
+	r1.Tuples(tups)
+
+	// results come back through the res channel
+	res := make(chan reflect.Value)
+
+	// for each of the tuples, extract the group values out and set
+	// the ones that are not in vtup to the values in the tuple.
+	// then, if the tuple does not exist in the groupMap, create a
+	// new channel and launch a new goroutine to consume the channel,
+	// increment the waitgroup, and finally send the vtup to the
+	// channel.
+
+	// figure out where in each of the structs the group and value
+	// attributes are found
+	e2fieldMap := fieldMap(r1.tupleType, e2)
+	evfieldMap := fieldMap(r1.tupleType, ev)
+	// map from the values to the group (with zeros in the value fields))
+	// note that this is slightly redundant but we only have to calculate
+	// it once, and to take advantage of the redundancy I think we'll need
+	// more operations in total.  I haven't checked it though - jonlawlor
+	vgfieldMap := fieldMap(e2, ev)
+
+	// determine the new candidate keys, which can be any of the original
+	// candidate keys that are a subset of the group (which would also
+	// mean that every tuple in the original relation is in its own group
+	// in the resulting relation, which means the groupby function was
+	// just a map) or the group itself.
+
+	// make a new map with values from e2fieldMap that are not in
+	// evfieldmap (do we have enough maps yet???)
+	groupFieldMap := make(map[string]struct {
+		i int
+		j int
+	})
+	for name, v := range e2fieldMap {
+		if _, isValue := evfieldMap[name]; !isValue {
+			groupFieldMap[name] = v
+		}
+	}
+	ck2 := subsetCandidateKeys(r1.CKeys, r1.Names, groupFieldMap)
+
+	for tup := range tups {
+		// this reflection may be a bottleneck, and we may be able to
+		// replace it with a concurrent version.
+		gtupi, vtupi := partialProject(tup, e2, ev, e2fieldMap, evfieldMap)
+
+		// the map cannot be accessed concurrently though
+		// a lock needs to be placed here
+		if _, exists := groupMap[gtupi]; !exists {
+			wg.Add(1)
+			// create the channel
+			groupChan := make(chan interface{})
+			groupMap[gtupi] = groupChan
+			// remove the lock
+
+			// launch a goroutine which consumes values from the group,
+			// applies the grouping function, and then when all values
+			// are sent, gets the result from the grouping function and
+			// puts it into the result tuple, which it then returns
+			go func(gtupi interface{}, groupChan chan interface{}) {
+				defer wg.Done()
+				// run the grouping function and turn the result
+				// into the reflect.Value
+				vtup := reflect.ValueOf(gfcn(groupChan))
+
+				// combine the returned values with the group tuple
+				// to create the new complete tuple
+				combineTuples(&gtupi, vtup, vgfieldMap)
+				res <- reflect.ValueOf(gtupi)
+			}(gtupi, groupChan)
+		}
+		// this send can also be done concurrently, or we could buffer
+		// the channel
+		groupMap[gtupi] <- vtupi
+	}
+
+	// close all of the group channels so the processes can finish
+	// this can only be done after the tuples in the original relation
+	// have all been sent to the groups
+	for _, v := range groupMap {
+		close(v)
+	}
+
+	// start a process to close the results channel when the waitgroup
+	// is finished
+	go func() {
+		wg.Wait()
+		close(res)
+	}()
+
+	// determine the new names and types
+	cn, ct := namesAndTypes(e2)
+
+	if len(ck2) == 0 {
+		ck2 = append(ck2, cn)
+	}
+	// accumulate the results into a new relation
+	b := make([]reflect.Value, 0)
+	for tup := range res {
+		b = append(b, tup)
+	}
+	return Simple{cn, ct, b, ck2, e2}
+}
+
+// partialProject takes the attributes of the input tup, and then for the
+// attributes that are in ltyp but not in rtyp, put those values into ltup,
+// and put zero values into ltup for the values that are in rtyp.  For the
+// rtup, put only values which are in rtyp.
+// The reason we have to put zero values is that we can't make derived types.
+// returns the results as an interface instead of as reflect.Value's
+func partialProject(tup reflect.Value, ltyp, rtyp reflect.Type, lFieldMap, rFieldMap map[string]struct {
+	i int
+	j int
+}) (ltupi interface{}, rtupi interface{}) {
+
+	// we could avoid passing in th lFieldMap and
+
+	// assign fields from the old relation to fields in the new
+	ltup := reflect.Indirect(reflect.New(ltyp))
+	rtup := reflect.Indirect(reflect.New(rtyp))
+
+	// note thet rtup is a subset of ltup, but the fields in ltup that are
+	// in ltup will retain the zero value
+
+	for lname, lfm := range lFieldMap {
+		// if it is in the right tuple, assign it to the right tuple, otherwise
+		// assign it to the left tuple
+		if rfm, exists := rFieldMap[lname]; exists {
+			tupf := rtup.Field(rfm.j)
+			tupf.Set(tup.Field(rfm.i))
+		} else {
+			tupf := ltup.Field(lfm.j)
+			tupf.Set(tup.Field(lfm.i))
+		}
+	}
+	ltupi = ltup.Interface()
+	rtupi = rtup.Interface()
+	return
+}
+
+// combineTuples takes the values in rtup and assigns them to the fields
+// in ltup with the same names
+func combineTuples(ltup interface{}, rtup reflect.Value, fMap map[string]struct {
+	i int
+	j int
+}) {
+	lv := reflect.Indirect(reflect.ValueOf(ltup))
+	for _, fm := range fMap {
+		lf := lv.Field(fm.j)
+		lf.Set(rtup.Field(fm.i))
+	}
+}
+
+func subsetCandidateKeys(cKeys1 [][]string, names1 []string, fMap map[string]struct {
+	i int
+	j int
+}) [][]string {
+
+	remNames := make(map[string]struct{})
+	for _, n1 := range names1 {
+		if _, keyfound := fMap[n1]; !keyfound {
+			remNames[n1] = struct{}{}
+		}
+	}
+
+	cKeys2 := make([][]string, 0)
+KeyLoop:
+	for _, ck := range cKeys1 {
+		// if the candidate key contains a name we want to remove, then
+		// get rid of it
+		for _, k := range ck {
+			if _, keyfound := remNames[k]; keyfound {
+				continue KeyLoop
+			}
+		}
+		cKeys2 = append(cKeys2, ck)
+	}
+	return cKeys2
+}
