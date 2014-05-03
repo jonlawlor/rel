@@ -322,10 +322,12 @@ func (r1 Simple) GroupBy(t2 interface{}, vt interface{}, gfcn func(chan interfac
 	// attributes are found
 	e2fieldMap := fieldMap(r1.tupleType, e2)
 	evfieldMap := fieldMap(r1.tupleType, ev)
-	// map from the values to the group (with zeros in the value fields))
-	// note that this is slightly redundant but we only have to calculate
-	// it once, and to take advantage of the redundancy I think we'll need
-	// more operations in total.  I haven't checked it though - jonlawlor
+
+	// map from the values to the group (with zeros in the value fields)
+	// I couldn't figure out a way to assign the values into the group
+	// by modifying it using reflection though so we end up allocating a
+	// new element.
+	// TODO(jonlawlor): figure out how to avoid reallocation
 	vgfieldMap := fieldMap(e2, ev)
 
 	// determine the new candidate keys, which can be any of the original
@@ -370,11 +372,9 @@ func (r1 Simple) GroupBy(t2 interface{}, vt interface{}, gfcn func(chan interfac
 				// run the grouping function and turn the result
 				// into the reflect.Value
 				vtup := reflect.ValueOf(gfcn(groupChan))
-
 				// combine the returned values with the group tuple
 				// to create the new complete tuple
-				combineTuples(&gtupi, vtup, vgfieldMap)
-				res <- reflect.ValueOf(gtupi)
+				res <- combineTuples(reflect.ValueOf(gtupi), vtup, e2, vgfieldMap)
 			}(gtupi, groupChan)
 		}
 		// this send can also be done concurrently, or we could buffer
@@ -448,15 +448,25 @@ func partialProject(tup reflect.Value, ltyp, rtyp reflect.Type, lFieldMap, rFiel
 
 // combineTuples takes the values in rtup and assigns them to the fields
 // in ltup with the same names
-func combineTuples(ltup interface{}, rtup reflect.Value, fMap map[string]struct {
+func combineTuples(ltup reflect.Value, rtup reflect.Value, ltyp reflect.Type, fMap map[string]struct {
 	i int
 	j int
-}) {
-	lv := reflect.Indirect(reflect.ValueOf(ltup))
-	for _, fm := range fMap {
-		lf := lv.Field(fm.j)
-		lf.Set(rtup.Field(fm.i))
+}) reflect.Value {
+	// for some reason I can't get reflect to work on a pointer to an interface
+	// so this will use a new ltup and then assign values to it from either the
+	// ltup or rtup inputs
+	// TODO(jonlawlor): avoid this new allocation somehow
+	tup2 := reflect.Indirect(reflect.New(ltyp))
+	for i := 0; i < ltyp.NumField(); i++ {
+		lf := tup2.Field(i)
+		if fm, isRight := fMap[ltyp.Field(i).Name]; isRight {
+			// take the values from the right
+			lf.Set(rtup.Field(fm.j))
+		} else {
+			lf.Set(ltup.Field(i))
+		}
 	}
+	return tup2
 }
 
 func subsetCandidateKeys(cKeys1 [][]string, names1 []string, fMap map[string]struct {
