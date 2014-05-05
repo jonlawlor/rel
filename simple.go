@@ -146,6 +146,75 @@ func (r1 Simple) Project(t2 interface{}) (r2 Relation) {
 	return Simple{cn, ct, b2, ck2, e2}
 }
 
+// rename operation
+// the way this is done has to do a rename in place, so at this point
+// the order of the fields becomes significant.  There will only be a
+// single input, which should line up with the order and types of the
+// fields in the original data.  This will probably be combined with
+// project to create a "select xxx as yyy" idiom.
+// The advantage of this syntax in go is that the rename can't express
+// duplicate attributes, and also the renamed tuple is the new type
+// used in type assertions.
+func (r1 Simple) Rename(t2 interface{}) (r2 Relation) {
+	// TODO(jonlawlor) add a check that the second interface's type is
+	// the same as the first, except that it has different names for
+	// the same fields.
+	c := r1.Card()
+	b2 := make([]reflect.Value, c)
+
+	// first figure out if the tuple types of the relation and rename
+	// are equal.  If so, convert the tuples to the (possibly new)
+	// type and then return the new relation.
+	e2 := reflect.TypeOf(t2)
+	if r1.tupleType.AssignableTo(e2) {
+		for i, tup := range r1.Body {
+			b2[i] = tup
+		}
+		return Simple{r1.Names, r1.Types, b2, r1.CKeys, e2}
+	}
+
+	// assign the values of the original to the new names in the same
+	// locations
+	n := reflect.ValueOf(t2).NumField()
+	for i, tup1 := range r1.Body {
+		tup2 := reflect.Indirect(reflect.New(e2))
+		for j := 0; j < n; j++ {
+			tupf2 := tup2.Field(j)
+			tupf2.Set(tup1.Field(j))
+		}
+		b2[i] = tup2
+	}
+
+	// figure out the new names
+	names2 := make([]string, n)
+	for i := 0; i < n; i++ {
+		f := e2.Field(i)
+		names2[i] = f.Name
+	}
+
+	// create a map from the old names to the new names if there is
+	// any difference between them
+	nameMap := make(map[string]string)
+	for i, name := range r1.Names {
+		nameMap[name] = names2[i]
+	}
+
+	// for each of the candidate keys, rename any keys from the old
+	// names to the new ones
+	ck2 := make([][]string, len(r1.CKeys))
+	for i := 0; i < len(ck2); i++ {
+		copy(ck2[i], r1.CKeys[i])
+		for j, key := range ck2[i] {
+			ck2[i][j] = nameMap[key]
+		}
+	}
+
+	ct := make([]reflect.Type, len(r1.Types))
+	copy(ct, r1.Types)
+
+	return Simple{names2, ct, b2, ck2, e2}
+}
+
 // union is a set union of two relations
 func (r1 Simple) Union(r2 Relation) Relation {
 	// TODO(jonlawlor): check that the two relations conform, and if not
