@@ -40,6 +40,13 @@ type Attribute struct {
 	Type reflect.Type
 }
 
+// fieldIndex is used to map between attributes in different relations
+// that have the same name
+type fieldIndex struct {
+	i int
+	j int
+}
+
 // Predicate is the type of func that takes a tuple and returns bool
 // and is used for restrict & update
 type Predicate func(tup interface{}) bool
@@ -196,6 +203,7 @@ func distinct(v interface{}, e reflect.Type) []reflect.Value {
 // this ensures that the names of the keys are all in the attributes
 // of the relation
 func checkCandidateKeys(ckeys [][]string, cn []string) (err error) {
+	// TODO(jonlawlor) cannonicalize these somehow
 	names := make(map[string]struct{})
 	for _, n := range cn {
 		names[n] = struct{}{}
@@ -340,25 +348,35 @@ func stringTabTable(r Relation) string {
 // the returned map's values have two fields i,j , which indicate the location of
 // the field name in the input types
 // if the field is absent from either of the inputs, it is not returned.
-func fieldMap(e1 reflect.Type, e2 reflect.Type) map[string]struct {
-	i int
-	j int
-} {
+func fieldMap(e1 reflect.Type, e2 reflect.Type) map[string]fieldIndex {
 	// TODO(jonlawlor): we might want to exclude unexported fields?
-	m := make(map[string]struct {
-		i int
-		j int
-	})
+	m := make(map[string]fieldIndex)
 	for i := 0; i < e1.NumField(); i++ {
 		n1 := e1.Field(i).Name
 		// find the field location in the original tuples
 		for j := 0; j < e2.NumField(); j++ {
 			n2 := e2.Field(j).Name
 			if n1 == n2 {
-				m[n1] = struct {
-					i int
-					j int
-				}{i, j}
+				m[n1] = fieldIndex{i, j}
+				break
+			}
+		}
+	}
+	return m
+}
+
+// fieldMap creates a map from fields of one struct type to the fields of another
+// the returned map's values have two fields i,j , which indicate the location of
+// the field name in the input types
+// if the field is absent from either of the inputs, it is not returned.
+func attributeMap(h1 []Attribute, h2 []Attribute) map[string]fieldIndex {
+	m := make(map[string]fieldIndex)
+	for i := 0; i < len(h1); i++ {
+		n1 := h1[i].Name
+		// find the field location in the other heading
+		for j := 0; j < len(h2); j++ {
+			if n1 == h2[j].Name {
+				m[n1] = fieldIndex{i, j}
 				break
 			}
 		}

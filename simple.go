@@ -67,6 +67,17 @@ func (r Simple) Heading() []Attribute {
 	return h
 }
 
+// interfaceHeading returns a map from column names to types for an
+// input interface
+func interfaceHeading(i interface{}) []Attribute {
+	Names, Types := namesAndTypes(reflect.TypeOf(i))
+	h := make([]Attribute, len(Names))
+	for i := 0; i < deg; i++ {
+		h[i] = Attribute{Names[i], Types[i]}
+	}
+	return h
+}
+
 // String returns a text representation of the Relation
 func (r Simple) GoString() string {
 	return goStringTabTable(r)
@@ -407,10 +418,7 @@ func (r1 Simple) GroupBy(t2 interface{}, vt interface{}, gfcn func(chan interfac
 
 	// make a new map with values from e2fieldMap that are not in
 	// evfieldmap (do we have enough maps yet???)
-	groupFieldMap := make(map[string]struct {
-		i int
-		j int
-	})
+	groupFieldMap := make(map[string]fieldIndex)
 	for name, v := range e2fieldMap {
 		if _, isValue := evfieldMap[name]; !isValue {
 			groupFieldMap[name] = v
@@ -485,10 +493,7 @@ func (r1 Simple) GroupBy(t2 interface{}, vt interface{}, gfcn func(chan interfac
 // rtup, put only values which are in rtyp.
 // The reason we have to put zero values is that we can't make derived types.
 // returns the results as an interface instead of as reflect.Value's
-func partialProject(tup reflect.Value, ltyp, rtyp reflect.Type, lFieldMap, rFieldMap map[string]struct {
-	i int
-	j int
-}) (ltupi interface{}, rtupi interface{}) {
+func partialProject(tup reflect.Value, ltyp, rtyp reflect.Type, lFieldMap, rFieldMap map[string]fieldIndex) (ltupi interface{}, rtupi interface{}) {
 
 	// we could avoid passing in th lFieldMap and
 
@@ -517,10 +522,7 @@ func partialProject(tup reflect.Value, ltyp, rtyp reflect.Type, lFieldMap, rFiel
 
 // combineTuples takes the values in rtup and assigns them to the fields
 // in ltup with the same names
-func combineTuples(ltup reflect.Value, rtup reflect.Value, ltyp reflect.Type, fMap map[string]struct {
-	i int
-	j int
-}) reflect.Value {
+func combineTuples(ltup reflect.Value, rtup reflect.Value, ltyp reflect.Type, fMap map[string]fieldIndex) reflect.Value {
 	// for some reason I can't get reflect to work on a pointer to an interface
 	// so this will use a new ltup and then assign values to it from either the
 	// ltup or rtup inputs
@@ -538,10 +540,88 @@ func combineTuples(ltup reflect.Value, rtup reflect.Value, ltyp reflect.Type, fM
 	return tup2
 }
 
-func subsetCandidateKeys(cKeys1 [][]string, names1 []string, fMap map[string]struct {
-	i int
-	j int
-}) [][]string {
+func combineTuples2(to *reflect.Value, from reflect.Value, fMap map[string]fieldIndex) {
+	// for some reason I can't get reflect to work on a pointer to an interface
+	// so this will use a new ltup and then assign values to it from either the
+	// ltup or rtup inputs
+	// TODO(jonlawlor): avoid this new allocation somehow
+	for _, fm := range fMap {
+		tof := to.Field(fm.i)
+		tof.Set(from.Field(fm.j))
+	}
+	return
+}
+
+// Join is the natural join operation
+func (r1 Simple) Join(r2 Relation, t3 interface{}) (r3 Relation) {
+
+	mc := MaxConcurrent
+	e3 := reflect.TypeOf(t3)
+
+	// create indexes between the three headings
+	h1 := r1.Heading()
+	h2 := r2.Heading()
+	h3 := interfaceHeading(t3)
+
+	map12 := attributeMap(h1, h2) // used to determine equality
+	map31 := attributeMap(h3, h1) // used to construct returned values
+	map32 := attributeMap(h3, h2) // used to construct returned values
+
+	// create a channel over the body
+	tups := make(chan reflect.Value)
+	r2.Tuples(tups)
+
+	// channel of the output tuples
+	res := make(chan reflect.Value)
+
+	// done is used to signal when each of the worker goroutines
+	// finishes processing the join operation
+	done := make(chan struct{})
+	go func() {
+		for i := 0; i < mc; i++ {
+			<-done
+		}
+		close(res)
+	}()
+
+	// create a go routine that generates the join for each of the input tuples
+	for i := 0; i < mc; i++ {
+		go func() {
+			for tup2 := range tups {
+				for j := 0; j < r1.Card(); j++ {
+					if partialEquals(r1.Body[j], tup2, map12) {
+						tup3 := reflect.Indirect(reflect.New(e3))
+						combineTuples2(&tup3, r1.Body[j], map31)
+						combineTuples2(&tup3, tup2, map32)
+						res <- tup3
+					}
+				}
+			}
+			done <- struct{}{}
+		}()
+	}
+
+	// create a new body with the results and accumulate them
+	b := make([]reflect.Value, 0)
+	for tup := range res {
+		b = append(b, tup)
+	}
+
+	// determine the new candidate keys
+
+	return
+}
+
+func partialEquals(tup1 reflect.Value, tup2 reflect.Value, fmap map[string]fieldIndex) bool {
+	for _, fm := range fmap {
+		if tup1.Field(i).Interface() != tup2.Field(j).Interface() {
+			return false
+		}
+	}
+	return true
+}
+
+func subsetCandidateKeys(cKeys1 [][]string, names1 []string, fMap map[string]fieldIndex) [][]string {
 
 	remNames := make(map[string]struct{})
 	for _, n1 := range names1 {
