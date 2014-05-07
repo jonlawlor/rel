@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"reflect"
+	"sort"
 	"text/tabwriter"
 )
 
@@ -39,6 +40,10 @@ type Attribute struct {
 	Name string
 	Type reflect.Type
 }
+
+// CandKeys is a set of candidate keys
+// they should be unique and sorted
+type CandKeys [][]string
 
 // fieldIndex is used to map between attributes in different relations
 // that have the same name
@@ -83,7 +88,7 @@ type Relation interface {
 
 	// Tuples takes a channel of reflect.value and keeps sending
 	// the tuples in the relation over the channel.
-	Tuples(chan reflect.Value) // this channel needs a direction?
+	Tuples(chan reflect.Value) // does this channel need a direction?
 
 	// Restrict
 	Restrict(p Predicate) Relation
@@ -126,7 +131,7 @@ type Relation interface {
 // it returns a Relation implemented using the Simple
 // structure, which keeps Tuples in a slice of struct.  We may want to
 // change this to be more flexible with now relations are represented.
-func New(v interface{}, ckeys [][]string) (rel Simple, err error) {
+func New(v interface{}, ckeystr [][]string) (rel Simple, err error) {
 	//TODO(jonlawlor): allow callers to provide different inputs,
 	// like map[struct{...}]struct{} or chan struct{...} which could also
 	// represent a relation, and also error out if we can't figure out
@@ -134,12 +139,11 @@ func New(v interface{}, ckeys [][]string) (rel Simple, err error) {
 	// There should also be a way to construct a relation with an input
 	// that you already know is distinct, so we don't have to ensure it
 	// ourselves.
-
+	ckeys := CandKeys(ckeystr)
 	e := reflect.TypeOf(v).Elem()
 	cn, ct := namesAndTypes(e)
 	b := make([]reflect.Value, 0, 0)
 	if len(ckeys) == 0 {
-		fmt.Println("no keyes")
 		// all relations have a candidate key of all of their
 		// attributes
 		ckeys = append(ckeys, []string{})
@@ -159,9 +163,32 @@ func New(v interface{}, ckeys [][]string) (rel Simple, err error) {
 			b[i] = bs.Index(i)
 		}
 	}
+	orderCandidateKeys(ckeys)
 	rel = Simple{cn, ct, b, ckeys, e}
 
 	return
+}
+
+func orderCandidateKeys(ckeys CandKeys) {
+	// first go through each set of keys and alphabetize
+	// this is used to compare sets of candidate keys
+	for _, ck := range ckeys {
+		sort.Strings(ck)
+	}
+
+	// then sort by length so that smaller keys are first
+	sort.Sort(ckeys)
+}
+
+// definitions for the candidate key sorting
+func (cks CandKeys) Len() int {
+	return len(cks)
+}
+func (cks CandKeys) Swap(i, j int) {
+	cks[i], cks[j] = cks[j], cks[i]
+}
+func (cks CandKeys) Less(i, j int) bool {
+	return len(cks[i]) < len(cks[j]) // note this is smallest to largest
 }
 
 func namesAndTypes(e reflect.Type) ([]string, []reflect.Type) {
@@ -202,7 +229,7 @@ func distinct(v interface{}, e reflect.Type) []reflect.Value {
 // checkCandidateKeys checks the set of candidate keys
 // this ensures that the names of the keys are all in the attributes
 // of the relation
-func checkCandidateKeys(ckeys [][]string, cn []string) (err error) {
+func checkCandidateKeys(ckeys CandKeys, cn []string) (err error) {
 	// TODO(jonlawlor) cannonicalize these somehow
 	names := make(map[string]struct{})
 	for _, n := range cn {

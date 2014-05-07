@@ -30,7 +30,7 @@ type Simple struct {
 	Body []reflect.Value
 
 	// set of candidate keys
-	CKeys [][]string
+	CKeys CandKeys
 
 	// the type of the tuples contained within the relation
 	tupleType reflect.Type
@@ -72,7 +72,7 @@ func (r Simple) Heading() []Attribute {
 func interfaceHeading(i interface{}) []Attribute {
 	Names, Types := namesAndTypes(reflect.TypeOf(i))
 	h := make([]Attribute, len(Names))
-	for i := 0; i < deg; i++ {
+	for i := 0; i < len(Names); i++ {
 		h[i] = Attribute{Names[i], Types[i]}
 	}
 	return h
@@ -614,7 +614,7 @@ func (r1 Simple) Join(r2 Relation, t3 interface{}) (r3 Relation) {
 
 func partialEquals(tup1 reflect.Value, tup2 reflect.Value, fmap map[string]fieldIndex) bool {
 	for _, fm := range fmap {
-		if tup1.Field(i).Interface() != tup2.Field(j).Interface() {
+		if tup1.Field(fm.i).Interface() != tup2.Field(fm.j).Interface() {
 			return false
 		}
 	}
