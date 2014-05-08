@@ -86,9 +86,12 @@ type Relation interface {
 	// Cardinality; the number of tuples in the body
 	Card() int
 
-	// Tuples takes a channel of reflect.value and keeps sending
+	// Tuples takes a channel of interface and keeps sending
 	// the tuples in the relation over the channel.
-	Tuples(chan reflect.Value) // does this channel need a direction?
+	// it does not change the state of the relation.
+	Tuples(chan interface{}) // does this channel need a direction?
+
+	// the rest of these functions should be moved to functions of one or more relation
 
 	// Restrict
 	Restrict(p Predicate) Relation
@@ -121,8 +124,7 @@ type Relation interface {
 	// Insert
 	// some kind of ordering?
 
-	// I'm not sure that including GoString and String is the right
-	// way to do this.
+	// these are not relational but they are sure nice to have
 	GoString() string
 	String() string
 }
@@ -142,7 +144,7 @@ func New(v interface{}, ckeystr [][]string) (rel Simple, err error) {
 	ckeys := CandKeys(ckeystr)
 	e := reflect.TypeOf(v).Elem()
 	cn, ct := namesAndTypes(e)
-	b := make([]reflect.Value, 0, 0)
+	b := make([]interface{}, 0, 0)
 	if len(ckeys) == 0 {
 		// all relations have a candidate key of all of their
 		// attributes
@@ -158,9 +160,9 @@ func New(v interface{}, ckeystr [][]string) (rel Simple, err error) {
 		// assuming that the input is.
 		bs := reflect.ValueOf(v)
 		c := bs.Len()
-		b = make([]reflect.Value, c, c)
+		b = make([]interface{}, c, c)
 		for i := 0; i < c; i++ {
-			b[i] = bs.Index(i)
+			b[i] = bs.Index(i).Interface()
 		}
 	}
 	orderCandidateKeys(ckeys)
@@ -204,7 +206,7 @@ func namesAndTypes(e reflect.Type) ([]string, []reflect.Type) {
 }
 
 // distinct changes an interface struct slice to a slice of unique reflect.Values
-func distinct(v interface{}, e reflect.Type) []reflect.Value {
+func distinct(v interface{}, e reflect.Type) []interface{} {
 	m := reflect.MakeMap(reflect.MapOf(e, reflect.TypeOf(struct{}{})))
 	b := reflect.ValueOf(v)
 	c := b.Len()
@@ -223,7 +225,12 @@ func distinct(v interface{}, e reflect.Type) []reflect.Value {
 	// from tests it seems like the order of reflect.MapKeys() is
 	// not randomized, (as of go 1.2) but we can't rely on that.
 	// TODO(jonlawlor): change the string tests to be order independent.
-	return m.MapKeys()
+	mk := m.MapKeys()
+	bi := make([]interface{}, len(mk))
+	for i, k := range mk {
+		bi[i] = k
+	}
+	return bi
 }
 
 // checkCandidateKeys checks the set of candidate keys
@@ -274,18 +281,19 @@ func goStringTabTable(r Relation) string {
 
 	// write the body
 	//TODO(jonlawlor): see if buffering the channel improves performance
-	tups := make(chan reflect.Value)
+	tups := make(chan interface{})
 	r.Tuples(tups)
 
 	// TODO(jonlawlor): abstract the per-tuple functional mapping to another
 	// method?
 	deg := r.Deg()
 	for tup := range tups {
+		rtup := reflect.ValueOf(tup)
 		// this part might be replacable with some workers that
 		// convert tuples to strings
 		fmt.Fprintf(w, "\t{")
 		for j := 0; j < deg; j++ {
-			f := tup.Field(j)
+			f := rtup.Field(j)
 			switch f.Kind() {
 			case reflect.String:
 				fmt.Fprintf(w, "\xff%q\xff,\t", f)
@@ -338,17 +346,18 @@ func stringTabTable(r Relation) string {
 
 	// write the body
 	//TODO(jonlawlor): see if buffering the channel improves performance
-	tups := make(chan reflect.Value)
+	tups := make(chan interface{})
 	r.Tuples(tups)
 
 	// TODO(jonlawlor): abstract the per-tuple functional mapping to another
 	// method?
 	deg := r.Deg()
 	for tup := range tups {
+		rtup := reflect.ValueOf(tup)
 		// this part might be replacable with some workers that
 		// convert tuples to strings
 		for j := 0; j < deg; j++ {
-			f := tup.Field(j)
+			f := rtup.Field(j)
 			switch f.Kind() {
 			case reflect.String:
 				fmt.Fprintf(w, "|\t \xff%s\xff ", f)

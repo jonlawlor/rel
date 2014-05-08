@@ -27,7 +27,7 @@ type Simple struct {
 	Types []reflect.Type
 
 	// I wish there was a more precise way of representing this?
-	Body []reflect.Value
+	Body []interface{}
 
 	// set of candidate keys
 	CKeys CandKeys
@@ -47,7 +47,7 @@ func (r Simple) Card() int {
 }
 
 // Tuples sends each tuple in the relation to a channel
-func (r Simple) Tuples(t chan reflect.Value) {
+func (r Simple) Tuples(t chan interface{}) {
 	go func() {
 		defer close(t)
 		for _, tup := range r.Body {
@@ -93,7 +93,7 @@ func (r Simple) String() string {
 // arbitrary types through reflection.
 func (r1 Simple) Project(t2 interface{}) (r2 Relation) {
 	c := r1.Card()
-	b2 := make([]reflect.Value, c)
+	b2 := make([]interface{}, c)
 
 	// first figure out if the tuple types of the relation and
 	// projection are equivalent.  If so, convert the tuples to
@@ -125,13 +125,14 @@ func (r1 Simple) Project(t2 interface{}) (r2 Relation) {
 	// TODO(jonlawlor): make this concurrent
 	for i, tup1 := range r1.Body {
 		tup2 := reflect.Indirect(reflect.New(e2))
+		rtup1 := reflect.ValueOf(tup1)
 		for _, fm := range fMap {
 			tupf2 := tup2.Field(fm.j)
-			tupf2.Set(tup1.Field(fm.i))
+			tupf2.Set(rtup1.Field(fm.i))
 		}
 		// set the field in the new tuple to the value
 		// from the old one
-		b2[i] = tup2
+		b2[i] = tup2.Interface()
 	}
 
 	// figure out the names to remove from the original data
@@ -142,12 +143,12 @@ func (r1 Simple) Project(t2 interface{}) (r2 Relation) {
 		// performance.
 		m := make(map[interface{}]struct{})
 		for _, tup2 := range b2 {
-			m[tup2.Interface()] = struct{}{}
+			m[tup2] = struct{}{}
 		}
-		b2 = make([]reflect.Value, len(m))
+		b2 = make([]interface{}, len(m))
 		i := 0
 		for tup2 := range m {
-			b2[i] = reflect.ValueOf(tup2)
+			b2[i] = tup2
 			i++
 		}
 		ck2 = append(ck2, []string{})
@@ -171,7 +172,7 @@ func (r1 Simple) Rename(t2 interface{}) (r2 Relation) {
 	// the same as the first, except that it has different names for
 	// the same fields.
 	c := r1.Card()
-	b2 := make([]reflect.Value, c)
+	b2 := make([]interface{}, c)
 
 	// first figure out if the tuple types of the relation and rename
 	// are equal.  If so, convert the tuples to the (possibly new)
@@ -189,11 +190,12 @@ func (r1 Simple) Rename(t2 interface{}) (r2 Relation) {
 	n := reflect.ValueOf(t2).NumField()
 	for i, tup1 := range r1.Body {
 		tup2 := reflect.Indirect(reflect.New(e2))
+		rtup1 := reflect.ValueOf(tup1)
 		for j := 0; j < n; j++ {
 			tupf2 := tup2.Field(j)
-			tupf2.Set(tup1.Field(j))
+			tupf2.Set(rtup1.Field(j))
 		}
-		b2[i] = tup2
+		b2[i] = tup2.Interface()
 	}
 
 	// figure out the new names
@@ -239,11 +241,11 @@ func (r1 Simple) Union(r2 Relation) Relation {
 
 	m := make(map[interface{}]struct{}, r1.Card()+r2.Card())
 	for _, tup1 := range r1.Body {
-		m[tup1.Interface()] = struct{}{}
+		m[tup1] = struct{}{}
 	}
 
 	// the second relation has to return its values through a channel
-	tups := make(chan reflect.Value)
+	tups := make(chan interface{})
 	r2.Tuples(tups)
 
 	// TODO(jonlawlor): abstract the per-tuple functional mapping to another
@@ -252,12 +254,12 @@ func (r1 Simple) Union(r2 Relation) Relation {
 	// It may be more efficient to store the relation bodies in maps if we
 	// always have to construct a map to do anything with them.
 	for tup2 := range tups {
-		m[tup2.Interface()] = struct{}{}
+		m[tup2] = struct{}{}
 	}
-	b := make([]reflect.Value, len(m))
+	b := make([]interface{}, len(m))
 	i := 0
 	for tup, _ := range m {
-		b[i] = reflect.ValueOf(tup)
+		b[i] = tup
 		i++
 	}
 	// return the new relation
@@ -271,22 +273,22 @@ func (r1 Simple) SetDiff(r2 Relation) (onlyr1 Relation) {
 	// then panic.
 	m := make(map[interface{}]struct{}, r1.Card())
 	for _, tup1 := range r1.Body {
-		m[tup1.Interface()] = struct{}{}
+		m[tup1] = struct{}{}
 	}
 
 	// the second relation has to return its values through a channel
-	tups := make(chan reflect.Value)
+	tups := make(chan interface{})
 	r2.Tuples(tups)
 
 	// TODO(jonlawlor): abstract the per-tuple functional mapping to another
 	// method?
 	for tup2 := range tups {
-		delete(m, tup2.Interface())
+		delete(m, tup2)
 	}
-	b := make([]reflect.Value, len(m))
+	b := make([]interface{}, len(m))
 	i := 0
 	for tup, _ := range m {
-		b[i] = reflect.ValueOf(tup)
+		b[i] = tup
 		i++
 	}
 
@@ -319,11 +321,11 @@ func (r1 Simple) Restrict(p Predicate) Relation {
 		mc = r1.Card()
 	}
 	// channel of the input tuples
-	tups := make(chan reflect.Value, mc)
+	tups := make(chan interface{}, mc)
 	r1.Tuples(tups)
 
 	// channel of the output tuples
-	res := make(chan reflect.Value, mc)
+	res := make(chan interface{}, mc)
 
 	// done is used to signal when each of the worker goroutines
 	// finishes processing the predicates
@@ -343,7 +345,7 @@ func (r1 Simple) Restrict(p Predicate) Relation {
 	for i := 0; i < mc; i++ {
 		go func() {
 			for tup := range tups {
-				if p(tup.Interface()) {
+				if p(tup) {
 					res <- tup
 				}
 			}
@@ -352,7 +354,7 @@ func (r1 Simple) Restrict(p Predicate) Relation {
 	}
 
 	// create a new body with the results and accumulate them
-	b := make([]reflect.Value, 0)
+	b := make([]interface{}, 0)
 	for tup := range res {
 		b = append(b, tup)
 	}
@@ -385,11 +387,11 @@ func (r1 Simple) GroupBy(t2 interface{}, vt interface{}, gfcn func(chan interfac
 	var wg sync.WaitGroup
 
 	// create the channel of tuples from r1
-	tups := make(chan reflect.Value)
+	tups := make(chan interface{})
 	r1.Tuples(tups)
 
 	// results come back through the res channel
-	res := make(chan reflect.Value)
+	res := make(chan interface{})
 
 	// for each of the tuples, extract the group values out and set
 	// the ones that are not in vtup to the values in the tuple.
@@ -429,7 +431,7 @@ func (r1 Simple) GroupBy(t2 interface{}, vt interface{}, gfcn func(chan interfac
 	for tup := range tups {
 		// this reflection may be a bottleneck, and we may be able to
 		// replace it with a concurrent version.
-		gtupi, vtupi := partialProject(tup, e2, ev, e2fieldMap, evfieldMap)
+		gtupi, vtupi := partialProject(reflect.ValueOf(tup), e2, ev, e2fieldMap, evfieldMap)
 
 		// the map cannot be accessed concurrently though
 		// a lock needs to be placed here
@@ -451,7 +453,7 @@ func (r1 Simple) GroupBy(t2 interface{}, vt interface{}, gfcn func(chan interfac
 				vtup := reflect.ValueOf(gfcn(groupChan))
 				// combine the returned values with the group tuple
 				// to create the new complete tuple
-				res <- combineTuples(reflect.ValueOf(gtupi), vtup, e2, vgfieldMap)
+				res <- combineTuples(reflect.ValueOf(gtupi), vtup, e2, vgfieldMap).Interface()
 			}(gtupi, groupChan)
 		}
 		// this send can also be done concurrently, or we could buffer
@@ -480,7 +482,7 @@ func (r1 Simple) GroupBy(t2 interface{}, vt interface{}, gfcn func(chan interfac
 		ck2 = append(ck2, cn)
 	}
 	// accumulate the results into a new relation
-	b := make([]reflect.Value, 0)
+	b := make([]interface{}, 0)
 	for tup := range res {
 		b = append(b, tup)
 	}
@@ -568,11 +570,11 @@ func (r1 Simple) Join(r2 Relation, t3 interface{}) (r3 Relation) {
 	map32 := attributeMap(h3, h2) // used to construct returned values
 
 	// create a channel over the body
-	tups := make(chan reflect.Value)
+	tups := make(chan interface{})
 	r2.Tuples(tups)
 
 	// channel of the output tuples
-	res := make(chan reflect.Value)
+	res := make(chan interface{})
 
 	// done is used to signal when each of the worker goroutines
 	// finishes processing the join operation
@@ -588,12 +590,13 @@ func (r1 Simple) Join(r2 Relation, t3 interface{}) (r3 Relation) {
 	for i := 0; i < mc; i++ {
 		go func() {
 			for tup2 := range tups {
+				rtup2 := reflect.ValueOf(tup2)
 				for j := 0; j < r1.Card(); j++ {
-					if partialEquals(r1.Body[j], tup2, map12) {
+					if partialEquals(reflect.ValueOf(r1.Body[j]), rtup2, map12) {
 						tup3 := reflect.Indirect(reflect.New(e3))
-						combineTuples2(&tup3, r1.Body[j], map31)
-						combineTuples2(&tup3, tup2, map32)
-						res <- tup3
+						combineTuples2(&tup3, reflect.ValueOf(r1.Body[j]), map31)
+						combineTuples2(&tup3, rtup2, map32)
+						res <- tup3.Interface()
 					}
 				}
 			}
@@ -602,7 +605,7 @@ func (r1 Simple) Join(r2 Relation, t3 interface{}) (r3 Relation) {
 	}
 
 	// create a new body with the results and accumulate them
-	b := make([]reflect.Value, 0)
+	b := make([]interface{}, 0)
 	for tup := range res {
 		b = append(b, tup)
 	}
