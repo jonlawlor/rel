@@ -23,19 +23,17 @@ import (
 	"bytes"
 	"fmt"
 	"reflect"
+	"runtime"
 	"sort"
 	"text/tabwriter"
 )
 
-// MaxConcurrent number of concurrent goroutines during an operation
-// operations performed in parallel each have their own set, so for
-// 2 restrict opertations running concurrently, the program will use
-// up to 2*MaxConcurrent
-// this can be modified by the caller before and after an operation
-var MaxConcurrent = 100
+// T is used to represent tuples
+type T interface{}
 
-// Attribute represents a name:type pair which defines the heading
+// Attribute represents a Name:Type pair which defines the heading
 // of the relation
+// I'm not sure this should be exported.
 type Attribute struct {
 	Name string
 	Type reflect.Type
@@ -54,10 +52,10 @@ type fieldIndex struct {
 
 // Predicate is the type of func that takes a tuple and returns bool
 // and is used for restrict & update
-type Predicate func(tup interface{}) bool
+type Predicate func(tup T) bool
 
 // theta is the type of func used as a predicate in theta-joins
-type Theta func(tup1 interface{}, tup2 interface{}) bool
+type Theta func(tup1 T, tup2 T) bool
 
 // Still need to hammer out exactly what should be in the Relation
 // interface.  Some of the relational operations can be constructed
@@ -80,6 +78,12 @@ type Relation interface {
 	// Heading is a slice of column name:type pairs
 	Heading() []Attribute
 
+	// Zero is the zero value for the tuple
+	Zero() T
+
+	// CKeys is the set of candidate keys for the Relation
+	CKeys() CandKeys
+
 	// Degree; the number of attributes
 	Deg() int
 
@@ -88,13 +92,22 @@ type Relation interface {
 
 	// Tuples takes a channel of interface and keeps sending
 	// the tuples in the relation over the channel.
-	// it does not change the state of the relation.
-	Tuples(chan interface{}) // does this channel need a direction?
+	// should this be allowed to consume the internal channel?
+	Tuples(chan T) // does this channel need a direction?
 
 	// the rest of these functions should be moved to functions of one or more relation
 
-	// Restrict
-	Restrict(p Predicate) Relation
+	// Project the relation to new type
+	//Project(T)
+
+	// Union
+	//Union(r2 Relation)
+
+	// SetDiff
+	//SetDiff(r2 Relation)
+
+	// copy the relation so that new values don't consume old ones
+	Copy() Relation
 
 	// theta join
 	// JoinTheta(r2 Relation, Theta) Relation
@@ -102,17 +115,8 @@ type Relation interface {
 	// natural join
 	// Join(r2 Relation) Relation
 
-	// Project
-	Project(t2 interface{}) (r2 Relation)
-
 	// Rename
 	// Rename(???) Relation
-
-	// Union
-	Union(r2 Relation) Relation
-
-	// SetDiff
-	SetDiff(r2 Relation) Relation
 
 	// additional derived functions
 	// SemiDiff(r2 Relation) Relation
@@ -129,46 +133,27 @@ type Relation interface {
 	String() string
 }
 
-// New creates a new Relation.
-// it returns a Relation implemented using the Simple
-// structure, which keeps Tuples in a slice of struct.  We may want to
-// change this to be more flexible with now relations are represented.
-func New(v interface{}, ckeystr [][]string) (rel Simple, err error) {
-	//TODO(jonlawlor): allow callers to provide different inputs,
-	// like map[struct{...}]struct{} or chan struct{...} which could also
-	// represent a relation, and also error out if we can't figure out
-	// how to construct a relation from the input.
-	// There should also be a way to construct a relation with an input
-	// that you already know is distinct, so we don't have to ensure it
-	// ourselves.
-	ckeys := CandKeys(ckeystr)
-	e := reflect.TypeOf(v).Elem()
-	cn, ct := namesAndTypes(e)
-	b := make([]interface{}, 0, 0)
-	if len(ckeys) == 0 {
-		// all relations have a candidate key of all of their
-		// attributes
-		ckeys = append(ckeys, []string{})
-		copy(ckeys[0], cn)
-		b = distinct(v, e)
-	} else {
-		err = checkCandidateKeys(ckeys, cn)
-		if err != nil {
-			return
-		}
-		// we don't have to perform a distinct because we are
-		// assuming that the input is.
-		bs := reflect.ValueOf(v)
-		c := bs.Len()
-		b = make([]interface{}, c, c)
-		for i := 0; i < c; i++ {
-			b[i] = bs.Index(i).Interface()
-		}
+// interfaceHeading returns a map from column names to types for an
+// input interface
+func interfaceHeading(i T) []Attribute {
+	Names, Types := namesAndTypes(reflect.TypeOf(i))
+	h := make([]Attribute, len(Names))
+	for i := 0; i < len(Names); i++ {
+		h[i] = Attribute{Names[i], Types[i]}
 	}
-	orderCandidateKeys(ckeys)
-	rel = Simple{cn, ct, b, ckeys, e}
+	return h
+}
 
-	return
+func namesAndTypes(e reflect.Type) ([]string, []reflect.Type) {
+	n := e.NumField()
+	names := make([]string, n)
+	types := make([]reflect.Type, n)
+	for i := 0; i < n; i++ {
+		f := e.Field(i)
+		names[i] = f.Name
+		types[i] = f.Type
+	}
+	return names, types
 }
 
 func orderCandidateKeys(ckeys CandKeys) {
@@ -193,44 +178,20 @@ func (cks CandKeys) Less(i, j int) bool {
 	return len(cks[i]) < len(cks[j]) // note this is smallest to largest
 }
 
-func namesAndTypes(e reflect.Type) ([]string, []reflect.Type) {
-	n := e.NumField()
-	names := make([]string, n)
-	types := make([]reflect.Type, n)
-	for i := 0; i < n; i++ {
-		f := e.Field(i)
-		names[i] = f.Name
-		types[i] = f.Type
-	}
-	return names, types
-}
-
-// distinct changes an interface struct slice to a slice of unique reflect.Values
-func distinct(v interface{}, e reflect.Type) []interface{} {
-	m := reflect.MakeMap(reflect.MapOf(e, reflect.TypeOf(struct{}{})))
-	b := reflect.ValueOf(v)
-	c := b.Len()
-	blank := reflect.ValueOf(struct{}{})
-	for i := 0; i < c; i++ {
-		m.SetMapIndex(b.Index(i), blank)
-	}
-
-	// I tried using the append unique method descibed in
-	// http://blog.golang.org/profiling-go-programs but it took much longer
-	// under benchmarks.  It may be because the comparison has to be done
-	// using reflect.DeepEqual(x.Interface(), y.Interface())
-	// I suspect that for large slices the map implementation is more efficent
-	// because it has lower time complexity.
-
-	// from tests it seems like the order of reflect.MapKeys() is
-	// not randomized, (as of go 1.2) but we can't rely on that.
-	// TODO(jonlawlor): change the string tests to be order independent.
-	mk := m.MapKeys()
-	bi := make([]interface{}, len(mk))
-	for i, k := range mk {
-		bi[i] = k
-	}
-	return bi
+// distinct changes an interface channel to a channel of unique interfaces
+func distinct(b1 chan T) b2 chan T {
+	m := make(map[interface{}]struct{})
+	b2 := make(chan T)
+	go func() {
+		for v := range b1 {
+			if _, dup := m[v]; !dup {
+				m[v] = struct{}{}
+				b2 <- v
+			}
+		}
+		close(b2)
+	}()
+	return
 }
 
 // checkCandidateKeys checks the set of candidate keys

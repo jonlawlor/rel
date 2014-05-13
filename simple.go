@@ -1,5 +1,5 @@
-// the Simple type is a relation with underlying data stored in a struct
-// slice.  It is intended to be a starter implementation that can be used
+// the Simple type is a relation with underlying data stored in a channel.
+//  It is intended to be a starter implementation that can be used
 // to check the validity of more complicated approaches.
 //
 // It makes heavy use of reflection, but should provide some interesting
@@ -18,72 +18,134 @@ import (
 
 // Simple is an implementation of Relation using a []struct
 type Simple struct {
-	// Names & Types constitute the heading of the relation.
+	// heading constitute the heading of the relation.
 	// using slices here instead of a map to preserve order
 	// the reason is because golang distinguishes between structs
 	// based on the order of their fields, and users may want to
 	// use the methods defined on a particular struct.
-	Names []string
-	Types []reflect.Type
+	heading []Attribute
 
-	// I wish there was a more precise way of representing this?
-	Body []interface{}
+	// the channel of tuples in the relation
+	body chan T
 
 	// set of candidate keys
-	CKeys CandKeys
+	cKeys CandKeys
 
 	// the type of the tuples contained within the relation
-	tupleType reflect.Type
+	zero T
 }
+
+// New creates a new Relation.
+// it returns a Relation implemented using the Simple
+// structure, which keeps Tuples in a single channel.  We may want to
+// change this to be more flexible with how relations are represented.
+func New(v interface{}, ckeystr [][]string) *Simple {
+	// TODO(jonlawlor): allow callers to provide different inputs,
+	// like map[struct{...}]struct{} or []struct{...} which could also
+	// represent a relation, and also error out if we can't figure out
+	// how to construct a relation from the input.
+	// There should also be a way to construct a relation with an input
+	// that you already know is distinct, so we don't have to ensure it
+	// ourselves.
+	
+	// right now v can ONLY be a channel of the appropriate type.
+	// we can probably also accept a slice of values or a map, or pointers
+	// to that kind
+	r := new(Simple)
+
+	rChan := refect.ValueOf(v)
+	// create the body
+	r.body = make(chan T)
+	go func(body chan T) {
+		for {
+			// this will always attempt to pull at least one value
+			val, ok := rChan.Recv()
+			if !ok {
+				break
+			}
+			body <- val.Interface()
+		}
+		close(body)
+	}(r.body)
+
+	r.cKeys = CandKeys(ckeystr)
+
+	// create zero element
+	r.zero = rChan.Elem().Interface()
+
+	// create the heading
+	cn, ct := namesAndTypes(rChan.Elem())
+	r.heading := make([]Attribute, len(cn))
+	for i := 0; i < len(cn); i++ {
+		r.heading[i] = Attribute{cn[i], ct[i]}
+	}
+	
+	// ensure minimal candidate keys
+	if len(r.cKeys) == 0 {
+		r.body = distinct(r.body)
+
+		// all relations have a candidate key of all of their attributes, or
+		// a non zero subset if the relation is not dee or dum
+		r.cKeys = append(r.cKeys, cn)
+		
+		// change the body to use a distinct channel instead of an assumed
+		// distinct channel
+	}
+	
+	// we might want to check the candidate keys for validity here?
+	orderCandidateKeys(r.cKeys)
+	return r
+}
+
 
 // Deg returns the degree of the relation
-func (r Simple) Deg() int {
-	return len(r.Names)
-}
-
-// Card returns the cardinality of the relation
-func (r Simple) Card() int {
-	return len(r.Body)
-}
-
-// Tuples sends each tuple in the relation to a channel
-func (r Simple) Tuples(t chan interface{}) {
-	go func() {
-		defer close(t)
-		for _, tup := range r.Body {
-			t <- tup
-		}
-	}()
-	return
+func (r *Simple) Deg() int {
+	return len(r.heading)
 }
 
 // Heading returns a map from column names to types
-func (r Simple) Heading() []Attribute {
-	deg := r.Deg()
-	h := make([]Attribute, deg)
-	for i := 0; i < deg; i++ {
-		h[i] = Attribute{r.Names[i], r.Types[i]}
-	}
-	return h
+func (r *Simple) Heading() []Attribute {
+	return r.heading
 }
 
-// interfaceHeading returns a map from column names to types for an
-// input interface
-func interfaceHeading(i interface{}) []Attribute {
-	Names, Types := namesAndTypes(reflect.TypeOf(i))
-	h := make([]Attribute, len(Names))
-	for i := 0; i < len(Names); i++ {
-		h[i] = Attribute{Names[i], Types[i]}
+// Card returns the cardinality of the relation
+// note: this consumes the values of the relation
+func (r *Simple) Card() i int {	
+	for _ := range(r.body) {
+		i++
 	}
-	return h
 }
 
-// String returns a text representation of the Relation
-func (r Simple) GoString() string {
+// Tuples sends each tuple in the relation to a channel
+// note: this consumes the values of the relation, and when it is finished it
+// closes the input channel.
+// typical usage is probably
+// go r.Tuples(chanVal)
+func (r *Simple) Tuples(t chan T) {
+	for v := range(r.body) {
+		t <- v
+	}
+	close(t)
+}
+
+
+// Zero returns the zero value of the relation (a blank tuple)
+func (r *Simple) Zero() T {
+	return r.zero
+}
+
+// CKeys is the set of candidate keys in the relation
+func (r *Simple) CKeys() CandKeys {
+	return r.cKeys
+}
+
+// GoString returns a text representation of the Relation
+func (r *Simple) GoString() string {
 	return goStringTabTable(r)
 }
 
-func (r Simple) String() string {
+// String returns a text representation of the Relation
+func (r *Simple) String() string {
 	return stringTabTable(r)
 }
 
@@ -91,112 +153,138 @@ func (r Simple) String() string {
 // t2 has to be a new type which is a subset of the current tuple's
 // type.  We can't use a slice of strings because go can't construct
 // arbitrary types through reflection.
-func (r1 Simple) Project(t2 interface{}) (r2 Relation) {
-	c := r1.Card()
-	b2 := make([]interface{}, c)
+func (r *Simple) Project(z2 T) {
+	
+	// transform the channel of tuples from the relation
+	z1 := r1.Zero()
 
 	// first figure out if the tuple types of the relation and
 	// projection are equivalent.  If so, convert the tuples to
 	// the (possibly new) type and then return the new relation.
-	e2 := reflect.TypeOf(t2)
-	if r1.tupleType.AssignableTo(e2) {
-		for i, tup := range r1.Body {
-			b2[i] = tup
-		}
-		return Simple{r1.Names, r1.Types, b2, r1.CKeys, e2}
+	e1 := reflect.TypeOf(r1.Zero())
+	e2 := reflect.TypeOf(z2)
+
+	if e1.AssignableTo(e2) {
+		// nothing to do, I think.
+		return
 	}
 
 	// figure out which fields stay, and where they are in each of
 	// the tuple types.
-	fMap := fieldMap(r1.tupleType, e2)
+	fMap := fieldMap(e1, e2)
 	// TODO(jonlawlor): error if fields in e2 are not in r1's tuples.
 
+	// assign fields from the old relation to fields in the new
+	body2 := make(chan T)
+	go func(body chan T) {
+		for tup1 := range body {
+			tup2 := reflect.Indirect(reflect.New(e2))
+			rtup1 := reflect.ValueOf(tup1)
+			for _, fm := range fMap {
+				tupf2 := tup2.Field(fm.j)
+				tupf2.Set(rtup1.Field(fm.i))
+			}
+			// set the field in the new tuple to the value
+			// from the old one
+			body2 <- tup2.Interface()
+		}
+		close(body2)
+	}(r.body)
+	
 	// figure out which of the candidate keys (if any) to keep.
 	// only the keys that only have attributes in the new type are
 	// valid.  If we do have any keys that are still valid, then
-	// we don't have to perform distinct on the body again.
+	// we don't have to perform distinct on the body.
 
-	// We might want to assign the results of the project to either a map
-	// so that it can be re-distincted, or to a []reflect.Value if it is
-	// already distinct, based on the results of the candidate Key change
-	ck2 := subsetCandidateKeys(r1.CKeys, r1.Names, fMap)
-
-	// assign fields from the old relation to fields in the new
-	// TODO(jonlawlor): make this concurrent
-	for i, tup1 := range r1.Body {
-		tup2 := reflect.Indirect(reflect.New(e2))
-		rtup1 := reflect.ValueOf(tup1)
-		for _, fm := range fMap {
-			tupf2 := tup2.Field(fm.j)
-			tupf2.Set(rtup1.Field(fm.i))
-		}
-		// set the field in the new tuple to the value
-		// from the old one
-		b2[i] = tup2.Interface()
+	cn1 := make([]string, len(r.heading))
+	for i, att := range r.heading {
+		cn1[i] = att.Name
+	}
+	r.cKeys := subsetCandidateKeys(r.cKeys, cn1, fMap)
+	cn2, ct2 := namesAndTypes(e2)
+	
+	if len(cn2) == 0 {
+		// make a new primary key and ensure the results are distinct
+		r.cKeys = append(r.cKeys, cn2)
+		r.body = distinct(body2)
+	} else {
+		r.body = body2
 	}
 
-	// figure out the names to remove from the original data
-	cn, ct := namesAndTypes(e2)
-	if len(ck2) == 0 {
-		// create a new primary key
-		// I'm not sure this implementation has good
-		// performance.
-		m := make(map[interface{}]struct{})
-		for _, tup2 := range b2 {
-			m[tup2] = struct{}{}
-		}
-		b2 = make([]interface{}, len(m))
-		i := 0
-		for tup2 := range m {
-			b2[i] = tup2
-			i++
-		}
-		ck2 = append(ck2, []string{})
-		copy(ck2[0], cn)
+	// create the new heading
+	// TODO(jonlawlor): we can actually reuse memory here because the project
+	// can't be any bigger than the original
+	r.heading := make([]Attribute, len(cn2))
+	for i := 0; i < len(cn2); i++ {
+		r.heading[i] = Attribute{cn2[i], ct2[i]}
 	}
-	// construct the returned relation
-	return Simple{cn, ct, b2, ck2, e2}
+}
+
+
+// Restrict applies a predicate to a relation and returns a new relation
+// Predicate is a func which accepts an interface{} of the same dynamic
+// type as the tuples of the relation, and returns a boolean.
+func (r *Simple) Restrict(p Predicate) {
+	// take the internal channel and apply a predicate to it
+
+	// channel of the output tuples
+	body2 := make(chan T)
+
+	// transform the body so that it only sends values that pass the
+	// predicate
+	go func(body chan T) {
+		for tup := range body {
+			if p(tup) {
+				body2 <- tup
+			}
+		}
+		close(body2)
+	}()
+	
+	r.body = body2
 }
 
 // rename operation
 // the way this is done has to do a rename in place, so at this point
 // the order of the fields becomes significant.  There will only be a
 // single input, which should line up with the order and types of the
-// fields in the original data.  This will probably be combined with
-// project to create a "select xxx as yyy" idiom.
+// fields in the original data.
 // The advantage of this syntax in go is that the rename can't express
 // duplicate attributes, and also the renamed tuple is the new type
-// used in type assertions.
-func (r1 Simple) Rename(t2 interface{}) (r2 Relation) {
+// used in type assertions on resulting values.
+func (r *Simple) Rename(t2 interface{}) {
 	// TODO(jonlawlor) add a check that the second interface's type is
 	// the same as the first, except that it has different names for
 	// the same fields.
-	c := r1.Card()
-	b2 := make([]interface{}, c)
 
 	// first figure out if the tuple types of the relation and rename
 	// are equal.  If so, convert the tuples to the (possibly new)
 	// type and then return the new relation.
-	e2 := reflect.TypeOf(t2)
-	if r1.tupleType.AssignableTo(e2) {
-		for i, tup := range r1.Body {
-			b2[i] = tup
-		}
-		return Simple{r1.Names, r1.Types, b2, r1.CKeys, e2}
+	z1 := reflect.TypeOf(r.zero)
+	z2 := reflect.TypeOf(t2)
+	if z1.AssignableTo(z2) {
+		// do nothing
+		return
 	}
 
+	body2 := make(chan T)
 	// assign the values of the original to the new names in the same
 	// locations
-	n := reflect.ValueOf(t2).NumField()
-	for i, tup1 := range r1.Body {
-		tup2 := reflect.Indirect(reflect.New(e2))
-		rtup1 := reflect.ValueOf(tup1)
-		for j := 0; j < n; j++ {
-			tupf2 := tup2.Field(j)
-			tupf2.Set(rtup1.Field(j))
+	n := reflect.ValueOf(z2).NumField()
+
+	go func(body chan T) {
+		for tup1 := range r1.Body {
+			tup2 := reflect.Indirect(reflect.New(e2))
+			rtup1 := reflect.ValueOf(tup1)
+			for i := 0; i < n; i++ {
+				tupf2 := tup2.Field(i)
+				tupf2.Set(rtup1.Field(i))
+			}
+			body2 <- tup2.Interface()
 		}
-		b2[i] = tup2.Interface()
-	}
+		close(body2)
+	}(r.body)
+	r.body = body2
 
 	// figure out the new names
 	names2 := make([]string, n)
@@ -208,28 +296,27 @@ func (r1 Simple) Rename(t2 interface{}) (r2 Relation) {
 	// create a map from the old names to the new names if there is
 	// any difference between them
 	nameMap := make(map[string]string)
-	for i, name := range r1.Names {
-		nameMap[name] = names2[i]
+	for i, att := range r.heading {
+		nameMap[att.Name] = names2[i]
 	}
 
 	// for each of the candidate keys, rename any keys from the old
 	// names to the new ones
-	ck2 := make([][]string, len(r1.CKeys))
-	for i := 0; i < len(ck2); i++ {
-		copy(ck2[i], r1.CKeys[i])
-		for j, key := range ck2[i] {
-			ck2[i][j] = nameMap[key]
+	for i := 0; i < len(r.cKeys); i++ {
+		for j, key := range r.cKeys[i] {
+			r.cKeys[i][j] = nameMap[key]
 		}
 	}
-
-	ct := make([]reflect.Type, len(r1.Types))
-	copy(ct, r1.Types)
-
-	return Simple{names2, ct, b2, ck2, e2}
+	
+	// change the heading
+	for i := 0; i < len(r.heading); i++ {
+		r.heading[i].Name = names2[i]
+	}
+	
 }
 
 // union is a set union of two relations
-func (r1 Simple) Union(r2 Relation) Relation {
+func (r1 *Simple) Union(r2 *Relation) {
 	// TODO(jonlawlor): check that the two relations conform, and if not
 	// then panic.
 
@@ -239,126 +326,74 @@ func (r1 Simple) Union(r2 Relation) Relation {
 	// for some reason the map requires this to use an Interface() call.
 	// maybe there is a better way?
 
-	m := make(map[interface{}]struct{}, r1.Card()+r2.Card())
-	for _, tup1 := range r1.Body {
-		m[tup1] = struct{}{}
+	var mu sync.Mutex
+	m := make(map[interface{}]struct{})
+	
+	body2 := make(chan T)
+	go r2.Tuples(body2)
+	
+	res := make(chan T)
+	
+	done := make(chan struct{})
+	// function to handle closing of the results channel
+	go func() {
+		// one for each body
+		<-done
+		<-done
+		close(res)
 	}
-
-	// the second relation has to return its values through a channel
-	tups := make(chan interface{})
-	r2.Tuples(tups)
-
-	// TODO(jonlawlor): abstract the per-tuple functional mapping to another
-	// method?  Also, it might be possible to make 2 maps instead of a single
-	// map, and populate them concurrently, and at the end merge them.
-	// It may be more efficient to store the relation bodies in maps if we
-	// always have to construct a map to do anything with them.
-	for tup2 := range tups {
-		m[tup2] = struct{}{}
+	
+	combine := func(body chan T) {
+		for tup := range body {
+			mu.Lock()
+			if _, dup := m[tup]; !dup {
+				m[tup] = struct{}{}
+				mu.Unlock()
+				res <- tup
+			} else {
+				mu.Unlock()
+			}
+		}
+		done <- struct{}{}
+		return
 	}
-	b := make([]interface{}, len(m))
-	i := 0
-	for tup, _ := range m {
-		b[i] = tup
-		i++
-	}
-	// return the new relation
-	// TODO(jonlawlor): should these be copies?
-	return Simple{r1.Names, r1.Types, b, r1.CKeys, r1.tupleType}
+	go combine(r1.body)
+	go combine(body2)
+	
+	r1.body = res
 }
 
 // setdiff returns the set difference of the two relations
-func (r1 Simple) SetDiff(r2 Relation) (onlyr1 Relation) {
+func (r1 *Simple) SetDiff(r2 *Relation) {
 	// TODO(jonlawlor): check that the two relations conform, and if not
 	// then panic.
-	m := make(map[interface{}]struct{}, r1.Card())
-	for _, tup1 := range r1.Body {
-		m[tup1] = struct{}{}
-	}
-
-	// the second relation has to return its values through a channel
-	tups := make(chan interface{})
-	r2.Tuples(tups)
-
-	// TODO(jonlawlor): abstract the per-tuple functional mapping to another
-	// method?
-	for tup2 := range tups {
-		delete(m, tup2)
-	}
-	b := make([]interface{}, len(m))
-	i := 0
-	for tup, _ := range m {
-		b[i] = tup
-		i++
-	}
-
-	// return the new relation
-	// TODO(jonlawlor): should these be copies?
-	onlyr1 = Simple{r1.Names, r1.Types, b, r1.CKeys, r1.tupleType}
-	return
-}
-
-// Restrict applies a predicate to a relation and returns a new relation
-// Predicate is a func which accepts an interface{} of the same dynamic
-// type as the tuples of the relation, and returns a boolean.
-//
-// the implementation for Restrict creates a set of go routines to handle
-// the application of the predicate, then feeds that set of worker routines
-// the tuples from the relation.  Those workers apply the predicate, and if
-// it is true, send the tuple to the result chan.  When all of the values
-// are consumed, the workers each send a done signal to another go routine,
-// which, when all of the workers have finished, closes the result channel.
-// The result channel is accumulated into a new relation body and that body
-// is used to construct a new relation.
-func (r1 Simple) Restrict(p Predicate) Relation {
-
-	// figure out how many items we want to handle at the same time
-	mc := MaxConcurrent
-	if mc > r1.Card() {
-		// if the relation has fewer tuples than the maximum amount
-		// we can handle concurrently, only create buffers and go
-		// routines for each of the tuples, to save on memory.
-		mc = r1.Card()
-	}
-	// channel of the input tuples
-	tups := make(chan interface{}, mc)
-	r1.Tuples(tups)
-
-	// channel of the output tuples
-	res := make(chan interface{}, mc)
-
-	// done is used to signal when each of the worker goroutines
-	// finishes processing the predicates
-	done := make(chan struct{})
-	go func() {
-		for i := 0; i < mc; i++ {
-			<-done
+	
+	m := make(map[interface{}]struct{})
+	// setdiff is unique in that it has to immediately consume all of the
+	// values from the second relation in order to send any values in the
+	// first one.  All other relational operations can be done lazily, this
+	// one can only be done half-lazy.
+	// with some indexing this is avoidable.
+	
+	// second set of tups
+	body2 := make(chan T)
+	r2.Tuples(body2)
+	
+	res := make(chan T)
+	
+	go func (b1, b2 chan T) {
+		for tup := range(b2) {
+			m[tup] = struct{}{}
+		}
+		for tup := range(b1) {
+			if _, rem := m[tup]; !rem {
+				res <- tup
+			}
 		}
 		close(res)
-	}()
-
-	// create the worker routines, have them evaluate the predicate
-	// and if it is true, pass the tuple on to the results stream
-	// when all of the input tuples are consumed, send an empty message
-	// to the done channel, which will close res when all of the workers
-	// have finished.
-	for i := 0; i < mc; i++ {
-		go func() {
-			for tup := range tups {
-				if p(tup) {
-					res <- tup
-				}
-			}
-			done <- struct{}{}
-		}()
-	}
-
-	// create a new body with the results and accumulate them
-	b := make([]interface{}, 0)
-	for tup := range res {
-		b = append(b, tup)
-	}
-	return Simple{r1.Names, r1.Types, b, r1.CKeys, r1.tupleType}
+	}(r1.body, body2)
+	
+	r1.body = res
 }
 
 // the implementation for groupby creates a map from the groups to
@@ -647,3 +682,4 @@ KeyLoop:
 	}
 	return cKeys2
 }
+
