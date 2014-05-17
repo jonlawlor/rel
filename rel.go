@@ -16,16 +16,10 @@
 // leaves something to be desired!  However, once the interface is complete
 // it might be possible to implement it in more efficient ways.
 //
-
 package rel
 
 import (
-	"bytes"
-	"fmt"
 	"reflect"
-	"runtime"
-	"sort"
-	"text/tabwriter"
 )
 
 // T is used to represent tuples
@@ -43,100 +37,143 @@ type Attribute struct {
 // they should be unique and sorted
 type CandKeys [][]string
 
-// fieldIndex is used to map between attributes in different relations
-// that have the same name
-type fieldIndex struct {
-	i int
-	j int
-}
-
 // Predicate is the type of func that takes a tuple and returns bool
-// and is used for restrict & update
-type Predicate func(tup T) bool
+// and is used for restrict.  It should always be a func with input of a
+// subdomain of the relation, with one bool output.
+type Predicate interface{}
 
 // theta is the type of func used as a predicate in theta-joins
-type Theta func(tup1 T, tup2 T) bool
-
-// Still need to hammer out exactly what should be in the Relation
-// interface.  Some of the relational operations can be constructed
-// from others, but their performance may be worse.  The important
-// detail is that if the operations are a part of the interface then
-// they have to have the syntax RelVar.Op(Params), while if the
-// operations are defined on the interface then they can have the form
-// Op(RelVar, Params).  A common go idiom is to implement that kind of
-// function as a function, and then if the caller completes a different
-// interface, just use that form, and otherwise have a "default"
-// implementation.
-
-// It might be much better to use a channel to hold all of the
-// data within a relation.  Then as we perform operations, the
-// operations will transform the channels, which should result
-// in some interesting concurrency.
+// it should have type func(tup1 T, tup2 T) bool
+// where tup1 is a subdomain of the left relation and tup2 is a subdomain of
+// the right relation.
+type Theta interface{}
 
 // Relation has similar meaning to tables in SQL
 type Relation interface {
-	// Heading is a slice of column name:type pairs
-	Heading() []Attribute
-
 	// Zero is the zero value for the tuple
 	Zero() T
 
 	// CKeys is the set of candidate keys for the Relation
 	CKeys() CandKeys
 
-	// Degree; the number of attributes
-	Deg() int
-
-	// Cardinality; the number of tuples in the body
-	Card() int
-
 	// Tuples takes a channel of interface and keeps sending
 	// the tuples in the relation over the channel.
-	// should this be allowed to consume the internal channel?
+	// should this be allowed to consume an internal channel?
 	Tuples(chan T) // does this channel need a direction?
-
-	// the rest of these functions should be moved to functions of one or more relation
-
-	// Project the relation to new type
-	//Project(T)
-
-	// Union
-	//Union(r2 Relation)
-
-	// SetDiff
-	//SetDiff(r2 Relation)
-
-	// copy the relation so that new values don't consume old ones
-	Copy() Relation
-
-	// theta join
-	// JoinTheta(r2 Relation, Theta) Relation
-
-	// natural join
-	// Join(r2 Relation) Relation
-
-	// Rename
-	// Rename(???) Relation
-
-	// additional derived functions
-	// SemiDiff(r2 Relation) Relation
-	// SemiJoin(r2 Relation) Relation
-	// GroupBy(gtyp interface{}, vtyp interface{}, gfunc) Relation
-
-	// probably want to add non-Relational functions like
-	// Update
-	// Insert
-	// some kind of ordering?
 
 	// these are not relational but they are sure nice to have
 	GoString() string
 	String() string
 }
 
-// interfaceHeading returns a map from column names to types for an
-// input interface
-func interfaceHeading(i T) []Attribute {
-	Names, Types := namesAndTypes(reflect.TypeOf(i))
+// New creates a new Relation.
+func New(v interface{}, ckeystr [][]string) Relation {
+
+	// depending on the type of the input, we represent a relation in different
+	// ways.
+	rval := reflect.ValueOf(v)
+	e := rval.Elem()
+	z := e.Interface()
+
+	switch rval.Kind() {
+	case reflect.Map:
+		r := new(Map)
+		r.zero = z
+		r.cKeys = CandKeys(ckeystr)
+
+		r.body = make(map[interface{}]struct{}, rval.Len())
+		mkeys := rval.MapKeys()
+		for v := range mkeys {
+			r.body[v.Interface()] = struct{}{}
+		}
+
+		if len(r.cKeys) == 0 {
+			// maps are already distinct on the key
+
+			// all relations have a candidate key of all of their attributes, or
+			// a non zero subset if the relation is not dee or dum
+			r.cKeys = defaultKeys(r.zero)
+
+			// change the body to use a distinct channel instead of an assumed
+			// distinct channel
+		}
+
+	case reflect.Chan:
+		r := new(Chan)
+		r.zero = z
+		r.cKeys = CandKeys(ckeystr)
+
+		r.body = make(chan T)
+		go func(body chan T) {
+			for {
+				// this will always attempt to pull at least one value
+				val, ok := rChan.Recv()
+				if !ok {
+					break
+				}
+				body <- val.Interface()
+			}
+			close(body)
+		}(r.body)
+
+		// ensure minimal candidate keys
+		if len(r.cKeys) == 0 {
+			// perform a lazy distinct
+			r.body = distinct(r.body)
+
+			// all relations have a candidate key of all of their attributes, or
+			// a non zero subset if the relation is not dee or dum
+			r.cKeys = defaultKeys(r.zero)
+
+			// change the body to use a distinct channel instead of an assumed
+			// distinct channel
+		}
+
+	case reflect.Slice:
+		r := new(Slice)
+		r.zero = z
+		r.cKeys = CandKeys(ckeystr)
+
+		// ensure minimal candidate keys
+		if len(r.cKeys) == 0 {
+			// do a greedy distinct if the data is already in memory
+			m := map[interface{}]struct{}{}
+			for i := 0; i < rval.Len(); i++ {
+				m[rval.Index(i).Interface()] = struct{}{}
+			}
+			r.body = make([]interface{}, len(m))
+			i = 0
+			for k, _ := range m {
+				r.body[i] = k
+				i++
+			}
+
+			// all relations have a candidate key of all of their attributes, or
+			// a non zero subset if the relation is not dee or dum
+			r.cKeys = defaultKeys(r.zero)
+
+			// change the body to use a distinct channel instead of an assumed
+			// distinct channel
+		} else {
+			r.body = make([]interface{}, rval.Len())
+			for i := 0; i < rval.Len(); i++ {
+				r.body[i] = rval.Index(i).Interface()
+			}
+
+		}
+
+	default:
+		panic(fmt.Sprintf("unrecognized relation kind: %v", rval.Kind()))
+	}
+
+	// we might want to check the candidate keys for validity here?
+	orderCandidateKeys(r.cKeys)
+	return r
+}
+
+// Heading is a slice of column name:type pairs
+func Heading(r Relation) []Attribute {
+	Names, Types := namesAndTypes(reflect.TypeOf(r.Zero()))
 	h := make([]Attribute, len(Names))
 	for i := 0; i < len(Names); i++ {
 		h[i] = Attribute{Names[i], Types[i]}
@@ -144,239 +181,86 @@ func interfaceHeading(i T) []Attribute {
 	return h
 }
 
-func namesAndTypes(e reflect.Type) ([]string, []reflect.Type) {
-	n := e.NumField()
-	names := make([]string, n)
-	types := make([]reflect.Type, n)
-	for i := 0; i < n; i++ {
-		f := e.Field(i)
-		names[i] = f.Name
-		types[i] = f.Type
-	}
-	return names, types
+// Deg returns the degree of the relation
+func Deg(r Relation) int {
+	return len(r.Heading())
 }
 
-func orderCandidateKeys(ckeys CandKeys) {
-	// first go through each set of keys and alphabetize
-	// this is used to compare sets of candidate keys
-	for _, ck := range ckeys {
-		sort.Strings(ck)
-	}
-
-	// then sort by length so that smaller keys are first
-	sort.Sort(ckeys)
-}
-
-// definitions for the candidate key sorting
-func (cks CandKeys) Len() int {
-	return len(cks)
-}
-func (cks CandKeys) Swap(i, j int) {
-	cks[i], cks[j] = cks[j], cks[i]
-}
-func (cks CandKeys) Less(i, j int) bool {
-	return len(cks[i]) < len(cks[j]) // note this is smallest to largest
-}
-
-// distinct changes an interface channel to a channel of unique interfaces
-func distinct(b1 chan T) b2 chan T {
-	m := make(map[interface{}]struct{})
-	b2 := make(chan T)
-	go func() {
-		for v := range b1 {
-			if _, dup := m[v]; !dup {
-				m[v] = struct{}{}
-				b2 <- v
-			}
-		}
-		close(b2)
-	}()
-	return
-}
-
-// checkCandidateKeys checks the set of candidate keys
-// this ensures that the names of the keys are all in the attributes
-// of the relation
-func checkCandidateKeys(ckeys CandKeys, cn []string) (err error) {
-	// TODO(jonlawlor) cannonicalize these somehow
-	names := make(map[string]struct{})
-	for _, n := range cn {
-		names[n] = struct{}{}
-	}
-	for _, ck := range ckeys {
-		if len(ck) == 0 {
-			// note that this doesn't fire if ckeys is also empty
-			// but that is by design
-			err = fmt.Errorf("empty candidate key not allowed")
-			return
-		}
-		for _, k := range ck {
-			_, keyFound := names[k]
-			if !keyFound {
-				err = fmt.Errorf("prime attribute not found: %s", k)
-				return
-			}
-		}
+// Card returns the cardinality of the relation
+// note: this consumes the values of the relation's tuples and can be an
+// expensive operation.  We might want per-relation implementation of this?
+func Card(r Relation) (i int) {
+	tups := make(chan T)
+	go r.Tuples(tups)
+	for _ = range tups {
+		i++
 	}
 	return
 }
 
-// goStringTabTable is makes a gostring out of a given relation
-// this isn't a method of relation (and then named GoString()) because
-// go doesn't allow methods to be defined on interfaces.
-func goStringTabTable(r Relation) string {
-	// use a buffer to write to and later turn into a string
-	s := bytes.NewBufferString("rel.New([]struct {\n")
+// The following methods generate relation expressions, also called queries.
+// They are exported types because that way clients of the rel library can
+// implement their own query reordering, if they want.
 
-	w := new(tabwriter.Writer)
-	// \xff is used as an escape delim; see the tabwriter docs
-	w.Init(s, 1, 1, 1, ' ', tabwriter.StripEscape)
-
-	// create struct slice type information
-	// TODO(jonlawlor): include tags?
-	for _, att := range r.Heading() {
-		fmt.Fprintf(w, "\t\xff%s\xff\t\xff%v\xff\t\n", att.Name, att.Type)
-	}
-	w.Flush()
-	s.WriteString("}{\n")
-
-	// write the body
-	//TODO(jonlawlor): see if buffering the channel improves performance
-	tups := make(chan interface{})
-	r.Tuples(tups)
-
-	// TODO(jonlawlor): abstract the per-tuple functional mapping to another
-	// method?
-	deg := r.Deg()
-	for tup := range tups {
-		rtup := reflect.ValueOf(tup)
-		// this part might be replacable with some workers that
-		// convert tuples to strings
-		fmt.Fprintf(w, "\t{")
-		for j := 0; j < deg; j++ {
-			f := rtup.Field(j)
-			switch f.Kind() {
-			case reflect.String:
-				fmt.Fprintf(w, "\xff%q\xff,\t", f)
-			case reflect.Bool:
-				fmt.Fprintf(w, "%t,\t", f.Bool())
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				// TODO(jonlawlor): I'm not sure all have to be enumerated
-				fmt.Fprintf(w, "%d,\t", f.Int())
-			case reflect.Float32, reflect.Float64:
-				// TODO(jonlawlor): is there a general float type to use here?
-				fmt.Fprintf(w, "%g,\t", f.Float())
-			default:
-				fmt.Fprintf(w, "\xff%v\xff,\t", f)
-			}
-		}
-		fmt.Fprintf(w, "},\n")
-	}
-
-	w.Flush()
-	s.WriteString("})")
-	return s.String()
+// Project creates a new relation with less than or equal degree
+// t2 has to be a new type which is a subdomain of r.
+func Project(r1 Relation, z2 T) ProjectExpr {
+	return ProjectExpr{r1, z2}
 }
 
-// stringTabTable is makes a gostring out of a given relation
-// this isn't a method of relation (and then named GoString()) because
-// go doesn't allow methods to be defined on interfaces.
-func stringTabTable(r Relation) string {
-
-	// use a buffer to write to and later turn into a string
-	s := new(bytes.Buffer)
-
-	w := new(tabwriter.Writer)
-	// \xff is used as an escape delim; see the tabwriter docs
-	// align elements to the right as well
-	w.Init(s, 1, 1, 1, ' ', tabwriter.StripEscape|tabwriter.AlignRight)
-
-	//TODO(jonlawlor): not sure how to create the vertical seps like:
-	//+---------+---------+---------+
-	// which should go in between each of the sections of heading and body
-	// also, I don't know where the candidate keys should go.  Date
-	// does an underline but they can be overlapping, and I am not sure
-	// that unicode allows arbitrary nesting of underlines?  In any case
-	// it is not possible to arrange arbitrary candidate keys to be
-	// adjacent.
-
-	// create heading information
-	for _, att := range r.Heading() {
-		fmt.Fprintf(w, "\t\xff%s\xff\t\xff%v\xff\t\n", att.Name, att.Type)
-	}
-
-	// write the body
-	//TODO(jonlawlor): see if buffering the channel improves performance
-	tups := make(chan interface{})
-	r.Tuples(tups)
-
-	// TODO(jonlawlor): abstract the per-tuple functional mapping to another
-	// method?
-	deg := r.Deg()
-	for tup := range tups {
-		rtup := reflect.ValueOf(tup)
-		// this part might be replacable with some workers that
-		// convert tuples to strings
-		for j := 0; j < deg; j++ {
-			f := rtup.Field(j)
-			switch f.Kind() {
-			case reflect.String:
-				fmt.Fprintf(w, "|\t \xff%s\xff ", f)
-			case reflect.Bool:
-				fmt.Fprintf(w, "|\t %t ", f.Bool())
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				// TODO(jonlawlor): I'm not sure all have to be enumerated
-				fmt.Fprintf(w, "|\t %d ", f.Int())
-			case reflect.Float32, reflect.Float64:
-				// TODO(jonlawlor): there may be another representation
-				fmt.Fprintf(w, "|\t %g ", f.Float())
-			default:
-				fmt.Fprintf(w, "|\t \xff%v\xff ", f)
-			}
-		}
-		fmt.Fprintf(w, "\t|\n")
-	}
-
-	w.Flush()
-	return s.String()
+// Restrict creates a new relation with less than or equal cardinality
+// p has to be a func(tup T) bool where tup is a subdomain of the input r.
+// the
+func Restrict(r Relation, p Predicate) RestrictExpr {
+	f := reflect.ValueOf(p)
+	subd := f.In(0)
+	return RestrictExpr{r, p, subd}
 }
 
-// fieldMap creates a map from fields of one struct type to the fields of another
-// the returned map's values have two fields i,j , which indicate the location of
-// the field name in the input types
-// if the field is absent from either of the inputs, it is not returned.
-func fieldMap(e1 reflect.Type, e2 reflect.Type) map[string]fieldIndex {
-	// TODO(jonlawlor): we might want to exclude unexported fields?
-	m := make(map[string]fieldIndex)
-	for i := 0; i < e1.NumField(); i++ {
-		n1 := e1.Field(i).Name
-		// find the field location in the original tuples
-		for j := 0; j < e2.NumField(); j++ {
-			n2 := e2.Field(j).Name
-			if n1 == n2 {
-				m[n1] = fieldIndex{i, j}
-				break
-			}
-		}
-	}
-	return m
+// Rename creates a new relation with new column names
+// z2 has to be a struct with the same number of fields as the input relation
+// note: we might want to change this into a projectrename operation?
+func Rename(r Relation, z2 T) RenameExpr {
+	return RenameExpr{r, z2}
 }
 
-// fieldMap creates a map from fields of one struct type to the fields of another
-// the returned map's values have two fields i,j , which indicate the location of
-// the field name in the input types
-// if the field is absent from either of the inputs, it is not returned.
-func attributeMap(h1 []Attribute, h2 []Attribute) map[string]fieldIndex {
-	m := make(map[string]fieldIndex)
-	for i := 0; i < len(h1); i++ {
-		n1 := h1[i].Name
-		// find the field location in the other heading
-		for j := 0; j < len(h2); j++ {
-			if n1 == h2[j].Name {
-				m[n1] = fieldIndex{i, j}
-				break
-			}
-		}
-	}
-	return m
+// Union creates a new relation by unioning the bodies of both inputs
+//
+func Union(r1, r2 Relation) UnionExpr {
+	return UnionExpr{r1, r2}
 }
+
+// SetDiff creates a new relation by set minusing the two inputs
+//
+func SetDiff(r1, r2 Relation) SetDiffExpr {
+	return SetDiffExpr{r1, r2}
+}
+
+// Join creates a new relation by performing a natural join on the inputs
+func Join(r1, r2 Relation) JoinExpr {
+	return JoinExpr{r1, r2}
+}
+
+// GroupBy creates a new relation by grouping and applying a user defined func
+//
+func GroupBy(r Relation, t2, vt T, gfcn func(chan interface{}) interface{}) GroupByExpr {
+	return GroupByExpr{r, t2, vt, gfcn}
+}
+
+// ThetaJoin creates a new relation by performing a theta-join on the inputs
+// p should be a func (tup1 T, tup2 T) bool which when given a subdomain of
+// the left relation and a subdomain of the right relation, returns a true
+// if the combination should be included in the resulting relation.
+func ThetaJoin(r1, r2 Relation, p Theta) ThetaJoinExpr {
+	return ThetaJoinExpr{r1, r2, p}
+}
+
+// additional derived functions
+// SemiDiff(r2 Relation) Relation
+// SemiJoin(r2 Relation) Relation
+// GroupBy(gtyp interface{}, vtyp interface{}, gfunc) Relation
+
+// probably want to add non-Relational functions like
+// Update
+// Insert
+// some kind of ordering?

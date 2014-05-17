@@ -1,3 +1,4 @@
+package rel
 
 import "sync"
 
@@ -6,16 +7,15 @@ type request struct {
 	got chan T // channel to respond on
 }
 
-
 type Memory struct {
-	in     chan T
-	req    chan request
+	in  chan T
+	req chan request
 	sync.RWMutex
 	memory []T
 }
 
 func Replay(in chan T) Memory {
-	m := Memory{in: in, req make(chan request)}
+	m := Memory{in: in, req: make(chan request)}
 	go Feed()
 }
 
