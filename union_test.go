@@ -1,8 +1,11 @@
 package rel
 
+/* needs rewrite
+
 import (
 	"testing"
 )
+
 
 // tests for setdiff op
 func TestSetDiff(t *testing.T) {
@@ -20,3 +23,4 @@ func TestSetDiff(t *testing.T) {
 }
 
 //TODO(jonlawlor): add in benchmarks
+*/

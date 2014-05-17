@@ -19,6 +19,7 @@
 package rel
 
 import (
+	"fmt" // we might want to replace this with the errors package?
 	"reflect"
 )
 
@@ -81,9 +82,9 @@ func New(v interface{}, ckeystr [][]string) Relation {
 		r.zero = z
 		r.cKeys = CandKeys(ckeystr)
 
-		r.body = make(map[interface{}]struct{}, rval.Len())
+		r.body = make(map[T]struct{}, rval.Len())
 		mkeys := rval.MapKeys()
-		for v := range mkeys {
+		for _, v := range mkeys {
 			r.body[v.Interface()] = struct{}{}
 		}
 
@@ -94,6 +95,9 @@ func New(v interface{}, ckeystr [][]string) Relation {
 			// a non zero subset if the relation is not dee or dum
 			r.cKeys = defaultKeys(r.zero)
 		}
+		// we might want to check the candidate keys for validity here?
+		orderCandidateKeys(r.cKeys)
+		return r
 
 	case reflect.Chan:
 		r := new(Chan)
@@ -109,7 +113,7 @@ func New(v interface{}, ckeystr [][]string) Relation {
 			for {
 				// this will always attempt to pull at least one value, which
 				// might not be desirable.
-				val, ok := rChan.Recv()
+				val, ok := rval.Recv()
 				if !ok {
 					break
 				}
@@ -131,8 +135,10 @@ func New(v interface{}, ckeystr [][]string) Relation {
 			// all relations have a candidate key of all of their attributes, or
 			// a non zero subset if the relation is not dee or dum
 			r.cKeys = defaultKeys(r.zero)
-
 		}
+		// we might want to check the candidate keys for validity here?
+		orderCandidateKeys(r.cKeys)
+		return r
 
 	case reflect.Slice:
 		r := new(Slice)
@@ -142,12 +148,12 @@ func New(v interface{}, ckeystr [][]string) Relation {
 		// ensure minimal candidate keys
 		if len(r.cKeys) == 0 {
 			// do a greedy distinct if the data is already in memory
-			m := map[interface{}]struct{}{}
+			m := map[T]struct{}{}
 			for i := 0; i < rval.Len(); i++ {
 				m[rval.Index(i).Interface()] = struct{}{}
 			}
-			r.body = make([]interface{}, len(m))
-			i = 0
+			r.body = make([]T, len(m))
+			i := 0
 			for k, _ := range m {
 				r.body[i] = k
 				i++
@@ -160,20 +166,19 @@ func New(v interface{}, ckeystr [][]string) Relation {
 			// change the body to use a distinct channel instead of an assumed
 			// distinct channel
 		} else {
-			r.body = make([]interface{}, rval.Len())
+			r.body = make([]T, rval.Len())
 			for i := 0; i < rval.Len(); i++ {
 				r.body[i] = rval.Index(i).Interface()
 			}
 
 		}
-
+		// we might want to check the candidate keys for validity here?
+		orderCandidateKeys(r.cKeys)
+		return r
 	default:
 		panic(fmt.Sprintf("unrecognized relation kind: %v", rval.Kind()))
 	}
 
-	// we might want to check the candidate keys for validity here?
-	orderCandidateKeys(r.cKeys)
-	return r
 }
 
 // Heading is a slice of column name:type pairs
@@ -188,7 +193,7 @@ func Heading(r Relation) []Attribute {
 
 // Deg returns the degree of the relation
 func Deg(r Relation) int {
-	return len(r.Heading())
+	return len(Heading(r))
 }
 
 // Card returns the cardinality of the relation
@@ -234,7 +239,7 @@ func Project(r1 Relation, z2 T) ProjectExpr {
 // the typical theta comparisons or <= <, =, >, >=, because it will allow much
 // better optimization on the source data side.
 func Restrict(r Relation, p Predicate) RestrictExpr {
-	f := reflect.ValueOf(p)
+	f := reflect.TypeOf(p)
 	subd := f.In(0)
 	return RestrictExpr{r, p, subd}
 }

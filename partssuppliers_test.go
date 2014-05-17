@@ -10,7 +10,7 @@ package rel
 
 // suppliers relation, with candidate keys {SNO}
 // the {SName} key is also possible to use
-var suppliers, _ = New([]struct {
+var suppliers = New([]struct {
 	SNO    int
 	SName  string
 	Status int
@@ -26,7 +26,7 @@ var suppliers, _ = New([]struct {
 })
 
 // parts relation, with candidate keys {PNO}
-var parts, _ = New([]struct {
+var parts = New([]struct {
 	PNO    int
 	PName  string
 	Color  string
@@ -44,7 +44,7 @@ var parts, _ = New([]struct {
 })
 
 // orders relation, with candidate keys {PNO, SNO}
-var orders, _ = New([]struct {
+var orders = New([]struct {
 	PNO int
 	SNO int
 	Qty int

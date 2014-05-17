@@ -16,7 +16,8 @@ type Memory struct {
 
 func Replay(in chan T) Memory {
 	m := Memory{in: in, req: make(chan request)}
-	go Feed()
+	go m.Feed()
+	return m
 }
 
 func (m *Memory) Feed() {

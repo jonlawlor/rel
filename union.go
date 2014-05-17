@@ -2,6 +2,12 @@
 
 package rel
 
+type UnionExpr struct {
+	source1 Relation
+	source2 Relation
+}
+
+/* needs to be rewritten
 func (r1 *Simple) UnionExpr(r2 *Relation) {
 	// TODO(jonlawlor): check that the two relations conform, and if not
 	// then panic.
@@ -48,3 +54,4 @@ func (r1 *Simple) UnionExpr(r2 *Relation) {
 
 	r1.body = res
 }
+*/

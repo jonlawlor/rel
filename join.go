@@ -2,6 +2,12 @@
 
 package rel
 
+type JoinExpr struct {
+	source1 Relation
+	source2 Relation
+}
+
+/*  needs to be rewritten
 func (r1 Simple) JoinExpr(r2 Relation, t3 interface{}) (r3 Relation) {
 
 	mc := MaxConcurrent
@@ -61,3 +67,4 @@ func (r1 Simple) JoinExpr(r2 Relation, t3 interface{}) (r3 Relation) {
 
 	return
 }
+*/

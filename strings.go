@@ -5,6 +5,7 @@ package rel
 import (
 	"bytes"
 	"fmt"
+	"reflect"
 	"text/tabwriter"
 )
 
@@ -21,7 +22,7 @@ func goStringTabTable(r Relation) string {
 
 	// create struct slice type information
 	// TODO(jonlawlor): include tags?
-	for _, att := range r.Heading() {
+	for _, att := range Heading(r) {
 		fmt.Fprintf(w, "\t\xff%s\xff\t\xff%v\xff\t\n", att.Name, att.Type)
 	}
 	w.Flush()
@@ -29,12 +30,12 @@ func goStringTabTable(r Relation) string {
 
 	// write the body
 	//TODO(jonlawlor): see if buffering the channel improves performance
-	tups := make(chan interface{})
+	tups := make(chan T)
 	r.Tuples(tups)
 
 	// TODO(jonlawlor): abstract the per-tuple functional mapping to another
 	// method?
-	deg := r.Deg()
+	deg := Deg(r)
 	for tup := range tups {
 		rtup := reflect.ValueOf(tup)
 		// this part might be replacable with some workers that
@@ -88,18 +89,18 @@ func stringTabTable(r Relation) string {
 	// adjacent.
 
 	// create heading information
-	for _, att := range r.Heading() {
+	for _, att := range Heading(r) {
 		fmt.Fprintf(w, "\t\xff%s\xff\t\xff%v\xff\t\n", att.Name, att.Type)
 	}
 
 	// write the body
 	//TODO(jonlawlor): see if buffering the channel improves performance
-	tups := make(chan interface{})
+	tups := make(chan T)
 	r.Tuples(tups)
 
 	// TODO(jonlawlor): abstract the per-tuple functional mapping to another
 	// method?
-	deg := r.Deg()
+	deg := Deg(r)
 	for tup := range tups {
 		rtup := reflect.ValueOf(tup)
 		// this part might be replacable with some workers that

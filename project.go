@@ -1,7 +1,10 @@
+// project implements a project expression in relational algebra
+
 package rel
 
-// projection is a type that represents a project operation
+import "reflect"
 
+// projection is a type that represents a project operation
 type ProjectExpr struct {
 	// the input relation
 	source Relation
@@ -13,18 +16,18 @@ type ProjectExpr struct {
 // Tuples sends each tuple in the relation to a channel
 // note: this consumes the values of the relation, and when it is finished it
 // closes the input channel.
-func (r *ProjectExpr) Tuples(t chan T) {
+func (r ProjectExpr) Tuples(t chan T) {
 	// transform the channel of tuples from the relation
-	z1 := r1.Zero()
-
+	z1 := r.source.Zero()
 	// first figure out if the tuple types of the relation and
 	// projection are equivalent.  If so, convert the tuples to
 	// the (possibly new) type and then return the new relation.
-	e1 := reflect.TypeOf(r1.Zero())
-	e2 := reflect.TypeOf(z2)
+	e1 := reflect.TypeOf(z1)
+	e2 := reflect.TypeOf(r.zero)
 
 	if e1.AssignableTo(e2) {
-		// nothing to do, I think.
+		// nothing to do.  This may be removable if we can rewrite queries to
+		// ignore idenity projections.
 		return
 	}
 
@@ -33,11 +36,28 @@ func (r *ProjectExpr) Tuples(t chan T) {
 	// TODO(jonlawlor): error if fields in e2 are not in r1's tuples.
 	fMap := fieldMap(e1, e2)
 
+	// figure out if we need to distinct the results because there are no
+	// candidate keys left
+	// TODO(jonlawlor): refactor with the code in the CKeys() method
+	cKeys := r.source.CKeys()
+	h1 := Heading(r.source)
+	cn1 := make([]string, len(h1))
+	for i, att := range h1 {
+		cn1[i] = att.Name
+	}
+	cKeys = subsetCandidateKeys(cKeys, cn1, fMap)
+
+	if len(cKeys) == 0 {
+		// place a distinct in the way
+		t = distinct(t)
+	}
+
 	// assign fields from the old relation to fields in the new
 	body1 := make(chan T)
+	r.source.Tuples(body1)
 
-	body2 := make(chan T)
-	go func(body chan T) {
+	// TODO(jonlawlor) add parallelism here
+	go func(body chan T, res chan T) {
 		for tup1 := range body {
 			tup2 := reflect.Indirect(reflect.New(e2))
 			rtup1 := reflect.ValueOf(tup1)
@@ -47,36 +67,24 @@ func (r *ProjectExpr) Tuples(t chan T) {
 			}
 			// set the field in the new tuple to the value
 			// from the old one
-			body2 <- tup2.Interface()
+			t <- tup2.Interface()
 		}
-		close(body2)
-	}(r.body)
+		close(t)
+	}(body1, t)
 
-	// figure out which of the candidate keys (if any) to keep.
-	// only the keys that only have attributes in the new type are
-	// valid.  If we do have any keys that are still valid, then
-	// we don't have to perform distinct on the body.
-
-	if len(cn2) == 0 {
-		// make a new primary key and ensure the results are distinct
-		r.cKeys = append(r.cKeys, cn2)
-		r.body = distinct(body2)
-	} else {
-		r.body = body2
-	}
-
+	return
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *ProjectExpr) Zero() T {
+func (r ProjectExpr) Zero() T {
 	return r.zero
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *ProjectExpr) CKeys() CandKeys {
+func (r ProjectExpr) CKeys() CandKeys {
 	z1 := r.source.Zero()
 
-	cKeys := r.source.CandKeys()
+	cKeys := r.source.CKeys()
 
 	// first figure out if the tuple types of the relation and projection are
 	// equivalent.  If so, we don't have to do anything with the candidate
@@ -85,14 +93,14 @@ func (r *ProjectExpr) CKeys() CandKeys {
 	e2 := reflect.TypeOf(r.zero)
 
 	if e1.AssignableTo(e2) {
-		// nothing to do, I think.
+		// nothing to do
 		return cKeys
 	}
 
 	// otherwise we have to subset the candidate keys.
 	fMap := fieldMap(e1, e2)
 
-	h1 := r.source.Heading()
+	h1 := Heading(r.source)
 	cn1 := make([]string, len(h1))
 	for i, att := range h1 {
 		cn1[i] = att.Name
@@ -112,11 +120,11 @@ func (r *ProjectExpr) CKeys() CandKeys {
 const projectSymbol = "π"
 
 // GoString returns a text representation of the Relation
-func (r *ProjectExpr) GoString() string {
+func (r ProjectExpr) GoString() string {
 	return goStringTabTable(r)
 }
 
 // String returns a text representation of the Relation
-func (r *ProjectExpr) String() string {
+func (r ProjectExpr) String() string {
 	return stringTabTable(r)
 }

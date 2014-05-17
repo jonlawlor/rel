@@ -2,6 +2,25 @@
 
 package rel
 
+type GroupByExpr struct {
+	source Relation
+
+	// zero is the resulting relation tuple type
+	zero T
+
+	// valZero is the tuple type of the values provided to the grouping
+	// function.  We might want to infer it from the grouping function
+	// instead though, like restrict does?
+	valZero T
+
+	// gfcn is the function which when given a channel of tuples, returns
+	// the value of the group after the input channel is closed.
+	// We might want to be able to short circuit this evaluation in a few
+	// cases though?
+	gfcn func(chan interface{}) interface{}
+}
+
+/* need rewrite:
 // the implementation for groupby creates a map from the groups to
 // a set of channels, and then creates those channels as new groups
 // are discovered.  Those channels each have a goroutine that concurrently
@@ -129,3 +148,4 @@ func (r1 Simple) GroupByExpr(t2 interface{}, vt interface{}, gfcn func(chan inte
 	}
 	return Simple{cn, ct, b, ck2, e2}
 }
+*/

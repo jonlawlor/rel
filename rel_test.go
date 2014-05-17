@@ -6,6 +6,8 @@ import (
 
 // test creation of relations, including tests to determine the cost of
 // representing slices of structs as relations instead of native.
+// TODO(jonlawlor): tests involving []struct, map[struct], and chan struct
+// representations
 
 // type of the example relations
 type exTup2 struct {
@@ -113,9 +115,9 @@ func TestDeg(t *testing.T) {
 		in   int
 		out  int
 	}{
-		{"suppliers", suppliers.Deg(), 4},
-		{"parts", parts.Deg(), 5},
-		{"orders", orders.Deg(), 3},
+		{"suppliers", Deg(suppliers), 4},
+		{"parts", Deg(parts), 5},
+		{"orders", Deg(orders), 3},
 	}
 	for i, dt := range fix {
 		if dt.in != dt.out {
@@ -130,9 +132,9 @@ func TestCard(t *testing.T) {
 		in   int
 		out  int
 	}{
-		{"suppliers", suppliers.Card(), 5},
-		{"parts", parts.Card(), 6},
-		{"orders", orders.Card(), 12},
+		{"suppliers", Card(suppliers), 5},
+		{"parts", Card(parts), 6},
+		{"orders", Card(orders), 12},
 	}
 	for i, dt := range fix {
 		if dt.in != dt.out {

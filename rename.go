@@ -1,9 +1,18 @@
-// renaming implements a rename expression in relational algebra
+// rename implements a rename expression in relational algebra
 // it is called renaming instead of rename because there aren't any good
 // synonyms of rename.
 
 package rel
 
+type RenameExpr struct {
+	// the input relation
+	source Relation
+
+	// the new names for the same positions
+	zero T
+}
+
+/* needs a rewrite
 // rename operation
 // the way this is done has to do a rename in place, so at this point
 // the order of the fields becomes significant.  There will only be a
@@ -74,3 +83,4 @@ func (r *Simple) Rename(t2 interface{}) {
 	}
 
 }
+*/

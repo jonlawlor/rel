@@ -2,6 +2,12 @@
 
 package rel
 
+type SetDiffExpr struct {
+	source1 Relation
+	source2 Relation
+}
+
+/* Needs to be rewritten
 // setdiff returns the set difference of the two relations
 func (r1 *Simple) SetDiffExpr(r2 *Relation) {
 	// TODO(jonlawlor): check that the two relations conform, and if not
@@ -34,3 +40,4 @@ func (r1 *Simple) SetDiffExpr(r2 *Relation) {
 
 	r1.body = res
 }
+*/

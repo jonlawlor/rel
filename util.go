@@ -1,6 +1,7 @@
 package rel
 
 import (
+	"fmt" // we might want to replace this with errors
 	"reflect"
 	"sort"
 )
@@ -12,6 +13,7 @@ type fieldIndex struct {
 	j int
 }
 
+// namesAndTypes takes a reflect.Type of a struct and returns field names and types
 func namesAndTypes(e reflect.Type) ([]string, []reflect.Type) {
 	n := e.NumField()
 	names := make([]string, n)
