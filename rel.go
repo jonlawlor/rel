@@ -66,7 +66,7 @@ type Relation interface {
 	String() string
 }
 
-// New creates a new Relation.
+// New creates a new Relation from a []struct, map[struct] or chan struct.
 func New(v interface{}, ckeystr [][]string) Relation {
 
 	// depending on the type of the input, we represent a relation in different
@@ -93,9 +93,6 @@ func New(v interface{}, ckeystr [][]string) Relation {
 			// all relations have a candidate key of all of their attributes, or
 			// a non zero subset if the relation is not dee or dum
 			r.cKeys = defaultKeys(r.zero)
-
-			// change the body to use a distinct channel instead of an assumed
-			// distinct channel
 		}
 
 	case reflect.Chan:
@@ -103,10 +100,15 @@ func New(v interface{}, ckeystr [][]string) Relation {
 		r.zero = z
 		r.cKeys = CandKeys(ckeystr)
 
+		// We could do this later, and avoid pulling the first value, but then
+		// we'll have to keep track of the distinct vs non distinct status.  It
+		// might be good to require a candidate key instead of inferring the
+		// default - in that case, we don't have to worry.
 		r.body = make(chan T)
 		go func(body chan T) {
 			for {
-				// this will always attempt to pull at least one value
+				// this will always attempt to pull at least one value, which
+				// might not be desirable.
 				val, ok := rChan.Recv()
 				if !ok {
 					break
@@ -119,14 +121,17 @@ func New(v interface{}, ckeystr [][]string) Relation {
 		// ensure minimal candidate keys
 		if len(r.cKeys) == 0 {
 			// perform a lazy distinct
+
+			// change the body to use a distinct channel instead of an assumed
+			// distinct channel.  This can take up quite a bit of memory.
+			// I think most DBMS use a merge sort so that it isn't done in
+			// memory?
 			r.body = distinct(r.body)
 
 			// all relations have a candidate key of all of their attributes, or
 			// a non zero subset if the relation is not dee or dum
 			r.cKeys = defaultKeys(r.zero)
 
-			// change the body to use a distinct channel instead of an assumed
-			// distinct channel
 		}
 
 	case reflect.Slice:
@@ -189,9 +194,12 @@ func Deg(r Relation) int {
 // Card returns the cardinality of the relation
 // note: this consumes the values of the relation's tuples and can be an
 // expensive operation.  We might want per-relation implementation of this?
+// Alternatively we can use a different interface to determine if the caller
+// also implements its own Card someplace else, and just leave this
+// implementation as default.
 func Card(r Relation) (i int) {
 	tups := make(chan T)
-	go r.Tuples(tups)
+	r.Tuples(tups)
 	for _ = range tups {
 		i++
 	}
@@ -199,8 +207,20 @@ func Card(r Relation) (i int) {
 }
 
 // The following methods generate relation expressions, also called queries.
-// They are exported types because that way clients of the rel library can
-// implement their own query reordering, if they want.
+// The resulting type xxxExpr will typically implement some additional
+// interfaces that are used to infer when reordering is possible, such as
+// DistributeProjecter, which would indicate that the project operation is
+// distributable over the xxxExpr operation.
+// http://www.dcs.warwick.ac.uk/~wmb/CS319/pdf/opt.pdf gives a quick summary
+// of some of the relational algebra laws.
+// In this way, client types, such as an SQLTable relation, can implement
+// a DistributeProjecter interface, which would then allow us to limit the
+// number of attributes fetched on the database side.
+// Another question is how to represent non relational operations, such as
+// groupby, which has an implicit project.
+
+// There is also a question of how much work to do during the initial setup of
+// a new relation expression, when we might end up reordering it later.
 
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
@@ -210,7 +230,9 @@ func Project(r1 Relation, z2 T) ProjectExpr {
 
 // Restrict creates a new relation with less than or equal cardinality
 // p has to be a func(tup T) bool where tup is a subdomain of the input r.
-// the
+// This is a general purpose restrict - we might want to have specific ones for
+// the typical theta comparisons or <= <, =, >, >=, because it will allow much
+// better optimization on the source data side.
 func Restrict(r Relation, p Predicate) RestrictExpr {
 	f := reflect.ValueOf(p)
 	subd := f.In(0)
@@ -219,7 +241,8 @@ func Restrict(r Relation, p Predicate) RestrictExpr {
 
 // Rename creates a new relation with new column names
 // z2 has to be a struct with the same number of fields as the input relation
-// note: we might want to change this into a projectrename operation?
+// note: we might want to change this into a projectrename operation?  It will
+// be tricky to represent this in go's type system, I think.
 func Rename(r Relation, z2 T) RenameExpr {
 	return RenameExpr{r, z2}
 }
