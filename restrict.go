@@ -2,7 +2,9 @@
 
 package rel
 
-import "reflect"
+import (
+	"reflect"
+)
 
 // Restrict applies a predicate to a relation and returns a new relation
 // Predicate is a func which accepts an interface{} of the same dynamic

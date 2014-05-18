@@ -20,7 +20,7 @@ type Slice struct {
 // closes the input channel.
 func (r *Slice) Tuples(t chan T) {
 	go func() {
-		for v := range r.body {
+		for _, v := range r.body {
 			t <- v
 		}
 		close(t)

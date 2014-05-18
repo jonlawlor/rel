@@ -17,7 +17,6 @@ func TestProject(t *testing.T) {
 	r1 := Project(orders, r1tup{})
 	if r1.GoString() != orders.GoString() {
 		t.Errorf("orders.Project(PNO, SNO, Qty) = \"%s\", want \"%s\"", r1.GoString(), orders.GoString())
-
 	}
 	type r2tup struct {
 		PNO int

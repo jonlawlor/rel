@@ -73,8 +73,8 @@ func New(v interface{}, ckeystr [][]string) Relation {
 	// depending on the type of the input, we represent a relation in different
 	// ways.
 	rval := reflect.ValueOf(v)
-	e := rval.Elem()
-	z := e.Interface()
+	e := reflect.TypeOf(v).Elem()
+	z := reflect.Indirect(reflect.New(e)).Interface()
 
 	switch rval.Kind() {
 	case reflect.Map:
