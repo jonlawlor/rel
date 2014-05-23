@@ -15,9 +15,6 @@ type RestrictExpr struct {
 
 	// the restriction predicate
 	p Predicate
-
-	// the subdomain of the function input
-	subd reflect.Type
 }
 
 func (r RestrictExpr) Tuples(t chan T) {
@@ -25,7 +22,7 @@ func (r RestrictExpr) Tuples(t chan T) {
 	z1 := r.source.Zero()
 
 	e1 := reflect.TypeOf(z1)
-	e2 := r.subd
+	e2 := r.p.Domain()
 
 	// figure out which fields stay, and where they are in each of the tuple
 	// types.
@@ -36,7 +33,6 @@ func (r RestrictExpr) Tuples(t chan T) {
 	body1 := make(chan T)
 	r.source.Tuples(body1)
 	go func(body chan T, res chan T, p Predicate) {
-		parm := make([]reflect.Value, 1)
 		for tup1 := range body {
 			tup2 := reflect.Indirect(reflect.New(e2))
 			rtup1 := reflect.ValueOf(tup1)
@@ -47,8 +43,7 @@ func (r RestrictExpr) Tuples(t chan T) {
 
 			// call the predicate with the new tuple to determine if it should
 			// go into the results
-			parm[0] = tup2
-			if b := reflect.ValueOf(p).Call(parm); b[0].Interface().(bool) {
+			if p.Eval(tup2) {
 				res <- tup1
 			}
 		}

@@ -25,6 +25,15 @@ func namesAndTypes(e reflect.Type) ([]string, []reflect.Type) {
 	}
 	return names, types
 }
+func attr(e reflect.Type) []Attribute {
+	names, types := namesAndTypes(e)
+	a := make([]Attribute, len(names))
+	for i := range names {
+		a[i].Name = names[i]
+		a[i].Type = types[i]
+	}
+	return a
+}
 
 func orderCandidateKeys(ckeys CandKeys) {
 	// first go through each set of keys and alphabetize

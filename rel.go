@@ -23,7 +23,7 @@ import (
 	"reflect"
 )
 
-// T is used to represent tuples
+// T is represents tuples, and it should always be a struct
 type T interface{}
 
 // Attribute represents a Name:Type pair which defines the heading
@@ -37,17 +37,6 @@ type Attribute struct {
 // CandKeys is a set of candidate keys
 // they should be unique and sorted
 type CandKeys [][]string
-
-// Predicate is the type of func that takes a tuple and returns bool
-// and is used for restrict.  It should always be a func with input of a
-// subdomain of the relation, with one bool output.
-type Predicate interface{}
-
-// theta is the type of func used as a predicate in theta-joins
-// it should have type func(tup1 T, tup2 T) bool
-// where tup1 is a subdomain of the left relation and tup2 is a subdomain of
-// the right relation.
-type Theta interface{}
 
 // Relation has similar meaning to tables in SQL
 type Relation interface {
@@ -239,9 +228,7 @@ func Project(r1 Relation, z2 T) ProjectExpr {
 // the typical theta comparisons or <= <, =, >, >=, because it will allow much
 // better optimization on the source data side.
 func Restrict(r Relation, p Predicate) RestrictExpr {
-	f := reflect.TypeOf(p)
-	subd := f.In(0)
-	return RestrictExpr{r, p, subd}
+	return RestrictExpr{r, p}
 }
 
 // Rename creates a new relation with new column names
@@ -273,14 +260,6 @@ func Join(r1, r2 Relation) JoinExpr {
 //
 func GroupBy(r Relation, t2, vt T, gfcn func(chan interface{}) interface{}) GroupByExpr {
 	return GroupByExpr{r, t2, vt, gfcn}
-}
-
-// ThetaJoin creates a new relation by performing a theta-join on the inputs
-// p should be a func (tup1 T, tup2 T) bool which when given a subdomain of
-// the left relation and a subdomain of the right relation, returns a true
-// if the combination should be included in the resulting relation.
-func ThetaJoin(r1, r2 Relation, p Theta) ThetaJoinExpr {
-	return ThetaJoinExpr{r1, r2, p}
 }
 
 // additional derived functions
