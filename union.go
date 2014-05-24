@@ -4,8 +4,8 @@ package rel
 
 import "sync"
 
-//UnionExpr represents a union expression in relational algebra.  This is one
-// of the relational operations which consumes memory.
+// UnionExpr represents a union expression in relational algebra.
+// This is one of the relational operations which consumes memory.
 type UnionExpr struct {
 	source1 Relation
 	source2 Relation

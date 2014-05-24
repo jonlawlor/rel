@@ -1,25 +1,22 @@
 package rel
 
-/* needs rewrite
 import (
 	"testing"
 )
 
-// tests for union op
-func TestUnion(t *testing.T) {
+// tests for setdiff op
+func TestSetDiff(t *testing.T) {
 
 	// TODO(jonlawlor): replace with table driven test?
-	exRel1, _ := New(exampleRel2(10), [][]string{[]string{"Foo"}})
-	exRel2, _ := New(exampleRel2(100), [][]string{[]string{"Foo"}})
+	exRel1 := New(exampleRel2(10), [][]string{[]string{"Foo"}})
+	exRel2 := New(exampleRel2(100), [][]string{[]string{"Foo"}})
 
-	r1 := exRel1.SetDiff(exRel2)
-	if r1.Card() != 0 {
-		t.Errorf("exRel1.SetDiff(exRel2).Card() = %d, want \"%d\"", r1.Card(), 0)
+	r1 := SetDiff(exRel1, exRel2)
+	if Card(r1) != 0 {
+		t.Errorf("Card(exRel1.SetDiff(exRel2)) = %d, want \"%d\"", Card(r1), 0)
 
 	}
 	return
 }
 
 //TODO(jonlawlor): add in benchmarks
-
-*/
