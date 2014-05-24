@@ -43,6 +43,11 @@ func (r JoinExpr) Tuples(t chan T) {
 	}(t)
 
 	// create a go routine that generates the join for each of the input tuples
+	// TODO(jonlawlor): In retrospect, there is absolutely no way this will
+	// work without some memory.  There has to be a better way to do this.  As
+	// it is, if the first relation is not a map or slice, it will not produce
+	// correct results.  Even if it is, the result will only be found after a
+	// lot of needless computation.
 	for i := 0; i < mc; i++ {
 		go func(b1, b2, res chan T) {
 			for tup2 := range b2 {

@@ -258,7 +258,7 @@ func Join(r1, r2 Relation, zero T) JoinExpr {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func GroupBy(r Relation, t2, vt T, gfcn func(chan interface{}) interface{}) GroupByExpr {
+func GroupBy(r Relation, t2, vt T, gfcn func(chan T) T) GroupByExpr {
 	return GroupByExpr{r, t2, vt, gfcn}
 }
 

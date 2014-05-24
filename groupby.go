@@ -2,6 +2,11 @@
 
 package rel
 
+import (
+	"reflect"
+	"sync"
+)
+
 type GroupByExpr struct {
 	source Relation
 
@@ -17,10 +22,9 @@ type GroupByExpr struct {
 	// the value of the group after the input channel is closed.
 	// We might want to be able to short circuit this evaluation in a few
 	// cases though?
-	gfcn func(chan interface{}) interface{}
+	gfcn func(chan T) T
 }
 
-/* need rewrite:
 // the implementation for groupby creates a map from the groups to
 // a set of channels, and then creates those channels as new groups
 // are discovered.  Those channels each have a goroutine that concurrently
@@ -31,27 +35,25 @@ type GroupByExpr struct {
 // complete their work, and then send a done signal to a channel which
 // can then close the result channel.
 
-func (r1 Simple) GroupByExpr(t2 interface{}, vt interface{}, gfcn func(chan interface{}) interface{}) (r2 Relation) {
+func (r GroupByExpr) Tuples(t chan T) {
 	// figure out the new elements used for each of the derived types
-	e2 := reflect.TypeOf(t2) // type of the resulting relation's tuples
-	ev := reflect.TypeOf(vt) // type of the tuples put into groupby values
+	e1 := reflect.TypeOf(r.source.Zero())
+	e2 := reflect.TypeOf(r.zero)    // type of the resulting relation's tuples
+	ev := reflect.TypeOf(r.valZero) // type of the tuples put into groupby values
 
 	// note: if for some reason this is called on a grouping that includes
 	// a candidate key, then this function should instead act as a map, and
 	// we might want to have a different codepath for that.
 
 	// create the map for channels to grouping goroutines
-	groupMap := make(map[interface{}]chan interface{})
+	groupMap := make(map[T]chan T)
 
 	// create waitgroup that indicates that the computations are complete
 	var wg sync.WaitGroup
 
-	// create the channel of tuples from r1
-	tups := make(chan interface{})
-	r1.Tuples(tups)
-
-	// results come back through the res channel
-	res := make(chan interface{})
+	// create the channel of tuples from source
+	body := make(chan T)
+	r.source.Tuples(body)
 
 	// for each of the tuples, extract the group values out and set
 	// the ones that are not in vtup to the values in the tuple.
@@ -62,8 +64,8 @@ func (r1 Simple) GroupByExpr(t2 interface{}, vt interface{}, gfcn func(chan inte
 
 	// figure out where in each of the structs the group and value
 	// attributes are found
-	e2fieldMap := fieldMap(r1.tupleType, e2)
-	evfieldMap := fieldMap(r1.tupleType, ev)
+	e2fieldMap := fieldMap(e1, e2)
+	evfieldMap := fieldMap(e1, ev)
 
 	// map from the values to the group (with zeros in the value fields)
 	// I couldn't figure out a way to assign the values into the group
@@ -72,80 +74,116 @@ func (r1 Simple) GroupByExpr(t2 interface{}, vt interface{}, gfcn func(chan inte
 	// TODO(jonlawlor): figure out how to avoid reallocation
 	vgfieldMap := fieldMap(e2, ev)
 
+	go func(b1, res chan T) {
+		for tup := range b1 {
+			// this reflection may be a bottleneck, and we may be able to
+			// replace it with a concurrent version.
+			gtupi, vtupi := partialProject(reflect.ValueOf(tup), e2, ev, e2fieldMap, evfieldMap)
+
+			// the map cannot be accessed concurrently though
+			// a lock needs to be placed here
+			if _, exists := groupMap[gtupi]; !exists {
+				wg.Add(1)
+				// create the channel
+				groupChan := make(chan T)
+				groupMap[gtupi] = groupChan
+				// remove the lock
+
+				// launch a goroutine which consumes values from the group,
+				// applies the grouping function, and then when all values
+				// are sent, gets the result from the grouping function and
+				// puts it into the result tuple, which it then returns
+				go func(gtupi T, groupChan chan T) {
+					defer wg.Done()
+					// run the grouping function and turn the result
+					// into the reflect.Value
+					vtup := reflect.ValueOf(r.gfcn(groupChan))
+					// combine the returned values with the group tuple
+					// to create the new complete tuple
+					res <- combineTuples(reflect.ValueOf(gtupi), vtup, e2, vgfieldMap).Interface()
+				}(gtupi, groupChan)
+			}
+			// this send can also be done concurrently, or we could buffer
+			// the channel
+			groupMap[gtupi] <- vtupi
+		}
+		// close all of the group channels so the processes can finish
+		// this can only be done after the tuples in the original relation
+		// have all been sent to the groups
+		for _, v := range groupMap {
+			close(v)
+		}
+	}(body, t)
+
+	// start a process to close the results channel when the waitgroup
+	// is finished
+	go func(res chan T) {
+		wg.Wait()
+		close(res)
+	}(t)
+
+	return
+}
+
+// Zero returns the zero value of the relation (a blank tuple)
+func (r GroupByExpr) Zero() T {
+	return r.zero
+}
+
+// CKeys is the set of candidate keys in the relation
+func (r GroupByExpr) CKeys() CandKeys {
 	// determine the new candidate keys, which can be any of the original
 	// candidate keys that are a subset of the group (which would also
 	// mean that every tuple in the original relation is in its own group
 	// in the resulting relation, which means the groupby function was
 	// just a map) or the group itself.
 
-	// make a new map with values from e2fieldMap that are not in
-	// evfieldmap (do we have enough maps yet???)
+	e1 := reflect.TypeOf(r.source.Zero())
+	e2 := reflect.TypeOf(r.zero)    // type of the resulting relation's tuples
+	ev := reflect.TypeOf(r.valZero) // type of the tuples put into groupby values
+
+	// note: if for some reason this is called on a grouping that includes
+	// a candidate key, then this function should instead act as a map, and
+	// we might want to have a different codepath for that.
+
+	// for each of the tuples, extract the group values out and set
+	// the ones that are not in vtup to the values in the tuple.
+	// then, if the tuple does not exist in the groupMap, create a
+	// new channel and launch a new goroutine to consume the channel,
+	// increment the waitgroup, and finally send the vtup to the
+	// channel.
+
+	// figure out where in each of the structs the group and value
+	// attributes are found
+	e2fieldMap := fieldMap(e1, e2)
+	evfieldMap := fieldMap(e1, ev)
+
 	groupFieldMap := make(map[string]fieldIndex)
 	for name, v := range e2fieldMap {
 		if _, isValue := evfieldMap[name]; !isValue {
 			groupFieldMap[name] = v
 		}
 	}
-	ck2 := subsetCandidateKeys(r1.CKeys, r1.Names, groupFieldMap)
+	names, _ := namesAndTypes(e2)
 
-	for tup := range tups {
-		// this reflection may be a bottleneck, and we may be able to
-		// replace it with a concurrent version.
-		gtupi, vtupi := partialProject(reflect.ValueOf(tup), e2, ev, e2fieldMap, evfieldMap)
-
-		// the map cannot be accessed concurrently though
-		// a lock needs to be placed here
-		if _, exists := groupMap[gtupi]; !exists {
-			wg.Add(1)
-			// create the channel
-			groupChan := make(chan interface{})
-			groupMap[gtupi] = groupChan
-			// remove the lock
-
-			// launch a goroutine which consumes values from the group,
-			// applies the grouping function, and then when all values
-			// are sent, gets the result from the grouping function and
-			// puts it into the result tuple, which it then returns
-			go func(gtupi interface{}, groupChan chan interface{}) {
-				defer wg.Done()
-				// run the grouping function and turn the result
-				// into the reflect.Value
-				vtup := reflect.ValueOf(gfcn(groupChan))
-				// combine the returned values with the group tuple
-				// to create the new complete tuple
-				res <- combineTuples(reflect.ValueOf(gtupi), vtup, e2, vgfieldMap).Interface()
-			}(gtupi, groupChan)
-		}
-		// this send can also be done concurrently, or we could buffer
-		// the channel
-		groupMap[gtupi] <- vtupi
-	}
-
-	// close all of the group channels so the processes can finish
-	// this can only be done after the tuples in the original relation
-	// have all been sent to the groups
-	for _, v := range groupMap {
-		close(v)
-	}
-
-	// start a process to close the results channel when the waitgroup
-	// is finished
-	go func() {
-		wg.Wait()
-		close(res)
-	}()
+	ck2 := subsetCandidateKeys(r.CKeys(), names, groupFieldMap)
 
 	// determine the new names and types
-	cn, ct := namesAndTypes(e2)
+	cn, _ := namesAndTypes(e2)
 
 	if len(ck2) == 0 {
 		ck2 = append(ck2, cn)
 	}
-	// accumulate the results into a new relation
-	b := make([]interface{}, 0)
-	for tup := range res {
-		b = append(b, tup)
-	}
-	return Simple{cn, ct, b, ck2, e2}
+
+	return ck2
 }
-*/
+
+// GoString returns a text representation of the Relation
+func (r GroupByExpr) GoString() string {
+	return goStringTabTable(r)
+}
+
+// String returns a text representation of the Relation
+func (r GroupByExpr) String() string {
+	return stringTabTable(r)
+}

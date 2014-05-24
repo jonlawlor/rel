@@ -1,6 +1,5 @@
 package rel
 
-/* needs rewrite
 import (
 	"testing"
 )
@@ -18,7 +17,7 @@ func TestGroupBy(t *testing.T) {
 	}
 
 	// a simple summation
-	groupFcn := func(val chan interface{}) interface{} {
+	groupFcn := func(val chan T) T {
 		res := valtup{}
 		for vi := range val {
 			v := vi.(valtup)
@@ -27,19 +26,17 @@ func TestGroupBy(t *testing.T) {
 		return res
 	}
 	wantString := `rel.New([]struct {
- PNO int
- Qty int
+ PNO int 
+ Qty int 
 }{
  {4, 900,  },
  {1, 1300, },
  {2, 700,  },
  {3, 200,  },
 })`
-	r1 := orders.GroupBy(r1tup{}, valtup{}, groupFcn)
+	r1 := GroupBy(orders, r1tup{}, valtup{}, groupFcn)
 	if r1.GoString() != wantString {
 		t.Errorf("orders.Groupby = \"%s\", want \"%s\"", r1.GoString(), wantString)
-
 	}
 	return
 }
-*/
