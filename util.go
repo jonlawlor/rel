@@ -59,7 +59,7 @@ func (cks CandKeys) Less(i, j int) bool {
 
 // distinct changes an interface channel to a channel of unique interfaces
 // TODO(jonlawlor): change this to a function that takes a destination chan
-// and returns a function which can be used to send values to the destination 
+// and returns a function which can be used to send values to the destination
 // if they have not already been sent.  We might want a mutex as well?
 func distinct(b1 chan T) (b2 chan T) {
 	m := make(map[interface{}]struct{})

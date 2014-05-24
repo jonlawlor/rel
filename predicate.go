@@ -23,10 +23,17 @@ type Predicate interface {
 // evaluated, but nothing beyond that, which will prevent it from being moved
 // into source queries in e.g. sql.  For those kind of predicates, non AdHoc
 // predicates will be required.
+// I expect that this will be constructed with literals.
 type AdHoc struct {
 	// f is the function which takes a tuple and returns a boolean indicating
 	// that the tuple passes the predicate
 	f interface{}
+}
+
+// Domain is the type of input that is required to evalute the predicate
+func (p AdHoc) Domain() reflect.Type {
+	f := reflect.TypeOf(p.f)
+	return f.In(0)
 }
 
 // Eval evalutes a predicate on an input tuple
@@ -41,8 +48,6 @@ func (p AdHoc) Eval(t reflect.Value) bool {
 	return b[0].Interface().(bool)
 }
 
-// Domain is the type of input that is required to evalute the predicate
-func (p AdHoc) Domain() reflect.Type {
-	f := reflect.TypeOf(p.f)
-	return f.In(0)
-}
+//TODO(jonlawlor): implement the kind of simple predicates that express simple
+// relationships, such as greater than, equal, etc. and derived predicates such
+// as And, Or, Xor, Not, etc.
