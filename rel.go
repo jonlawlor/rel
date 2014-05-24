@@ -252,8 +252,8 @@ func SetDiff(r1, r2 Relation) SetDiffExpr {
 }
 
 // Join creates a new relation by performing a natural join on the inputs
-func Join(r1, r2 Relation) JoinExpr {
-	return JoinExpr{r1, r2}
+func Join(r1, r2 Relation, zero T) JoinExpr {
+	return JoinExpr{r1, r2, zero}
 }
 
 // GroupBy creates a new relation by grouping and applying a user defined func
@@ -265,7 +265,6 @@ func GroupBy(r Relation, t2, vt T, gfcn func(chan interface{}) interface{}) Grou
 // additional derived functions
 // SemiDiff(r2 Relation) Relation
 // SemiJoin(r2 Relation) Relation
-// GroupBy(gtyp interface{}, vtyp interface{}, gfunc) Relation
 
 // probably want to add non-Relational functions like
 // Update

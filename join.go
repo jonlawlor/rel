@@ -2,69 +2,89 @@
 
 package rel
 
+import (
+	"reflect"
+	"runtime"
+)
+
 type JoinExpr struct {
 	source1 Relation
 	source2 Relation
+	zero    T
 }
 
-/*  needs to be rewritten
-func (r1 Simple) JoinExpr(r2 Relation, t3 interface{}) (r3 Relation) {
-
-	mc := MaxConcurrent
-	e3 := reflect.TypeOf(t3)
+func (r JoinExpr) Tuples(t chan T) {
+	mc := runtime.GOMAXPROCS(-1)
+	e3 := reflect.TypeOf(r.zero)
 
 	// create indexes between the three headings
-	h1 := r1.Heading()
-	h2 := r2.Heading()
-	h3 := interfaceHeading(t3)
+	h1 := Heading(r.source1)
+	h2 := Heading(r.source2)
+	h3 := Heading(r)
 
 	map12 := attributeMap(h1, h2) // used to determine equality
 	map31 := attributeMap(h3, h1) // used to construct returned values
 	map32 := attributeMap(h3, h2) // used to construct returned values
 
-	// create a channel over the body
-	tups := make(chan interface{})
-	r2.Tuples(tups)
-
-	// channel of the output tuples
-	res := make(chan interface{})
+	// create channels over the body of the source relations
+	body1 := make(chan T)
+	body2 := make(chan T)
+	r.source1.Tuples(body1)
+	r.source2.Tuples(body2)
 
 	// done is used to signal when each of the worker goroutines
 	// finishes processing the join operation
 	done := make(chan struct{})
-	go func() {
+	go func(res chan T) {
 		for i := 0; i < mc; i++ {
 			<-done
 		}
 		close(res)
-	}()
+	}(t)
 
 	// create a go routine that generates the join for each of the input tuples
 	for i := 0; i < mc; i++ {
-		go func() {
-			for tup2 := range tups {
+		go func(b1, b2, res chan T) {
+			for tup2 := range b2 {
 				rtup2 := reflect.ValueOf(tup2)
-				for j := 0; j < r1.Card(); j++ {
-					if partialEquals(reflect.ValueOf(r1.Body[j]), rtup2, map12) {
+				for tup1 := range b1 {
+					rtup1 := reflect.ValueOf(tup1)
+					if partialEquals(rtup1, rtup2, map12) {
 						tup3 := reflect.Indirect(reflect.New(e3))
-						combineTuples2(&tup3, reflect.ValueOf(r1.Body[j]), map31)
+						combineTuples2(&tup3, rtup1, map31)
 						combineTuples2(&tup3, rtup2, map32)
 						res <- tup3.Interface()
 					}
 				}
 			}
 			done <- struct{}{}
-		}()
+		}(body1, body2, t)
 	}
-
-	// create a new body with the results and accumulate them
-	b := make([]interface{}, 0)
-	for tup := range res {
-		b = append(b, tup)
-	}
-
-	// determine the new candidate keys
 
 	return
 }
-*/
+
+// Zero returns the zero value of the relation (a blank tuple)
+func (r JoinExpr) Zero() T {
+	return r.zero
+}
+
+// CKeys is the set of candidate keys in the relation
+func (r JoinExpr) CKeys() CandKeys {
+	// TODO(jonlawlor): determine new candidate keys.  This is just a
+	// placeholder
+	return r.source1.CKeys()
+}
+
+// text representation
+const joinSymbol = "⋈"
+
+// GoString returns a text representation of the Relation
+func (r JoinExpr) GoString() string {
+	return goStringTabTable(r)
+}
+
+// String returns a text representation of the Relation
+func (r JoinExpr) String() string {
+	return stringTabTable(r)
+}
