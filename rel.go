@@ -252,6 +252,7 @@ func SetDiff(r1, r2 Relation) SetDiffExpr {
 }
 
 // Join creates a new relation by performing a natural join on the inputs
+//
 func Join(r1, r2 Relation, zero T) JoinExpr {
 	return JoinExpr{r1, r2, zero}
 }

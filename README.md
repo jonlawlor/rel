@@ -19,3 +19,7 @@ Relations are channels of tuples, and operations on those channels.  The relatio
 Predicate Interface
 -------------------
 Predicates are used in the restrict operation.
+
+TODOs
+=====
+In no particular order.
