@@ -30,3 +30,6 @@ TODOs
 + Implement sub packages for other data sources, such as csv readers, generic sql tables, json, or gob.
 + Implement non-adhoc predicates.
 + Implement non relational operations like update, insert, & order.
++ Unify variable naming in all functions.
++ Write better docs
++ Write single godoc file
