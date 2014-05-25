@@ -5,6 +5,7 @@ package rel
 import (
 	"reflect"
 	"runtime"
+	"sync"
 )
 
 type JoinExpr struct {
@@ -32,13 +33,18 @@ func (r JoinExpr) Tuples(t chan T) {
 	r.source1.Tuples(body1)
 	r.source2.Tuples(body2)
 
-	// done is used to signal when each of the worker goroutines
-	// finishes processing the join operation
-	done := make(chan struct{})
+	// Create the memory of previously sent tuples so that the joins can
+	// continue to compare against old values.
+	var mu sync.Mutex
+	mem1 := make([]reflect.Value, 0)
+	mem2 := make([]reflect.Value, 0)
+
+	// wg is used to signal when each of the worker goroutines finishes
+	// processing the join operation
+	var wg sync.WaitGroup
+	wg.Add(mc)
 	go func(res chan T) {
-		for i := 0; i < mc; i++ {
-			<-done
-		}
+		wg.Wait()
 		close(res)
 	}(t)
 
@@ -50,19 +56,54 @@ func (r JoinExpr) Tuples(t chan T) {
 	// lot of needless computation.
 	for i := 0; i < mc; i++ {
 		go func(b1, b2, res chan T) {
-			for tup2 := range b2 {
-				rtup2 := reflect.ValueOf(tup2)
-				for tup1 := range b1 {
+			for {
+				select {
+				case tup1, ok := <-b1:
+					if !ok {
+						b1 = nil
+						break
+					}
+					// lock both memories, first to add b1 onto mem1 and then
+					// to make a copy of mem2
 					rtup1 := reflect.ValueOf(tup1)
-					if partialEquals(rtup1, rtup2, map12) {
-						tup3 := reflect.Indirect(reflect.New(e3))
-						combineTuples2(&tup3, rtup1, map31)
-						combineTuples2(&tup3, rtup2, map32)
-						res <- tup3.Interface()
+					mu.Lock()
+					mem1 = append(mem1, rtup1)
+					m2tups := mem2[:]
+					mu.Unlock()
+					for _, rtup2 := range m2tups {
+						if partialEquals(rtup1, rtup2, map12) {
+							tup3 := reflect.Indirect(reflect.New(e3))
+							combineTuples2(&tup3, rtup1, map31)
+							combineTuples2(&tup3, rtup2, map32)
+							res <- tup3.Interface()
+						}
+					}
+
+				case tup2, ok := <-b2:
+					if !ok {
+						b2 = nil
+						break
+					}
+					rtup2 := reflect.ValueOf(tup2)
+					mu.Lock()
+					mem2 = append(mem2, rtup2)
+					m1tups := mem1[:]
+					mu.Unlock()
+					for _, rtup1 := range m1tups {
+						if partialEquals(rtup1, rtup2, map12) {
+							tup3 := reflect.Indirect(reflect.New(e3))
+							combineTuples2(&tup3, rtup1, map31)
+							combineTuples2(&tup3, rtup2, map32)
+							res <- tup3.Interface()
+
+						}
 					}
 				}
+				if b1 == nil && b2 == nil {
+					wg.Done()
+					break
+				}
 			}
-			done <- struct{}{}
 		}(body1, body2, t)
 	}
 

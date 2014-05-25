@@ -2,6 +2,9 @@ package rel
 
 import "sync"
 
+// TODO(jonlawlor) incorporate this in functions such as join, union, and
+// setdiff which may require re-reading the data from a channel.
+
 type request struct {
 	i   int    // index of the element requested
 	got chan T // channel to respond on
