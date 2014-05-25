@@ -49,14 +49,9 @@ func (r JoinExpr) Tuples(t chan T) {
 	}(t)
 
 	// create a go routine that generates the join for each of the input tuples
-	// TODO(jonlawlor): In retrospect, there is absolutely no way this will
-	// work without some memory.  There has to be a better way to do this.  As
-	// it is, if the first relation is not a map or slice, it will not produce
-	// correct results.  Even if it is, the result will only be found after a
-	// lot of needless computation.
 	for i := 0; i < mc; i++ {
 		go func(b1, b2, res chan T) {
-			for {
+			for b1 != nil || b2 != nil {
 				select {
 				case tup1, ok := <-b1:
 					if !ok {
@@ -65,11 +60,17 @@ func (r JoinExpr) Tuples(t chan T) {
 					}
 					// lock both memories, first to add b1 onto mem1 and then
 					// to make a copy of mem2
+					// TODO(jonlawlor): refactor this code along with the other
+					// case.
 					rtup1 := reflect.ValueOf(tup1)
 					mu.Lock()
 					mem1 = append(mem1, rtup1)
 					m2tups := mem2[:]
 					mu.Unlock()
+
+					// Send tuples that match previously retrieved tuples in
+					// the opposite relation.  This is nice because it operates
+					// concurrently.
 					for _, rtup2 := range m2tups {
 						if partialEquals(rtup1, rtup2, map12) {
 							tup3 := reflect.Indirect(reflect.New(e3))
@@ -99,11 +100,8 @@ func (r JoinExpr) Tuples(t chan T) {
 						}
 					}
 				}
-				if b1 == nil && b2 == nil {
-					wg.Done()
-					break
-				}
 			}
+			wg.Done()
 		}(body1, body2, t)
 	}
 
