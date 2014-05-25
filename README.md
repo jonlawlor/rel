@@ -22,4 +22,11 @@ Predicates are used in the restrict operation.
 
 TODOs
 =====
-In no particular order.
++ Query rewrite using the rules of relational algebra, for example: http://www.dcs.warwick.ac.uk/~wmb/CS319/pdf/opt.pdf gives a quick summary.
++ Use the go race detector & clear up any issues.
++ Implement tests with deterministic output of relational operations.
++ Add benchmarks in each of the tests.
++ Make String() function to provide shorter representations.
++ Implement sub packages for other data sources, such as csv readers, generic sql tables, json, or gob.
++ Implement non-adhoc predicates.
++ Implement non relational operations like update, insert, & order.
