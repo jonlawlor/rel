@@ -14,7 +14,7 @@ type UnionExpr struct {
 func (r UnionExpr) Tuples(t chan T) {
 	// transform the channel of tuples from the relation
 	var mu sync.Mutex
-	m := make(map[interface{}]struct{})
+	mem := make(map[interface{}]struct{})
 
 	body1 := make(chan T)
 	body2 := make(chan T)
@@ -30,11 +30,11 @@ func (r UnionExpr) Tuples(t chan T) {
 		close(res)
 	}(t)
 
-	combine := func(body chan T, res chan T) {
+	combine := func(body, res chan T) {
 		for tup := range body {
 			mu.Lock()
-			if _, dup := m[tup]; !dup {
-				m[tup] = struct{}{}
+			if _, dup := mem[tup]; !dup {
+				mem[tup] = struct{}{}
 				mu.Unlock()
 				res <- tup
 			} else {
@@ -71,17 +71,3 @@ func (r UnionExpr) GoString() string {
 func (r UnionExpr) String() string {
 	return stringTabTable(r)
 }
-
-/* needs to be rewritten
-func (r1 *Simple) UnionExpr(r2 *Relation) {
-	// TODO(jonlawlor): check that the two relations conform, and if not
-	// then panic.
-
-	// turn the first relation into a map and then add on the values from
-	// the second one, then return the keys as a new relation
-
-	// for some reason the map requires this to use an Interface() call.
-	// maybe there is a better way?
-
-}
-*/

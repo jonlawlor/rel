@@ -32,7 +32,7 @@ func (r RestrictExpr) Tuples(t chan T) {
 	// TODO(jonlawlor) add parallelism here
 	body1 := make(chan T)
 	r.source.Tuples(body1)
-	go func(body chan T, res chan T, p Predicate) {
+	go func(body, res chan T, p Predicate) {
 		for tup1 := range body {
 			tup2 := reflect.Indirect(reflect.New(e2))
 			rtup1 := reflect.ValueOf(tup1)
