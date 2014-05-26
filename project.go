@@ -40,7 +40,6 @@ func (r ProjectExpr) Tuples(t chan T) {
 			close(res)
 		}(body1, t)
 		return
-
 	}
 
 	// figure out which fields stay, and where they are in each of
@@ -78,7 +77,6 @@ func (r ProjectExpr) Tuples(t chan T) {
 			close(t)
 		}(body1, t)
 	} else {
-
 		// assign fields from the old relation to fields in the new
 
 		// TODO(jonlawlor) add parallelism here

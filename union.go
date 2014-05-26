@@ -2,7 +2,10 @@
 
 package rel
 
-import "sync"
+import (
+	"runtime"
+	"sync"
+)
 
 // UnionExpr represents a union expression in relational algebra.
 // This is one of the relational operations which consumes memory.
@@ -12,7 +15,16 @@ type UnionExpr struct {
 }
 
 func (r UnionExpr) Tuples(t chan T) {
-	// transform the channel of tuples from the relation
+
+	mc := runtime.GOMAXPROCS(-1)
+
+	var wg sync.WaitGroup
+	wg.Add(mc)
+	go func(res chan T) {
+		wg.Wait()
+		close(res)
+	}(t)
+
 	var mu sync.Mutex
 	mem := make(map[interface{}]struct{})
 
@@ -21,31 +33,41 @@ func (r UnionExpr) Tuples(t chan T) {
 	go r.source1.Tuples(body1)
 	go r.source2.Tuples(body2)
 
-	done := make(chan struct{})
-	// function to handle closing of the results channel
-	go func(res chan T) {
-		// one for each body.  We could replace this with a pool of workers
-		<-done
-		<-done
-		close(res)
-	}(t)
-
-	combine := func(body, res chan T) {
-		for tup := range body {
-			mu.Lock()
-			if _, dup := mem[tup]; !dup {
-				mem[tup] = struct{}{}
-				mu.Unlock()
-				res <- tup
-			} else {
-				mu.Unlock()
+	for i := 0; i < mc; i++ {
+		go func(b1, b2, res chan T) {
+			for b1 != nil || b2 != nil {
+				select {
+				case tup1, ok := <-b1:
+					if !ok {
+						b1 = nil
+						break
+					}
+					mu.Lock()
+					if _, dup := mem[tup1]; !dup {
+						mem[tup1] = struct{}{}
+						mu.Unlock()
+						res <- tup1
+					} else {
+						mu.Unlock()
+					}
+				case tup2, ok := <-b2:
+					if !ok {
+						b2 = nil
+						break
+					}
+					mu.Lock()
+					if _, dup := mem[tup2]; !dup {
+						mem[tup2] = struct{}{}
+						mu.Unlock()
+						res <- tup2
+					} else {
+						mu.Unlock()
+					}
+				}
 			}
-		}
-		done <- struct{}{}
-		return
+			wg.Done()
+		}(body1, body2, t)
 	}
-	go combine(body1, t)
-	go combine(body2, t)
 	return
 }
 
