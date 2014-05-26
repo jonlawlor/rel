@@ -4,6 +4,8 @@
 
 package rel
 
+import "reflect"
+
 type RenameExpr struct {
 	// the input relation
 	source Relation
@@ -12,16 +14,10 @@ type RenameExpr struct {
 	zero T
 }
 
-/* needs a rewrite
-// rename operation
-// the way this is done has to do a rename in place, so at this point
-// the order of the fields becomes significant.  There will only be a
-// single input, which should line up with the order and types of the
-// fields in the original data.
-// The advantage of this syntax in go is that the rename can't express
-// duplicate attributes, and also the renamed tuple is the new type
-// used in type assertions on resulting values.
-func (r *Simple) Rename(t2 interface{}) {
+// Tuples sends each tuple in the relation to a channel
+// note: this consumes the values of the relation, and when it is finished it
+// closes the input channel.
+func (r RenameExpr) Tuples(t chan T) {
 	// TODO(jonlawlor) add a check that the second interface's type is
 	// the same as the first, except that it has different names for
 	// the same fields.
@@ -29,58 +25,84 @@ func (r *Simple) Rename(t2 interface{}) {
 	// first figure out if the tuple types of the relation and rename
 	// are equal.  If so, convert the tuples to the (possibly new)
 	// type and then return the new relation.
-	z1 := reflect.TypeOf(r.zero)
-	z2 := reflect.TypeOf(t2)
-	if z1.AssignableTo(z2) {
-		// do nothing
-		return
-	}
+	z1 := reflect.TypeOf(r.source.Zero())
+	z2 := reflect.TypeOf(r.zero)
 
-	body2 := make(chan T)
+	body1 := make(chan T)
+	r.source.Tuples(body1)
 	// assign the values of the original to the new names in the same
 	// locations
-	n := reflect.ValueOf(z2).NumField()
+	n := z2.NumField()
 
-	go func(body chan T) {
-		for tup1 := range r1.Body {
-			tup2 := reflect.Indirect(reflect.New(e2))
-			rtup1 := reflect.ValueOf(tup1)
-			for i := 0; i < n; i++ {
-				tupf2 := tup2.Field(i)
-				tupf2.Set(rtup1.Field(i))
+	go func(body, res chan T) {
+		if z1.AssignableTo(z2) {
+			for tup1 := range body {
+				res <- tup1
 			}
-			body2 <- tup2.Interface()
+		} else {
+			for tup1 := range body {
+				tup2 := reflect.Indirect(reflect.New(z2))
+				rtup1 := reflect.ValueOf(tup1)
+				for i := 0; i < n; i++ {
+					tupf2 := tup2.Field(i)
+					tupf2.Set(rtup1.Field(i))
+				}
+				res <- tup2.Interface()
+			}
 		}
-		close(body2)
-	}(r.body)
-	r.body = body2
+		close(res)
+	}(body1, t)
+	return
+}
+
+// Zero returns the zero value of the relation (a blank tuple)
+func (r RenameExpr) Zero() T {
+	return r.zero
+}
+
+// CKeys is the set of candidate keys in the relation
+func (r RenameExpr) CKeys() CandKeys {
+	z2 := reflect.TypeOf(r.zero)
+	n := reflect.ValueOf(z2).NumField()
 
 	// figure out the new names
 	names2 := make([]string, n)
 	for i := 0; i < n; i++ {
-		f := e2.Field(i)
+		f := z2.Field(i)
 		names2[i] = f.Name
 	}
 
-	// create a map from the old names to the new names if there is
-	// any difference between them
+	// create a map from the old names to the new names if there is any
+	// difference between them
 	nameMap := make(map[string]string)
-	for i, att := range r.heading {
+	for i, att := range Heading(r.source) {
 		nameMap[att.Name] = names2[i]
 	}
 
-	// for each of the candidate keys, rename any keys from the old
-	// names to the new ones
-	for i := 0; i < len(r.cKeys); i++ {
-		for j, key := range r.cKeys[i] {
-			r.cKeys[i][j] = nameMap[key]
+	cKeys1 := r.source.CKeys()
+	cKeys2 := make([][]string, len(cKeys1))
+	// for each of the candidate keys, rename any keys from the old names to
+	// the new ones
+	for i := 0; i < len(cKeys1); i++ {
+		cKeys2[i] = make([]string, len(cKeys1[i]))
+		for j, key := range cKeys1[i] {
+			cKeys2[i][j] = nameMap[key]
 		}
 	}
 
-	// change the heading
-	for i := 0; i < len(r.heading); i++ {
-		r.heading[i].Name = names2[i]
-	}
-
+	return cKeys2
 }
-*/
+
+// text representation
+
+const renameSymbol = "/" // I'm really unsure about this
+
+// GoString returns a text representation of the Relation
+func (r RenameExpr) GoString() string {
+	return goStringTabTable(r)
+}
+
+// String returns a text representation of the Relation
+func (r RenameExpr) String() string {
+	return stringTabTable(r)
+}

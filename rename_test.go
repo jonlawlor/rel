@@ -1,6 +1,5 @@
 package rel
 
-/* needs rewrite
 import (
 	"testing"
 )
@@ -15,7 +14,7 @@ func TestRename(t *testing.T) {
 		Qty int
 	}
 
-	r1 := orders.Rename(r1tup{})
+	r1 := Rename(orders, r1tup{})
 	if r1.GoString() != orders.GoString() {
 		t.Errorf("orders.Rename(PNO, SNO, Qty) = \"%s\", want \"%s\"", r1.GoString(), orders.GoString())
 
@@ -26,11 +25,11 @@ func TestRename(t *testing.T) {
 		Quantity int
 	}
 
-	r2 := orders.Rename(r2tup{})
+	r2 := Rename(orders, r2tup{})
 	r2GoString := `rel.New([]struct {
- PartNo   int
- SupplyNo int
- Quantity int
+ PartNo   int 
+ SupplyNo int 
+ Quantity int 
 }{
  {1, 1, 300, },
  {1, 2, 200, },
@@ -52,4 +51,3 @@ func TestRename(t *testing.T) {
 
 	return
 }
-*/
