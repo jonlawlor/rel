@@ -33,3 +33,4 @@ TODOs
 + Unify variable naming in all functions.
 + Write better docs
 + Write single godoc file
++ Implement channel cancelling
