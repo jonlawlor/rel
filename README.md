@@ -34,3 +34,4 @@ TODOs
 + Write better docs
 + Write single godoc file
 + Implement channel cancelling
++ Use the errors package for error handling
