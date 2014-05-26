@@ -4,6 +4,8 @@ package rel
 
 import (
 	"reflect"
+	"runtime"
+	"sync"
 )
 
 // Restrict applies a predicate to a relation and returns a new relation
@@ -19,6 +21,8 @@ type RestrictExpr struct {
 
 func (r RestrictExpr) Tuples(t chan T) {
 	// transform the channel of tuples from the relation
+	mc := runtime.GOMAXPROCS(-1)
+
 	z1 := r.source.Zero()
 
 	e1 := reflect.TypeOf(z1)
@@ -29,27 +33,34 @@ func (r RestrictExpr) Tuples(t chan T) {
 	// TODO(jonlawlor): error if fields in e2 are not in r1's tuples.
 	fMap := fieldMap(e1, e2)
 
-	// TODO(jonlawlor) add parallelism here
+	var wg sync.WaitGroup
+	wg.Add(mc)
+	go func(res chan T) {
+		wg.Wait()
+		close(res)
+	}(t)
+
 	body1 := make(chan T)
 	r.source.Tuples(body1)
-	go func(body, res chan T, p Predicate) {
-		for tup1 := range body {
-			tup2 := reflect.Indirect(reflect.New(e2))
-			rtup1 := reflect.ValueOf(tup1)
-			for _, fm := range fMap {
-				tupf2 := tup2.Field(fm.j)
-				tupf2.Set(rtup1.Field(fm.i))
-			}
+	for i := 0; i < mc; i++ {
+		go func(body, res chan T, p Predicate) {
+			for tup1 := range body {
+				tup2 := reflect.Indirect(reflect.New(e2))
+				rtup1 := reflect.ValueOf(tup1)
+				for _, fm := range fMap {
+					tupf2 := tup2.Field(fm.j)
+					tupf2.Set(rtup1.Field(fm.i))
+				}
 
-			// call the predicate with the new tuple to determine if it should
-			// go into the results
-			if p.Eval(tup2) {
-				res <- tup1
+				// call the predicate with the new tuple to determine if it should
+				// go into the results
+				if p.Eval(tup2) {
+					res <- tup1
+				}
 			}
-		}
-		close(res)
-	}(body1, t, r.p)
-
+			wg.Done()
+		}(body1, t, r.p)
+	}
 	return
 }
 

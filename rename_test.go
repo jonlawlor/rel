@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-// tests for projection
+// tests for Rename
 func TestRename(t *testing.T) {
 
 	// TODO(jonlawlor): replace with table driven test?

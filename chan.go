@@ -28,10 +28,12 @@ type Chan struct {
 // Tuples sends each tuple in the relation to a channel
 // note: this consumes the values of the relation, and when it is finished it
 // closes the input channel.
+// TODO(jonlawlor) change the rel.New constructor so that it doesn't consume
+// one of the input channel's values, and instead include it here.
 func (r *Chan) Tuples(t chan T) {
 	go func() {
-		for v := range r.body {
-			t <- v
+		for tup := range r.body {
+			t <- tup
 		}
 		close(t)
 	}()

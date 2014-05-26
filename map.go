@@ -24,8 +24,8 @@ type Map struct {
 // Tuples sends each tuple in the relation to a channel
 func (r *Map) Tuples(t chan T) {
 	go func() {
-		for k, _ := range r.body {
-			t <- k
+		for tup, _ := range r.body {
+			t <- tup
 		}
 		close(t)
 	}()

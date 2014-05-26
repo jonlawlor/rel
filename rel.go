@@ -18,6 +18,26 @@
 //
 package rel
 
+// variable naming conventions
+//
+// r, r1, r2, r3, ... all represent relations.  If there is an operation which
+// has an output relation, the output relation will have the highest number
+// after the r.
+//
+// body, body1, body2, b, b1, b2, ... all represent channels of tuples.
+//
+// zero, z, z1, z2, ... all represent a tuple's zero value, with defaults in
+// all of the fields.
+//
+// e, e1, e2, ... all represent the reflect.ValueOf(z) with the appropriate
+// identification.
+//
+// tup, tup1, tup2, ... all represent actual tuples going through some
+// relational transformation.
+//
+// rtup, rtup1, rtup2, ... all represent the reflect.ValueOf(tup) with the
+// appropriate identification.
+
 import (
 	"fmt" // we might want to replace this with the errors package?
 	"reflect"
@@ -28,7 +48,8 @@ type T interface{}
 
 // Attribute represents a Name:Type pair which defines the heading
 // of the relation
-// I'm not sure this should be exported.
+// I'm not sure this should be exported.  In particular I'm not sure the type
+// should be exported.
 type Attribute struct {
 	Name string
 	Type reflect.Type
@@ -102,11 +123,11 @@ func New(v interface{}, ckeystr [][]string) Relation {
 			for {
 				// this will always attempt to pull at least one value, which
 				// might not be desirable.
-				val, ok := rval.Recv()
+				rtup, ok := rval.Recv()
 				if !ok {
 					break
 				}
-				body <- val.Interface()
+				body <- rtup.Interface()
 			}
 			close(body)
 		}(r.body)
@@ -167,7 +188,6 @@ func New(v interface{}, ckeystr [][]string) Relation {
 	default:
 		panic(fmt.Sprintf("unrecognized relation kind: %v", rval.Kind()))
 	}
-
 }
 
 // Heading is a slice of column name:type pairs
@@ -192,9 +212,9 @@ func Deg(r Relation) int {
 // also implements its own Card someplace else, and just leave this
 // implementation as default.
 func Card(r Relation) (i int) {
-	tups := make(chan T)
-	r.Tuples(tups)
-	for _ = range tups {
+	body := make(chan T)
+	r.Tuples(body)
+	for _ = range body {
 		i++
 	}
 	return
@@ -235,8 +255,8 @@ func Restrict(r Relation, p Predicate) RestrictExpr {
 // z2 has to be a struct with the same number of fields as the input relation
 // note: we might want to change this into a projectrename operation?  It will
 // be tricky to represent this in go's type system, I think.
-func Rename(r Relation, z2 T) RenameExpr {
-	return RenameExpr{r, z2}
+func Rename(r1 Relation, z2 T) RenameExpr {
+	return RenameExpr{r1, z2}
 }
 
 // Union creates a new relation by unioning the bodies of both inputs
@@ -259,8 +279,8 @@ func Join(r1, r2 Relation, zero T) JoinExpr {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func GroupBy(r Relation, t2, vt T, gfcn func(chan T) T) GroupByExpr {
-	return GroupByExpr{r, t2, vt, gfcn}
+func GroupBy(r1 Relation, t2, vt T, gfcn func(chan T) T) GroupByExpr {
+	return GroupByExpr{r1, t2, vt, gfcn}
 }
 
 // additional derived functions
