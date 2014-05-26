@@ -40,3 +40,33 @@ func TestGroupBy(t *testing.T) {
 	}
 	return
 }
+
+func BenchmarkGroupBy(b *testing.B) {
+	type r1tup struct {
+		PNO int
+		Qty int
+	}
+	type valtup struct {
+		Qty int
+	}
+
+	// a simple summation
+	groupFcn := func(val chan T) T {
+		res := valtup{}
+		for vi := range val {
+			v := vi.(valtup)
+			res.Qty += v.Qty
+		}
+		return res
+	}
+	r1 := GroupBy(orders, r1tup{}, valtup{}, groupFcn)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		// each iteration produces 4 tuples
+
+		t := make(chan T)
+		r1.Tuples(t)
+		for _ = range t {
+		}
+	}
+}

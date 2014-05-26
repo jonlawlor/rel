@@ -47,3 +47,25 @@ func TestJoin(t *testing.T) {
 	}
 	return
 }
+
+func BenchmarkJoin(b *testing.B) {
+	type restup struct {
+		PNO    int     // from the parts & orders tables
+		PName  string  // from the parts table
+		Color  string  // from the parts table
+		Weight float64 // from the parts table
+		City   string  // from the parts table
+		SNO    int     // from the orders table
+		Qty    int     // from the orders table
+	}
+
+	r1 := Join(parts, orders, restup{})
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		// each iteration produces 12 tuples
+		t := make(chan T)
+		r1.Tuples(t)
+		for _ = range t {
+		}
+	}
+}

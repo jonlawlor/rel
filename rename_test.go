@@ -46,8 +46,23 @@ func TestRename(t *testing.T) {
 })`
 	if r2.GoString() != r2GoString {
 		t.Errorf("orders.Rename(PartNo, SupplyNo, Quantity) = \"%s\", want \"%s\"", r2.GoString(), r2GoString)
-
 	}
-
 	return
+}
+
+func BenchmarkRename(b *testing.B) {
+	type r2tup struct {
+		PartNo   int
+		SupplyNo int
+		Quantity int
+	}
+	r1 := Rename(orders, r2tup{})
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		// each iteration produces 12 tuples
+		t := make(chan T)
+		r1.Tuples(t)
+		for _ = range t {
+		}
+	}
 }

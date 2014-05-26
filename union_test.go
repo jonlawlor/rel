@@ -17,4 +17,17 @@ func TestUnion(t *testing.T) {
 	return
 }
 
-//TODO(jonlawlor): add in benchmarks
+func BenchmarkUnion(b *testing.B) {
+	exRel1 := New(exampleRelSlice2(10), [][]string{[]string{"Foo"}})
+	exRel2 := New(exampleRelSlice2(10), [][]string{[]string{"Foo"}})
+
+	r1 := Union(exRel1, exRel2)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		// each iteration produces 10 tuples (1 dupe each)
+		t := make(chan T)
+		r1.Tuples(t)
+		for _ = range t {
+		}
+	}
+}
