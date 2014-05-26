@@ -8,7 +8,7 @@ import (
 func TestRestrict(t *testing.T) {
 
 	// TODO(jonlawlor): replace with table driven test?
-	exRel := New(exampleRel2(10), [][]string{[]string{"Foo"}})
+	exRel := New(exampleRelSlice2(10), [][]string{[]string{"Foo"}})
 
 	r1 := Restrict(exRel, AdHoc{func(i struct{}) bool {
 		return true

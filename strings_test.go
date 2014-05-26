@@ -31,7 +31,7 @@ func TestGoString(t *testing.T) {
 
 func BenchmarkSimpleStringTiny(b *testing.B) {
 	// test the time it takes to turn a relation into a string
-	exRel := New(exampleRel2(10), [][]string{[]string{"foo"}})
+	exRel := New(exampleRelSlice2(10), [][]string{[]string{"foo"}})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		fmt.Sprintf("%v", exRel)
@@ -40,7 +40,7 @@ func BenchmarkSimpleStringTiny(b *testing.B) {
 
 func BenchmarkSimpleStringSmall(b *testing.B) {
 	// test the time it takes to turn a relation into a string
-	exRel := New(exampleRel2(1000), [][]string{[]string{"foo"}})
+	exRel := New(exampleRelSlice2(1000), [][]string{[]string{"foo"}})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		fmt.Sprintf("%v", exRel)
@@ -49,7 +49,7 @@ func BenchmarkSimpleStringSmall(b *testing.B) {
 
 func BenchmarkSimpleStringMedium(b *testing.B) {
 	// test the time it takes to turn a relation into a string
-	exRel := New(exampleRel2(100000), [][]string{[]string{"foo"}})
+	exRel := New(exampleRelSlice2(100000), [][]string{[]string{"foo"}})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		fmt.Sprintf("%v", exRel)

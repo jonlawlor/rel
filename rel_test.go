@@ -6,8 +6,6 @@ import (
 
 // test creation of relations, including tests to determine the cost of
 // representing slices of structs as relations instead of native.
-// TODO(jonlawlor): tests involving []struct, map[struct], and chan struct
-// representations
 
 // type of the example relations
 type exTup2 struct {
@@ -15,97 +13,37 @@ type exTup2 struct {
 	Bar string
 }
 
-// exampleRel2 creates an example relation with given cardinality
-// and degree 2.
-func exampleRel2(c int) (recs []exTup2) {
+// exampleRelSlice2 creates an example relation body using slice
+// with given cardinality and degree 2.
+func exampleRelSlice2(c int) []exTup2 {
+	recs := make([]exTup2, c)
 	for i := 0; i < c; i++ {
-		recs = append(recs, exTup2{i, "test"})
+		recs[i] = exTup2{i, "test"}
 	}
-	return
+	return recs
 }
 
-func BenchmarkSimpleNewTiny(b *testing.B) {
-	// test the time it takes to make a new relation with a given size
-	exRel := exampleRel2(10)
-	ck := [][]string{[]string{"foo"}}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		New(exRel, ck)
+// exampleRelMap2 creates an example relation body using map
+// with given cardinality and degree 2.
+func exampleRelMap2(c int) map[exTup2]struct{} {
+	recs := make(map[exTup2]struct{}, c)
+	for i := 0; i < c; i++ {
+		recs[exTup2{i, "test"}] = struct{}{}
 	}
-}
-func BenchmarkNonDistinctNewTiny(b *testing.B) {
-	// test the time it takes to make a new relation with a given size,
-	// but without any candidate keys.  The New function will run
-	// a distinct on the input data.
-	exRel := exampleRel2(10)
-	ck := [][]string{}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		New(exRel, ck)
-	}
+	return recs
 }
 
-func BenchmarkSimpleNewSmall(b *testing.B) {
-	// test the time it takes to make a new relation with a given size
-	exRel := exampleRel2(1000)
-	ck := [][]string{[]string{"foo"}}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		New(exRel, ck)
-	}
-}
-func BenchmarkNonDistinctNewSmall(b *testing.B) {
-	// test the time it takes to make a new relation with a given size,
-	// but without any candidate keys.  The New function will run
-	// a distinct on the input data.
-	exRel := exampleRel2(1000)
-	ck := [][]string{}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		New(exRel, ck)
-	}
-}
-
-func BenchmarkSimpleNewMedium(b *testing.B) {
-	// test the time it takes to make a new relation with a given size
-	exRel := exampleRel2(100000)
-	ck := [][]string{[]string{"foo"}}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		New(exRel, ck)
-	}
-}
-func BenchmarkNonDistinctNewMedium(b *testing.B) {
-	// test the time it takes to make a new relation with a given size,
-	// but without any candidate keys.  The New function will run
-	// a distinct on the input data.
-	exRel := exampleRel2(100000)
-	ck := [][]string{}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		New(exRel, ck)
-	}
-}
-
-func BenchmarkSimpleNewLarge(b *testing.B) {
-	// test the time it takes to make a new relation with a given size
-	exRel := exampleRel2(10000000)
-	ck := [][]string{[]string{"foo"}}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		New(exRel, ck)
-	}
-}
-func BenchmarkNonDistinctNewLarge(b *testing.B) {
-	// test the time it takes to make a new relation with a given size,
-	// but without any candidate keys.  The New function will run
-	// a distinct on the input data.
-	exRel := exampleRel2(10000000)
-	ck := [][]string{}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		New(exRel, ck)
-	}
+// exampleRelSlice2 creates an example relation body using chan
+// with given cardinality and degree 2.
+func exampleRelChan2(c int) chan exTup2 {
+	recs := make(chan exTup2)
+	go func() {
+		for i := 0; i < c; i++ {
+			recs <- exTup2{i, "test"}
+		}
+		close(recs)
+	}()
+	return recs
 }
 
 // test the degrees

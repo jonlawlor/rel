@@ -7,8 +7,8 @@ import (
 // tests union op
 func TestUnion(t *testing.T) {
 	// TODO(jonlawlor): replace with table driven test?
-	exRel1 := New(exampleRel2(10), [][]string{[]string{"Foo"}})
-	exRel2 := New(exampleRel2(100), [][]string{[]string{"Foo"}})
+	exRel1 := New(exampleRelSlice2(10), [][]string{[]string{"Foo"}})
+	exRel2 := New(exampleRelSlice2(100), [][]string{[]string{"Foo"}})
 
 	r1 := Union(exRel1, exRel2)
 	if Card(r1) != Card(exRel2) {

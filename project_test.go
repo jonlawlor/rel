@@ -61,7 +61,7 @@ func TestProject(t *testing.T) {
 func BenchmarkSimpleProjectTinyIdent(b *testing.B) {
 	// test the time it takes to do an identity projection for a
 	// Tiny relation.
-	exRel := New(exampleRel2(10), [][]string{[]string{"Foo"}})
+	exRel := New(exampleRelSlice2(10), [][]string{[]string{"Foo"}})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		Project(exRel, exTup2{})
@@ -71,7 +71,7 @@ func BenchmarkSimpleProjectTinyDistinct(b *testing.B) {
 	// test the time it takes to do an projection for a
 	// Tiny relation where we don't need to call distinct
 	// on the result
-	exRel := New(exampleRel2(10), [][]string{[]string{"Foo"}})
+	exRel := New(exampleRelSlice2(10), [][]string{[]string{"Foo"}})
 	type fooOnly struct {
 		foo int
 	}
@@ -85,7 +85,7 @@ func BenchmarkSimpleProjectTinyNonDistinct(b *testing.B) {
 	// test the time it takes to do an projection for a
 	// Tiny relation where we need to call distinct
 	// on the result
-	exRel := New(exampleRel2(10), [][]string{[]string{"Foo"}})
+	exRel := New(exampleRelSlice2(10), [][]string{[]string{"Foo"}})
 	type barOnly struct {
 		bar string
 	}
@@ -99,7 +99,7 @@ func BenchmarkSimpleProjectTinyNonDistinct(b *testing.B) {
 func BenchmarkSimpleProjectSmallIdent(b *testing.B) {
 	// test the time it takes to do an identity projection for a
 	// small relation.
-	exRel := New(exampleRel2(1000), [][]string{[]string{"Foo"}})
+	exRel := New(exampleRelSlice2(1000), [][]string{[]string{"Foo"}})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		Project(exRel, exTup2{})
@@ -109,7 +109,7 @@ func BenchmarkSimpleProjectSmallDistinct(b *testing.B) {
 	// test the time it takes to do an projection for a
 	// small relation where we don't need to call distinct
 	// on the result
-	exRel := New(exampleRel2(1000), [][]string{[]string{"Foo"}})
+	exRel := New(exampleRelSlice2(1000), [][]string{[]string{"Foo"}})
 	type fooOnly struct {
 		foo int
 	}
@@ -123,7 +123,7 @@ func BenchmarkSimpleProjectSmallNonDistinct(b *testing.B) {
 	// test the time it takes to do an projection for a
 	// small relation where we need to call distinct
 	// on the result
-	exRel := New(exampleRel2(1000), [][]string{[]string{"Foo"}})
+	exRel := New(exampleRelSlice2(1000), [][]string{[]string{"Foo"}})
 	type barOnly struct {
 		bar string
 	}
@@ -137,7 +137,7 @@ func BenchmarkSimpleProjectSmallNonDistinct(b *testing.B) {
 func BenchmarkSimpleProjectMediumIdent(b *testing.B) {
 	// test the time it takes to do an identity projection for a
 	// Medium relation.
-	exRel := New(exampleRel2(100000), [][]string{[]string{"Foo"}})
+	exRel := New(exampleRelSlice2(100000), [][]string{[]string{"Foo"}})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		Project(exRel, exTup2{})
@@ -147,7 +147,7 @@ func BenchmarkSimpleProjectMediumDistinct(b *testing.B) {
 	// test the time it takes to do an projection for a
 	// Medium relation where we don't need to call distinct
 	// on the result
-	exRel := New(exampleRel2(100000), [][]string{[]string{"Foo"}})
+	exRel := New(exampleRelSlice2(100000), [][]string{[]string{"Foo"}})
 	type fooOnly struct {
 		foo int
 	}
@@ -161,7 +161,7 @@ func BenchmarkSimpleProjectMediumNonDistinct(b *testing.B) {
 	// test the time it takes to do an projection for a
 	// Medium relation where we need to call distinct
 	// on the result
-	exRel := New(exampleRel2(100000), [][]string{[]string{"Foo"}})
+	exRel := New(exampleRelSlice2(100000), [][]string{[]string{"Foo"}})
 	type barOnly struct {
 		bar string
 	}
