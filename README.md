@@ -25,7 +25,7 @@ TODOs
 + Query rewrite using the rules of relational algebra, for example: http://www.dcs.warwick.ac.uk/~wmb/CS319/pdf/opt.pdf gives a quick summary.
 + Use the go race detector & clear up any issues.  (this requires a 64bit arch)
 + Implement tests with deterministic output of relational operations.  Currently tests for things like GoString, join, and groupby are dependent on the (arbitrary) order of output tuples.  They should go through an orderby operation first, or just compare against a known good relation through setdiff.
-+ Add benchmarks in each of the tests.
++ Change benchmarks to produce more useful measurements, such as per tuple overhead for each operation.
 + Make String() function to provide shorter representations.
 + Implement sub packages for other data sources, such as csv readers, generic sql tables, json, or gob.
 + Implement non-adhoc predicates.
