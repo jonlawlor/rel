@@ -7,36 +7,59 @@
 
 package rel
 
+import "reflect"
+
 // Chan is an implementation of Relation using a channel
 type Chan struct {
-	// heading constitute the heading of the relation.
-	// using slices here instead of a map to preserve order
-	// the reason is because golang distinguishes between structs
-	// based on the order of their fields, and users may want to
-	// use the methods defined on a particular struct.
-
 	// the channel of tuples in the relation
-	body chan T
+	rbody reflect.Value
 
 	// set of candidate keys
 	cKeys CandKeys
 
 	// the type of the tuples contained within the relation
 	zero T
+
+	// sourceDistinct indicates if the source chan was already distinct or if a
+	// distinct has to be performed when sending tuples
+	sourceDistinct bool
 }
 
 // Tuples sends each tuple in the relation to a channel
 // note: this consumes the values of the relation, and when it is finished it
 // closes the input channel.
-// TODO(jonlawlor) change the rel.New constructor so that it doesn't consume
-// one of the input channel's values, and instead include it here.
 func (r *Chan) Tuples(t chan T) {
-	go func() {
-		for tup := range r.body {
-			t <- tup
+	if r.sourceDistinct {
+		go func(rbody reflect.Value, res chan T) {
+			for {
+				rtup, ok := rbody.Recv()
+				if !ok {
+					break
+				}
+				res <- rtup.Interface()
+			}
+			close(res)
+		}(r.rbody, t)
+		return
+	}
+	// build up a map where each key is one of the tuples.  This consumes
+	// memory.
+	mem := map[T]struct{}{}
+	go func(rbody reflect.Value, res chan T) {
+		for {
+			rtup, ok := rbody.Recv()
+			if !ok {
+				break
+			}
+			tup := rtup.Interface()
+			if _, dup := mem[tup]; !dup {
+				res <- tup
+				mem[tup] = struct{}{}
+			}
 		}
-		close(t)
-	}()
+		close(res)
+	}(r.rbody, t)
+	return
 }
 
 // Zero returns the zero value of the relation (a blank tuple)

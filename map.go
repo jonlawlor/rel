@@ -8,11 +8,13 @@
 
 package rel
 
+import "reflect"
+
 // Map is an implementation of Relation using a map
 type Map struct {
 
-	// the channel of tuples in the relation
-	body map[T]struct{}
+	// the map of tuples in the relation, with tuples in the key
+	rbody reflect.Value // should always hold a map
 
 	// set of candidate keys
 	cKeys CandKeys
@@ -24,8 +26,8 @@ type Map struct {
 // Tuples sends each tuple in the relation to a channel
 func (r *Map) Tuples(t chan T) {
 	go func() {
-		for tup, _ := range r.body {
-			t <- tup
+		for _, rtup := range r.rbody.MapKeys() {
+			t <- rtup.Interface()
 		}
 		close(t)
 	}()

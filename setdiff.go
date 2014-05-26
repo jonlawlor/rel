@@ -14,12 +14,15 @@ func (r SetDiffExpr) Tuples(t chan T) {
 	// TODO(jonlawlor): check that the two relations conform, and if not
 	// then panic.
 
-	m := make(map[interface{}]struct{})
+	mem := make(map[interface{}]struct{})
 	// setdiff is unique in that it has to immediately consume all of the
 	// values from the second relation in order to send any values in the
 	// first one.  All other relational operations can be done lazily, this
 	// one can only be done half-lazy.
 	// with some indexing this is avoidable, though.
+	// In addition, we could start pulling values from the first relation as
+	// well if we were willing to later go through them.  However, this will
+	// always use more memory, so we can leave it up to the caller.
 
 	// get the values out of the source relations
 	body1 := make(chan T)
@@ -29,10 +32,10 @@ func (r SetDiffExpr) Tuples(t chan T) {
 
 	go func(b1, b2, res chan T) {
 		for tup := range b2 {
-			m[tup] = struct{}{}
+			mem[tup] = struct{}{}
 		}
 		for tup := range b1 {
-			if _, rem := m[tup]; !rem {
+			if _, rem := mem[tup]; !rem {
 				res <- tup
 			}
 		}

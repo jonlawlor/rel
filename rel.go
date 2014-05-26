@@ -78,115 +78,68 @@ type Relation interface {
 }
 
 // New creates a new Relation from a []struct, map[struct] or chan struct.
-func New(v interface{}, ckeystr [][]string) Relation {
+func New(v interface{}, ckeystr CandKeys) Relation {
 
 	// depending on the type of the input, we represent a relation in different
-	// ways.
-	rval := reflect.ValueOf(v)
+	// types of relation.
+	rbody := reflect.ValueOf(v)
 	e := reflect.TypeOf(v).Elem()
 	z := reflect.Indirect(reflect.New(e)).Interface()
 
-	switch rval.Kind() {
+	switch rbody.Kind() {
 	case reflect.Map:
 		r := new(Map)
-		r.zero = z
-		r.cKeys = CandKeys(ckeystr)
-
-		r.body = make(map[T]struct{}, rval.Len())
-		mkeys := rval.MapKeys()
-		for _, v := range mkeys {
-			r.body[v.Interface()] = struct{}{}
-		}
-
-		if len(r.cKeys) == 0 {
-			// maps are already distinct on the key
+		r.rbody = rbody
+		if len(ckeystr) == 0 {
+			// maps are already distinct on the key, so the Map relation type
+			// does not have a sourceDistinct field.  Maps are probably the
+			// most natural way of storing relations.
 
 			// all relations have a candidate key of all of their attributes, or
 			// a non zero subset if the relation is not dee or dum
-			r.cKeys = defaultKeys(r.zero)
+			r.cKeys = defaultKeys(z)
+		} else {
+			r.cKeys = ckeystr
 		}
+		r.zero = z
 		// we might want to check the candidate keys for validity here?
 		orderCandidateKeys(r.cKeys)
 		return r
 
 	case reflect.Chan:
 		r := new(Chan)
-		r.zero = z
-		r.cKeys = CandKeys(ckeystr)
-
-		// We could do this later, and avoid pulling the first value, but then
-		// we'll have to keep track of the distinct vs non distinct status.  It
-		// might be good to require a candidate key instead of inferring the
-		// default - in that case, we don't have to worry.
-		r.body = make(chan T)
-		go func(body chan T) {
-			for {
-				// this will always attempt to pull at least one value, which
-				// might not be desirable.
-				rtup, ok := rval.Recv()
-				if !ok {
-					break
-				}
-				body <- rtup.Interface()
-			}
-			close(body)
-		}(r.body)
-
-		// ensure minimal candidate keys
-		if len(r.cKeys) == 0 {
-			// perform a lazy distinct
-
-			// change the body to use a distinct channel instead of an assumed
-			// distinct channel.  This can take up quite a bit of memory.
-			// I think most DBMS use a merge sort so that it isn't done in
-			// memory?
-			r.body = distinct(r.body)
-
-			// all relations have a candidate key of all of their attributes, or
-			// a non zero subset if the relation is not dee or dum
-			r.cKeys = defaultKeys(r.zero)
+		r.rbody = rbody
+		if len(ckeystr) == 0 {
+			r.cKeys = defaultKeys(z)
+			// note that even zero degree relations need to be distinct
+		} else {
+			r.cKeys = ckeystr
+			r.sourceDistinct = true
 		}
+
+		r.zero = z
 		// we might want to check the candidate keys for validity here?
 		orderCandidateKeys(r.cKeys)
 		return r
 
 	case reflect.Slice:
 		r := new(Slice)
-		r.zero = z
-		r.cKeys = CandKeys(ckeystr)
-
-		// ensure minimal candidate keys
-		if len(r.cKeys) == 0 {
-			// do a greedy distinct if the data is already in memory
-			m := map[T]struct{}{}
-			for i := 0; i < rval.Len(); i++ {
-				m[rval.Index(i).Interface()] = struct{}{}
-			}
-			r.body = make([]T, len(m))
-			i := 0
-			for k, _ := range m {
-				r.body[i] = k
-				i++
-			}
-
-			// all relations have a candidate key of all of their attributes, or
-			// a non zero subset if the relation is not dee or dum
-			r.cKeys = defaultKeys(r.zero)
-
-			// change the body to use a distinct channel instead of an assumed
-			// distinct channel
+		r.rbody = rbody
+		if len(ckeystr) == 0 {
+			r.cKeys = defaultKeys(z)
+			// note that even zero degree relations need to be distinct
 		} else {
-			r.body = make([]T, rval.Len())
-			for i := 0; i < rval.Len(); i++ {
-				r.body[i] = rval.Index(i).Interface()
-			}
-
+			r.cKeys = ckeystr
+			r.sourceDistinct = true
 		}
+
+		r.zero = z
+
 		// we might want to check the candidate keys for validity here?
 		orderCandidateKeys(r.cKeys)
 		return r
 	default:
-		panic(fmt.Sprintf("unrecognized relation kind: %v", rval.Kind()))
+		panic(fmt.Sprintf("unrecognized relation kind: %v", rbody.Kind()))
 	}
 }
 

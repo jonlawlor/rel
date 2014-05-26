@@ -3,28 +3,51 @@
 
 package rel
 
+import "reflect"
+
 // slice represents a relation that came from a slice of a struct
 type Slice struct {
 	// the slice of tuples in the relation
-	body []T
+	rbody reflect.Value
 
 	// set of candidate keys
 	cKeys CandKeys
 
 	// the type of the tuples contained within the relation
 	zero T
+
+	// sourceDistinct indicates if the source slice was already distinct or if
+	// a distinct has to be performed when sending tuples
+	sourceDistinct bool
 }
 
 // Tuples sends each tuple in the relation to a channel
-// note: this consumes the values of the relation, and when it is finished it
-// closes the input channel.
+// and when it is finished it closes the input channel.
 func (r *Slice) Tuples(t chan T) {
-	go func() {
-		for _, tup := range r.body {
-			t <- tup
+	if r.sourceDistinct {
+		go func(rbody reflect.Value, res chan T) {
+			for i := 0; i < rbody.Len(); i++ {
+				res <- rbody.Index(i).Interface()
+			}
+			close(res)
+		}(r.rbody, t)
+		return
+	}
+
+	// build up a map where each key is one of the tuples.  This consumes
+	// memory.
+	mem := map[T]struct{}{}
+	go func(rbody reflect.Value, res chan T) {
+		for i := 0; i < rbody.Len(); i++ {
+			tup := rbody.Index(i).Interface()
+			if _, dup := mem[tup]; !dup {
+				res <- tup
+				mem[tup] = struct{}{}
+			}
 		}
-		close(t)
-	}()
+		close(res)
+	}(r.rbody, t)
+	return
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
