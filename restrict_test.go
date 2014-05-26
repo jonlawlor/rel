@@ -35,4 +35,38 @@ func TestRestrict(t *testing.T) {
 	return
 }
 
-//TODO(jonlawlor): add in benchmarks
+func BenchmarkRestrictIdent(b *testing.B) {
+	// test the time it takes to pull all of the tuples after passing in an
+	// identity predicate (always true)
+	exRel := New(exampleRelSlice2(10), [][]string{[]string{"Foo"}})
+	pred := AdHoc{func(i struct{}) bool {
+		return true
+	}}
+	r1 := Restrict(exRel, pred)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		t := make(chan T)
+		r1.Tuples(t)
+		for _ = range t {
+		}
+	}
+}
+
+func BenchmarkRestrictZero(b *testing.B) {
+	// test the time it takes to pull all of the tuples after passing in an
+	// zero predicate (always false)
+	exRel := New(exampleRelSlice2(10), [][]string{[]string{"Foo"}})
+	pred := AdHoc{func(i struct{}) bool {
+		return false
+	}}
+	r1 := Restrict(exRel, pred)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		t := make(chan T)
+		r1.Tuples(t)
+		for _ = range t {
+		}
+	}
+}

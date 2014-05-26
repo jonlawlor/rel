@@ -64,6 +64,7 @@ func TestDeg(t *testing.T) {
 	}
 }
 
+// test cardinality
 func TestCard(t *testing.T) {
 	fix := []struct {
 		name string

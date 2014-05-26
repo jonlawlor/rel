@@ -6,7 +6,7 @@ import (
 
 // tests & benchmarks for the rel.Map type
 
-func BenchmarkSimpleNewMapTiny(b *testing.B) {
+func BenchmarkMapNewTinySimple(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRelMap2(10)
 	ck := [][]string{[]string{"foo"}}
@@ -15,7 +15,8 @@ func BenchmarkSimpleNewMapTiny(b *testing.B) {
 		New(exRel, ck)
 	}
 }
-func BenchmarkNonDistinctNewMapTiny(b *testing.B) {
+
+func BenchmarkMapNewTinyNonDistinct(b *testing.B) {
 	// test the time it takes to make a new relation with a given size,
 	// but without any candidate keys.  The New function will run
 	// a distinct on the input data.
@@ -27,7 +28,7 @@ func BenchmarkNonDistinctNewMapTiny(b *testing.B) {
 	}
 }
 
-func BenchmarkSimpleNewMapSmall(b *testing.B) {
+func BenchmarkMapNewSmallSimple(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRelMap2(1000)
 	ck := [][]string{[]string{"foo"}}
@@ -36,7 +37,8 @@ func BenchmarkSimpleNewMapSmall(b *testing.B) {
 		New(exRel, ck)
 	}
 }
-func BenchmarkNonDistinctNewMapSmall(b *testing.B) {
+
+func BenchmarkMapNewSmallNonDistinct(b *testing.B) {
 	// test the time it takes to make a new relation with a given size,
 	// but without any candidate keys.  The New function will run
 	// a distinct on the input data.
@@ -48,7 +50,7 @@ func BenchmarkNonDistinctNewMapSmall(b *testing.B) {
 	}
 }
 
-func BenchmarkSimpleNewMapMedium(b *testing.B) {
+func BenchmarkMapNewMediumSimple(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRelMap2(100000)
 	ck := [][]string{[]string{"foo"}}
@@ -57,7 +59,8 @@ func BenchmarkSimpleNewMapMedium(b *testing.B) {
 		New(exRel, ck)
 	}
 }
-func BenchmarkNonDistinctNewMapMedium(b *testing.B) {
+
+func BenchmarkMapNewMediumNonDistinct(b *testing.B) {
 	// test the time it takes to make a new relation with a given size,
 	// but without any candidate keys.  The New function will run
 	// a distinct on the input data.
@@ -69,7 +72,7 @@ func BenchmarkNonDistinctNewMapMedium(b *testing.B) {
 	}
 }
 
-func BenchmarkSimpleNewMapLarge(b *testing.B) {
+func BenchmarkMapNewLargeSimple(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRelMap2(10000000)
 	ck := [][]string{[]string{"foo"}}
@@ -78,7 +81,8 @@ func BenchmarkSimpleNewMapLarge(b *testing.B) {
 		New(exRel, ck)
 	}
 }
-func BenchmarkNonDistinctNewMapLarge(b *testing.B) {
+
+func BenchmarkMapNewLargeNonDistinct(b *testing.B) {
 	// test the time it takes to make a new relation with a given size,
 	// but without any candidate keys.  The New function will run
 	// a distinct on the input data.

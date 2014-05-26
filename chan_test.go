@@ -17,7 +17,7 @@ func drain(t chan exTup2) {
 	return
 }
 
-func BenchmarkSimpleNewChanTiny(b *testing.B) {
+func BenchmarkChanNewTinySimple(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRelChan2(10)
 	ck := [][]string{[]string{"foo"}}
@@ -29,7 +29,8 @@ func BenchmarkSimpleNewChanTiny(b *testing.B) {
 	b.StopTimer()
 	drain(exRel)
 }
-func BenchmarkNonDistinctNewChanTiny(b *testing.B) {
+
+func BenchmarkChanNewTinyNonDistinct(b *testing.B) {
 	// test the time it takes to make a new relation with a given size,
 	// but without any candidate keys.  The New function will run
 	// a distinct on the input data.
@@ -44,7 +45,7 @@ func BenchmarkNonDistinctNewChanTiny(b *testing.B) {
 	drain(exRel)
 }
 
-func BenchmarkSimpleNewChanSmall(b *testing.B) {
+func BenchmarkChanNewSmallSimple(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRelChan2(1000)
 	ck := [][]string{[]string{"foo"}}
@@ -56,7 +57,8 @@ func BenchmarkSimpleNewChanSmall(b *testing.B) {
 	b.StopTimer()
 	drain(exRel)
 }
-func BenchmarkNonDistinctNewChanSmall(b *testing.B) {
+
+func BenchmarkChanNewSmallNonDistinct(b *testing.B) {
 	// test the time it takes to make a new relation with a given size,
 	// but without any candidate keys.  The New function will run
 	// a distinct on the input data.
@@ -71,7 +73,7 @@ func BenchmarkNonDistinctNewChanSmall(b *testing.B) {
 	drain(exRel)
 }
 
-func BenchmarkSimpleNewChanMedium(b *testing.B) {
+func BenchmarkChanNewMediumSimple(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRelChan2(100000)
 	ck := [][]string{[]string{"foo"}}
@@ -84,7 +86,7 @@ func BenchmarkSimpleNewChanMedium(b *testing.B) {
 	drain(exRel)
 }
 
-func BenchmarkNonDistinctNewChanMedium(b *testing.B) {
+func BenchmarkChanNewMediumNonDistinct(b *testing.B) {
 	// test the time it takes to make a new relation with a given size,
 	// but without any candidate keys.  The New function will run
 	// a distinct on the input data.
@@ -99,7 +101,7 @@ func BenchmarkNonDistinctNewChanMedium(b *testing.B) {
 	drain(exRel)
 }
 
-func BenchmarkSimpleNewChanLarge(b *testing.B) {
+func BenchmarkChanNewLargeSimple(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRelChan2(10000000)
 	ck := [][]string{[]string{"foo"}}
@@ -112,7 +114,7 @@ func BenchmarkSimpleNewChanLarge(b *testing.B) {
 	drain(exRel)
 }
 
-func BenchmarkNonDistinctNewChanLarge(b *testing.B) {
+func BenchmarkChanNewLargeNonDistinct(b *testing.B) {
 	// test the time it takes to make a new relation with a given size,
 	// but without any candidate keys.  The New function will run
 	// a distinct on the input data.
