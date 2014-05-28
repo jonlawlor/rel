@@ -72,7 +72,8 @@ func BenchmarkRestrictZero(b *testing.B) {
 }
 
 // These Native functions are useful to determine what kind of overhead
-// reflection is incuring.
+// reflection is incuring.  My measurements show Ident is ~2.5 times slower
+// and Zero is ~4 times slower than native.
 
 func BenchmarkRestrictIdentNative(b *testing.B) {
 	// test the time it takes to pull all of the tuples after passing in an
