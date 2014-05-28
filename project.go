@@ -50,15 +50,9 @@ func (r ProjectExpr) Tuples(t chan T) {
 	// figure out if we need to distinct the results because there are no
 	// candidate keys left
 	// TODO(jonlawlor): refactor with the code in the CKeys() method
-	cKeys := r.source.CKeys()
-	h1 := Heading(r.source)
-	cn1 := make([]string, len(h1))
-	for i, att := range h1 {
-		cn1[i] = att.Name
-	}
-	cKeys = subsetCandidateKeys(cKeys, cn1, fMap)
+	cKeys := subsetCandidateKeys(r.source.CKeys(), Heading(r.source), fMap)
 	if len(cKeys) == 0 {
-		go func(body chan T, res chan T) {
+		go func(body, res chan T) {
 			m := map[interface{}]struct{}{}
 			for tup1 := range body {
 				tup2 := reflect.Indirect(reflect.New(e2))
@@ -80,7 +74,7 @@ func (r ProjectExpr) Tuples(t chan T) {
 		// assign fields from the old relation to fields in the new
 
 		// TODO(jonlawlor) add parallelism here
-		go func(body chan T, res chan T) {
+		go func(body, res chan T) {
 			for tup1 := range body {
 				tup2 := reflect.Indirect(reflect.New(e2))
 				rtup1 := reflect.ValueOf(tup1)
@@ -122,13 +116,7 @@ func (r ProjectExpr) CKeys() CandKeys {
 
 	// otherwise we have to subset the candidate keys.
 	fMap := fieldMap(e1, e2)
-
-	h1 := Heading(r.source)
-	cn1 := make([]string, len(h1))
-	for i, att := range h1 {
-		cn1[i] = att.Name
-	}
-	cKeys = subsetCandidateKeys(cKeys, cn1, fMap)
+	cKeys = subsetCandidateKeys(cKeys, Heading(r.source), fMap)
 
 	// every relation except dee and dum have at least one candidate key
 	if len(cKeys) == 0 {

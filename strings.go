@@ -22,8 +22,10 @@ func goStringTabTable(r Relation) string {
 
 	// create struct slice type information
 	// TODO(jonlawlor): include tags?
-	for _, att := range Heading(r) {
-		fmt.Fprintf(w, "\t\xff%s\xff\t\xff%v\xff\t\n", att.Name, att.Type)
+	cn := Heading(r)
+	ct := fieldTypes(reflect.TypeOf(r.Zero()))
+	for i := range cn {
+		fmt.Fprintf(w, "\t\xff%s\xff\t\xff%v\xff\t\n", cn[i], ct[i])
 	}
 	w.Flush()
 	s.WriteString("}{\n")
@@ -89,8 +91,10 @@ func stringTabTable(r Relation) string {
 	// adjacent.
 
 	// create heading information
-	for _, att := range Heading(r) {
-		fmt.Fprintf(w, "\t\xff%s\xff\t\xff%v\xff\t\n", att.Name, att.Type)
+	cn := Heading(r)
+	ct := fieldTypes(reflect.TypeOf(r.Zero()))
+	for i := range cn {
+		fmt.Fprintf(w, "\t\xff%s\xff\t\xff%v\xff\t\n", cn[i], ct[i])
 	}
 
 	// write the body

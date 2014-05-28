@@ -54,7 +54,7 @@ func (r SetDiffExpr) CKeys() CandKeys {
 }
 
 // text representation
-const setDiffSymbol = "-"
+const setDiffSymbol = "−"
 
 // GoString returns a text representation of the Relation
 func (r SetDiffExpr) GoString() string {

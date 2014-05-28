@@ -63,28 +63,23 @@ func (r RenameExpr) Zero() T {
 // CKeys is the set of candidate keys in the relation
 func (r RenameExpr) CKeys() CandKeys {
 	z2 := reflect.TypeOf(r.zero)
-	n := reflect.ValueOf(z2).NumField()
 
 	// figure out the new names
-	names2 := make([]string, n)
-	for i := 0; i < n; i++ {
-		f := z2.Field(i)
-		names2[i] = f.Name
-	}
+	names2 := fieldNames(z2)
 
 	// create a map from the old names to the new names if there is any
 	// difference between them
-	nameMap := make(map[string]string)
+	nameMap := make(map[Attribute]Attribute)
 	for i, att := range Heading(r.source) {
-		nameMap[att.Name] = names2[i]
+		nameMap[att] = names2[i]
 	}
 
 	cKeys1 := r.source.CKeys()
-	cKeys2 := make([][]string, len(cKeys1))
+	cKeys2 := make(CandKeys, len(cKeys1))
 	// for each of the candidate keys, rename any keys from the old names to
 	// the new ones
-	for i := 0; i < len(cKeys1); i++ {
-		cKeys2[i] = make([]string, len(cKeys1[i]))
+	for i := range cKeys1 {
+		cKeys2[i] = make([]Attribute, len(cKeys1[i]))
 		for j, key := range cKeys1[i] {
 			cKeys2[i][j] = nameMap[key]
 		}
@@ -95,7 +90,7 @@ func (r RenameExpr) CKeys() CandKeys {
 
 // text representation
 
-const renameSymbol = "/" // I'm really unsure about this
+const renameSymbol = "ρ"
 
 // GoString returns a text representation of the Relation
 func (r RenameExpr) GoString() string {

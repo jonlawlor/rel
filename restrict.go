@@ -75,7 +75,7 @@ func (r RestrictExpr) CKeys() CandKeys {
 }
 
 // text representation
-const restrictSymbol = "ρ"
+const restrictSymbol = "σ"
 
 // GoString returns a text representation of the Relation
 func (r RestrictExpr) GoString() string {

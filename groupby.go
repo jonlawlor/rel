@@ -158,18 +158,18 @@ func (r GroupByExpr) CKeys() CandKeys {
 	e2fieldMap := fieldMap(e1, e2)
 	evfieldMap := fieldMap(e1, ev)
 
-	groupFieldMap := make(map[string]fieldIndex)
+	groupFieldMap := make(map[Attribute]fieldIndex)
 	for name, v := range e2fieldMap {
 		if _, isValue := evfieldMap[name]; !isValue {
 			groupFieldMap[name] = v
 		}
 	}
-	names, _ := namesAndTypes(e2)
+	names := fieldNames(e2)
 
 	ck2 := subsetCandidateKeys(r.CKeys(), names, groupFieldMap)
 
 	// determine the new names and types
-	cn, _ := namesAndTypes(e2)
+	cn := fieldNames(e2)
 
 	if len(ck2) == 0 {
 		ck2 = append(ck2, cn)

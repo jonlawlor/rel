@@ -82,7 +82,7 @@ func (r UnionExpr) CKeys() CandKeys {
 }
 
 // text representation
-const unionSymbol = "+"
+const unionSymbol = "∪"
 
 // GoString returns a text representation of the Relation
 func (r UnionExpr) GoString() string {

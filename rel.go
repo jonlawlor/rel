@@ -46,18 +46,12 @@ import (
 // T is represents tuples, and it should always be a struct
 type T interface{}
 
-// Attribute represents a Name:Type pair which defines the heading
-// of the relation
-// I'm not sure this should be exported.  In particular I'm not sure the type
-// should be exported.
-type Attribute struct {
-	Name string
-	Type reflect.Type
-}
+// Attribute represents a particular attribute's name in a relation
+type Attribute string
 
 // CandKeys is a set of candidate keys
 // they should be unique and sorted
-type CandKeys [][]string
+type CandKeys [][]Attribute
 
 // Relation has similar meaning to tables in SQL
 type Relation interface {
@@ -78,7 +72,7 @@ type Relation interface {
 }
 
 // New creates a new Relation from a []struct, map[struct] or chan struct.
-func New(v interface{}, ckeystr CandKeys) Relation {
+func New(v interface{}, ckeystr [][]string) Relation {
 
 	// depending on the type of the input, we represent a relation in different
 	// types of relation.
@@ -99,7 +93,8 @@ func New(v interface{}, ckeystr CandKeys) Relation {
 			// a non zero subset if the relation is not dee or dum
 			r.cKeys = defaultKeys(z)
 		} else {
-			r.cKeys = ckeystr
+			// convert from [][]string to CandKeys
+			r.cKeys = string2CandKeys(ckeystr)
 		}
 		r.zero = z
 		// we might want to check the candidate keys for validity here?
@@ -113,7 +108,7 @@ func New(v interface{}, ckeystr CandKeys) Relation {
 			r.cKeys = defaultKeys(z)
 			// note that even zero degree relations need to be distinct
 		} else {
-			r.cKeys = ckeystr
+			r.cKeys = string2CandKeys(ckeystr)
 			r.sourceDistinct = true
 		}
 
@@ -129,7 +124,7 @@ func New(v interface{}, ckeystr CandKeys) Relation {
 			r.cKeys = defaultKeys(z)
 			// note that even zero degree relations need to be distinct
 		} else {
-			r.cKeys = ckeystr
+			r.cKeys = string2CandKeys(ckeystr)
 			r.sourceDistinct = true
 		}
 
@@ -143,14 +138,9 @@ func New(v interface{}, ckeystr CandKeys) Relation {
 	}
 }
 
-// Heading is a slice of column name:type pairs
+// Heading is a slice of column names
 func Heading(r Relation) []Attribute {
-	Names, Types := namesAndTypes(reflect.TypeOf(r.Zero()))
-	h := make([]Attribute, len(Names))
-	for i := 0; i < len(Names); i++ {
-		h[i] = Attribute{Names[i], Types[i]}
-	}
-	return h
+	return fieldNames(reflect.TypeOf(r.Zero()))
 }
 
 // Deg returns the degree of the relation
