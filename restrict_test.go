@@ -70,3 +70,89 @@ func BenchmarkRestrictZero(b *testing.B) {
 		}
 	}
 }
+
+// These Native functions are useful to determine what kind of overhead
+// reflection is incuring.
+
+func BenchmarkRestrictIdentNative(b *testing.B) {
+	// test the time it takes to pull all of the tuples after passing in an
+	// identity predicate (always true)
+	exRel := exampleRelSlice2(10)
+	Pred := func(exTup2) bool {
+		return true
+	}
+
+	NativeTups := func(t chan exTup2) {
+		go func() {
+			for _, tup := range exRel {
+				t <- tup
+			}
+			close(t)
+		}()
+		return
+	}
+
+	NativeRestrict := func(src chan exTup2, res chan exTup2) {
+		go func() {
+			for tup := range src {
+				if Pred(tup) {
+					res <- tup
+				}
+			}
+			close(res)
+		}()
+		return
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		src := make(chan exTup2)
+		NativeTups(src)
+		res := make(chan exTup2)
+		NativeRestrict(src, res)
+		for _ = range res {
+		}
+	}
+}
+
+func BenchmarkRestrictZeroNative(b *testing.B) {
+	exRel := exampleRelSlice2(10)
+	// test the time it takes to pull all of the tuples after passing in an
+	// identity predicate (always false)
+
+	Pred := func(exTup2) bool {
+		return false
+	}
+
+	NativeTups := func(t chan exTup2) {
+		go func() {
+			for _, tup := range exRel {
+				t <- tup
+			}
+			close(t)
+		}()
+		return
+	}
+
+	NativeRestrict := func(src chan exTup2, res chan exTup2) {
+		go func() {
+			for tup := range src {
+				if Pred(tup) {
+					res <- tup
+				}
+			}
+			close(res)
+		}()
+		return
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		src := make(chan exTup2)
+		NativeTups(src)
+		res := make(chan exTup2)
+		NativeRestrict(src, res)
+		for _ = range res {
+		}
+	}
+}
