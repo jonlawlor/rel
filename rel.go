@@ -1,21 +1,7 @@
-// rel is a package that implements relational algebra
-// the relational algebra here follows in the footsteps of "Database in
-// Depth" by C. J. Date.  Therefore all terminology should be the same as
-// used in that book.  There are some notable differences from SQL - the
-// biggest of which is that all Relations are automatically distinct.
-// The second biggest is that there are no nulls.  If you need a type to
-// represent a null, you'll have to add it in yourself.
-// Also, all relations have at least one candidate key, there are two
-// relations with no attributes, and there is no primary key in the base
-// interface.
-//
-// The current implementation:
-// It makes heavy use of reflection, but should provide some interesting
-// ways of programming in go.  Because it uses so much reflection, it is
-// difficult to implement in an idiomatic way.  Also, the performance
-// leaves something to be desired!  However, once the interface is complete
-// it might be possible to implement it in more efficient ways.
-//
+// Package rel implements relational algebra.
+// The relational algebra here follows in the footsteps of "Database in Depth"
+// by C. J. Date.  Therefore all terminology should be the same as used in that
+// book.  There are some notable differences from SQL.
 package rel
 
 // variable naming conventions

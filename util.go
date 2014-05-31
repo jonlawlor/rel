@@ -75,23 +75,13 @@ func (cks CandKeys) Less(i, j int) bool {
 	return len(cks[i]) < len(cks[j]) // note this is smallest to largest
 }
 
-// distinct changes an interface channel to a channel of unique interfaces
-// TODO(jonlawlor): change this to a function that takes a destination chan
-// and returns a function which can be used to send values to the destination
-// if they have not already been sent.  We might want a mutex as well?
-func distinct(b1 chan T) (b2 chan T) {
-	m := make(map[interface{}]struct{})
-	b2 = make(chan T)
-	go func() {
-		for v := range b1 {
-			if _, dup := m[v]; !dup {
-				m[v] = struct{}{}
-				b2 <- v
-			}
-		}
-		close(b2)
-	}()
-	return
+// defaultkey provides the default candidate key for a relation
+// This is used when no candidate keys are provided.
+// note that this will not be sorted correctly
+func defaultKeys(z interface{}) CandKeys {
+	// get the names of the fields out of the interface
+	e := reflect.TypeOf(z)
+	return CandKeys{fieldNames(e)}
 }
 
 // checkCandidateKeys checks the set of candidate keys
@@ -119,6 +109,31 @@ func checkCandidateKeys(ckeys CandKeys, cn []Attribute) (err error) {
 		}
 	}
 	return
+}
+
+// subsetCandidateKeys subsets candidate keys so they only include given fields
+func subsetCandidateKeys(cKeys1 [][]Attribute, names1 []Attribute, fMap map[Attribute]fieldIndex) [][]Attribute {
+
+	remNames := make(map[Attribute]struct{})
+	for _, n1 := range names1 {
+		if _, keyfound := fMap[n1]; !keyfound {
+			remNames[n1] = struct{}{}
+		}
+	}
+
+	cKeys2 := make([][]Attribute, 0)
+KeyLoop:
+	for _, ck := range cKeys1 {
+		// if the candidate key contains a name we want to remove, then
+		// get rid of it
+		for _, k := range ck {
+			if _, keyfound := remNames[k]; keyfound {
+				continue KeyLoop
+			}
+		}
+		cKeys2 = append(cKeys2, ck)
+	}
+	return cKeys2
 }
 
 // fieldMap creates a map from fields of one struct type to the fields of another
@@ -224,36 +239,21 @@ func partialEquals(tup1 reflect.Value, tup2 reflect.Value, fmap map[Attribute]fi
 	return true
 }
 
-// subsetCandidateKeys subsets candidate keys so they only include given fields
-func subsetCandidateKeys(cKeys1 [][]Attribute, names1 []Attribute, fMap map[Attribute]fieldIndex) [][]Attribute {
-
-	remNames := make(map[Attribute]struct{})
-	for _, n1 := range names1 {
-		if _, keyfound := fMap[n1]; !keyfound {
-			remNames[n1] = struct{}{}
-		}
-	}
-
-	cKeys2 := make([][]Attribute, 0)
-KeyLoop:
-	for _, ck := range cKeys1 {
-		// if the candidate key contains a name we want to remove, then
-		// get rid of it
-		for _, k := range ck {
-			if _, keyfound := remNames[k]; keyfound {
-				continue KeyLoop
+// distinct changes an interface channel to a channel of unique interfaces
+// TODO(jonlawlor): change this to a function that takes a destination chan
+// and returns a function which can be used to send values to the destination
+// if they have not already been sent.  We might want a mutex as well?
+func distinct(b1 chan T) (b2 chan T) {
+	m := make(map[interface{}]struct{})
+	b2 = make(chan T)
+	go func() {
+		for v := range b1 {
+			if _, dup := m[v]; !dup {
+				m[v] = struct{}{}
+				b2 <- v
 			}
 		}
-		cKeys2 = append(cKeys2, ck)
-	}
-	return cKeys2
-}
-
-// defaultkey provides the default candidate key for a relation
-// This is used when no candidate keys are provided.
-// note that this will not be sorted correctly
-func defaultKeys(z interface{}) CandKeys {
-	// get the names of the fields out of the interface
-	e := reflect.TypeOf(z)
-	return CandKeys{fieldNames(e)}
+		close(b2)
+	}()
+	return
 }

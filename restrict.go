@@ -24,14 +24,9 @@ func (r RestrictExpr) Tuples(t chan T) {
 	mc := runtime.GOMAXPROCS(-1)
 
 	z1 := r.source.Zero()
-
 	e1 := reflect.TypeOf(z1)
-	e2 := r.p.Domain()
 
-	// figure out which fields stay, and where they are in each of the tuple
-	// types.
-	// TODO(jonlawlor): error if fields in e2 are not in r1's tuples.
-	fMap := fieldMap(e1, e2)
+	predFunc := r.p.EvalFunc(e1)
 
 	var wg sync.WaitGroup
 	wg.Add(mc)
@@ -45,16 +40,9 @@ func (r RestrictExpr) Tuples(t chan T) {
 	for i := 0; i < mc; i++ {
 		go func(body, res chan T, p Predicate) {
 			for tup1 := range body {
-				tup2 := reflect.Indirect(reflect.New(e2))
-				rtup1 := reflect.ValueOf(tup1)
-				for _, fm := range fMap {
-					tupf2 := tup2.Field(fm.j)
-					tupf2.Set(rtup1.Field(fm.i))
-				}
-
 				// call the predicate with the new tuple to determine if it should
 				// go into the results
-				if p.Eval(tup2) {
+				if predFunc(tup1) {
 					res <- tup1
 				}
 			}
