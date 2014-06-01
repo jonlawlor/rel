@@ -28,7 +28,6 @@ TODOs
 + Change benchmarks to produce more useful measurements, such as per tuple overhead for each operation.
 + Make String() function to provide shorter representations.
 + Implement sub packages for other data sources, such as csv readers, generic sql tables, json, or gob.
-+ Implement non-adhoc predicates.
 + Implement non relational operations like update, insert, & order.
 + Write better docs
 + Write single godoc file
