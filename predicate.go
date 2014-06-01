@@ -49,7 +49,7 @@ func Not(p Predicate) NotPred {
 	return NotPred{p}
 }
 
-// NotPred represents a logical not predicate
+// NotPred represents a logical not of a predicate
 type NotPred struct {
 	p Predicate
 }
