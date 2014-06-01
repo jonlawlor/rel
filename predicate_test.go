@@ -166,3 +166,237 @@ func TestNELit(t *testing.T) {
 		}
 	}
 }
+
+func TestLT(t *testing.T) {
+	type exTupInt struct {
+		Foo int
+		Bar int
+	}
+	type exTupString struct {
+		Foo string
+		Bar string
+	}
+	Foo := Attribute("Foo")
+	Bar := Attribute("Bar")
+
+	var predTests = []struct {
+		in  interface{}
+		out bool
+	}{
+		{exTupInt{1, 1}, false},
+		{exTupInt{1, 2}, true},
+		{exTupString{"foo", "foo"}, false},
+		{exTupString{"bar", "foo"}, true},
+	}
+	p := Foo.LT(Bar).EvalFunc(reflect.TypeOf(exTupInt{}))
+	for _, tt := range predTests {
+		b := p(tt.in)
+		if b != tt.out {
+			t.Errorf("%v Less Than comparison => %v, want %v", tt.in, b, tt.out)
+		}
+	}
+}
+func TestLTLit(t *testing.T) {
+	type exTupInt struct {
+		Foo int
+	}
+	type exTupString struct {
+		Foo string
+	}
+	Foo := Attribute("Foo")
+
+	var predTests = []struct {
+		in  interface{}
+		lit interface{}
+		out bool
+	}{
+		{exTupInt{1}, 1, false},
+		{exTupInt{1}, 2, true},
+		{exTupString{"foo"}, "foo", false},
+		{exTupString{"bar"}, "foo", true},
+	}
+	for _, tt := range predTests {
+		p := Foo.LT(tt.lit).EvalFunc(reflect.TypeOf(exTupInt{}))
+		b := p(tt.in)
+		if b != tt.out {
+			t.Errorf("%v literal Less Than comparison => %v, want %v", tt.in, b, tt.out)
+		}
+	}
+}
+
+// LE
+
+func TestLE(t *testing.T) {
+	type exTupInt struct {
+		Foo int
+		Bar int
+	}
+	type exTupString struct {
+		Foo string
+		Bar string
+	}
+	Foo := Attribute("Foo")
+	Bar := Attribute("Bar")
+
+	var predTests = []struct {
+		in  interface{}
+		out bool
+	}{
+		{exTupInt{1, 1}, true},
+		{exTupInt{1, 2}, true},
+		{exTupString{"foo", "foo"}, true},
+		{exTupString{"bar", "foo"}, true},
+	}
+	p := Foo.LE(Bar).EvalFunc(reflect.TypeOf(exTupInt{}))
+	for _, tt := range predTests {
+		b := p(tt.in)
+		if b != tt.out {
+			t.Errorf("%v Less Than or Equal to comparison => %v, want %v", tt.in, b, tt.out)
+		}
+	}
+}
+func TestLELit(t *testing.T) {
+	type exTupInt struct {
+		Foo int
+	}
+	type exTupString struct {
+		Foo string
+	}
+	Foo := Attribute("Foo")
+
+	var predTests = []struct {
+		in  interface{}
+		lit interface{}
+		out bool
+	}{
+		{exTupInt{1}, 1, true},
+		{exTupInt{1}, 2, true},
+		{exTupString{"foo"}, "foo", true},
+		{exTupString{"bar"}, "foo", true},
+	}
+	for _, tt := range predTests {
+		p := Foo.LE(tt.lit).EvalFunc(reflect.TypeOf(exTupInt{}))
+		b := p(tt.in)
+		if b != tt.out {
+			t.Errorf("%v literal Less Than or Equal to comparison => %v, want %v", tt.in, b, tt.out)
+		}
+	}
+}
+
+// GT
+
+func TestGT(t *testing.T) {
+	type exTupInt struct {
+		Foo int
+		Bar int
+	}
+	type exTupString struct {
+		Foo string
+		Bar string
+	}
+	Foo := Attribute("Foo")
+	Bar := Attribute("Bar")
+
+	var predTests = []struct {
+		in  interface{}
+		out bool
+	}{
+		{exTupInt{1, 1}, false},
+		{exTupInt{1, 2}, false},
+		{exTupString{"foo", "foo"}, false},
+		{exTupString{"bar", "foo"}, false},
+	}
+	p := Foo.GT(Bar).EvalFunc(reflect.TypeOf(exTupInt{}))
+	for _, tt := range predTests {
+		b := p(tt.in)
+		if b != tt.out {
+			t.Errorf("%v Greater Than comparison => %v, want %v", tt.in, b, tt.out)
+		}
+	}
+}
+func TestGTLit(t *testing.T) {
+	type exTupInt struct {
+		Foo int
+	}
+	type exTupString struct {
+		Foo string
+	}
+	Foo := Attribute("Foo")
+
+	var predTests = []struct {
+		in  interface{}
+		lit interface{}
+		out bool
+	}{
+		{exTupInt{1}, 1, false},
+		{exTupInt{1}, 2, false},
+		{exTupString{"foo"}, "foo", false},
+		{exTupString{"bar"}, "foo", false},
+	}
+	for _, tt := range predTests {
+		p := Foo.GT(tt.lit).EvalFunc(reflect.TypeOf(exTupInt{}))
+		b := p(tt.in)
+		if b != tt.out {
+			t.Errorf("%v literal Greater Than comparison => %v, want %v", tt.in, b, tt.out)
+		}
+	}
+}
+
+// GE
+
+func TestGE(t *testing.T) {
+	type exTupInt struct {
+		Foo int
+		Bar int
+	}
+	type exTupString struct {
+		Foo string
+		Bar string
+	}
+	Foo := Attribute("Foo")
+	Bar := Attribute("Bar")
+
+	var predTests = []struct {
+		in  interface{}
+		out bool
+	}{
+		{exTupInt{1, 1}, true},
+		{exTupInt{1, 2}, false},
+		{exTupString{"foo", "foo"}, true},
+		{exTupString{"bar", "foo"}, false},
+	}
+	p := Foo.GE(Bar).EvalFunc(reflect.TypeOf(exTupInt{}))
+	for _, tt := range predTests {
+		b := p(tt.in)
+		if b != tt.out {
+			t.Errorf("%v greater than or equal to comparison => %v, want %v", tt.in, b, tt.out)
+		}
+	}
+}
+func TestGELit(t *testing.T) {
+	type exTupInt struct {
+		Foo int
+	}
+	type exTupString struct {
+		Foo string
+	}
+	Foo := Attribute("Foo")
+
+	var predTests = []struct {
+		in  interface{}
+		lit interface{}
+		out bool
+	}{
+		{exTupInt{1}, 1, true},
+		{exTupInt{1}, 2, false},
+		{exTupString{"foo"}, "foo", true},
+		{exTupString{"bar"}, "foo", false},
+	}
+	for _, tt := range predTests {
+		p := Foo.GE(tt.lit).EvalFunc(reflect.TypeOf(exTupInt{}))
+		b := p(tt.in)
+		if b != tt.out {
+			t.Errorf("%v literal greater than or equal to comparison => %v, want %v", tt.in, b, tt.out)
+		}
+	}
+}
