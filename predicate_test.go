@@ -109,3 +109,60 @@ func TestEQLit(t *testing.T) {
 		}
 	}
 }
+
+func TestNE(t *testing.T) {
+	type exTupInt struct {
+		Foo int
+		Bar int
+	}
+	type exTupString struct {
+		Foo string
+		Bar string
+	}
+	Foo := Attribute("Foo")
+	Bar := Attribute("Bar")
+
+	var predTests = []struct {
+		in  interface{}
+		out bool
+	}{
+		{exTupInt{1, 1}, false},
+		{exTupInt{1, 2}, true},
+		{exTupString{"foo", "foo"}, false},
+		{exTupString{"foo", "bar"}, true},
+	}
+	p := Foo.NE(Bar).EvalFunc(reflect.TypeOf(exTupInt{}))
+	for _, tt := range predTests {
+		b := p(tt.in)
+		if b != tt.out {
+			t.Errorf("%v not equals comparison => %v, want %v", tt.in, b, tt.out)
+		}
+	}
+}
+func TestNELit(t *testing.T) {
+	type exTupInt struct {
+		Foo int
+	}
+	type exTupString struct {
+		Foo string
+	}
+	Foo := Attribute("Foo")
+
+	var predTests = []struct {
+		in  interface{}
+		lit interface{}
+		out bool
+	}{
+		{exTupInt{1}, 1, false},
+		{exTupInt{1}, 2, true},
+		{exTupString{"foo"}, "foo", false},
+		{exTupString{"foo"}, "bar", true},
+	}
+	for _, tt := range predTests {
+		p := Foo.NE(tt.lit).EvalFunc(reflect.TypeOf(exTupInt{}))
+		b := p(tt.in)
+		if b != tt.out {
+			t.Errorf("%v literal not equals comparison => %v, want %v", tt.in, b, tt.out)
+		}
+	}
+}

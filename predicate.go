@@ -278,7 +278,7 @@ func (p EQPred) Domain() []Attribute {
 // Eval evalutes a predicate on an input tuple
 func (p EQPred) EvalFunc(e1 reflect.Type) func(t T) bool {
 
-	// The only method defined on all interfaces is equal.
+	// The only method defined on all interfaces is equal & not equal.
 
 	if len(p.att) == 2 {
 		att1 := string(p.att[0])
@@ -332,12 +332,69 @@ return
 func (att Attribute) GE(v interface{}) GEPred {
 return
 }
+*/
 
-// Not equal to (!=)
-func (att Attribute) NE(v interface{}) NEPred {
-return
+type NEPred struct {
+	att []Attribute
+	lit interface{}
 }
 
+// Not equal to (!=)
+func (att1 Attribute) NE(v interface{}) NEPred {
+	if att2, ok := v.(Attribute); ok {
+		att := make([]Attribute, 2)
+		att[0] = att1
+		att[1] = att2
+		return NEPred{att, reflect.Value{}}
+	} else { // v is a literal, we'll need runtime reflection
+		att := make([]Attribute, 1)
+		att[0] = att1
+		return NEPred{att, v}
+	}
+}
+
+// Domain is the type of input that is required to evalute the predicate
+func (p NEPred) Domain() []Attribute {
+	return p.att
+}
+
+// Eval evalutes a predicate on an input tuple
+func (p NEPred) EvalFunc(e1 reflect.Type) func(t T) bool {
+
+	// The only method defined on all interfaces is equal & not equal.
+
+	if len(p.att) == 2 {
+		att1 := string(p.att[0])
+		att2 := string(p.att[1])
+		return func(tup1 T) bool {
+			rtup1 := reflect.ValueOf(tup1)
+			return rtup1.FieldByName(att1).Interface() != rtup1.FieldByName(att2).Interface()
+		}
+	} else { // the second element is a literal
+		att1 := string(p.att[0])
+		return func(tup1 T) bool {
+			rtup1 := reflect.ValueOf(tup1)
+			return rtup1.FieldByName(att1).Interface() != p.lit
+		}
+	}
+}
+
+// And predicate
+func (p1 NEPred) And(p2 Predicate) AndPred {
+	return AndPred{p1, p2}
+}
+
+// Or predicate
+func (p1 NEPred) Or(p2 Predicate) OrPred {
+	return OrPred{p1, p2}
+}
+
+// Xor predicate
+func (p1 NEPred) Xor(p2 Predicate) XorPred {
+	return XorPred{p1, p2}
+}
+
+/*
 // other common comparisons
 func (att Attribute) IN(v interface{}) INPred {
 return
