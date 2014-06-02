@@ -1,11 +1,48 @@
 package rel
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 )
 
 // tests & benchmarks for Predicates
+
+func TestStringer(t *testing.T) {
+	Foo := Attribute("Foo")
+	Bar := Attribute("Bar")
+	var predTests = []struct {
+		in  fmt.Stringer
+		out string
+	}{
+		{Foo.EQ(Bar), "Foo == Bar"},
+		{Foo.EQ("Bar"), "Foo == Bar"},
+		{Foo.NE(Bar), "Foo != Bar"},
+		{Foo.NE("Bar"), "Foo != Bar"},
+		{Foo.LT(Bar), "Foo < Bar"},
+		{Foo.LT("Bar"), "Foo < Bar"},
+		{Foo.LE(Bar), "Foo <= Bar"},
+		{Foo.LE("Bar"), "Foo <= Bar"},
+		{Foo.GT(Bar), "Foo > Bar"},
+		{Foo.GT("Bar"), "Foo > Bar"},
+		{Foo.GE(Bar), "Foo >= Bar"},
+		{Foo.GE("Bar"), "Foo >= Bar"},
+		{Foo.EQ(Bar), "Foo == Bar"},
+		{Foo.EQ("Bar"), "Foo == Bar"},
+		{AdHoc{func(ex exTup2) bool { return true }}, "f(Foo, Bar)"},
+
+		{Foo.EQ(Bar).And(Foo.NE(Bar)), "(Foo == Bar) && (Foo != Bar)"},
+		{Foo.EQ(Bar).Or(Foo.NE(Bar)), "(Foo == Bar) || (Foo != Bar)"},
+		{Foo.EQ(Bar).Xor(Foo.NE(Bar)), "(Foo == Bar) != (Foo != Bar)"},
+	}
+	for _, tt := range predTests {
+		s := tt.in.String()
+		if s != tt.out {
+			t.Errorf("String() => %v, want %v", tt.in, tt.out)
+		}
+	}
+
+}
 
 // tests EvalFunc and predicate composition
 func TestEvalFunc(t *testing.T) {

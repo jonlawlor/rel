@@ -2,7 +2,11 @@
 
 package rel
 
-import "reflect"
+import (
+	"fmt"
+	"reflect"
+	"strings"
+)
 
 // Predicate is the type of func that takes a tuple and returns bool and is
 // used for restrict.  It should always be a func with input of a subdomain
@@ -54,6 +58,11 @@ type NotPred struct {
 	p Predicate
 }
 
+// String representation of Not
+func (p NotPred) String() string {
+	return fmt.Sprintf("!(%v)", p.p)
+}
+
 // Domain is the type of input that is required to evalute the predicate
 func (p NotPred) Domain() []Attribute {
 	return p.p.Domain()
@@ -84,6 +93,11 @@ func (p1 NotPred) Xor(p2 Predicate) XorPred {
 type AndPred struct {
 	p1 Predicate
 	p2 Predicate
+}
+
+// String representation of And
+func (p AndPred) String() string {
+	return fmt.Sprintf("(%v) && (%v)", p.p1, p.p2)
 }
 
 // Domain is the type of input that is required to evalute the predicate
@@ -119,6 +133,11 @@ type OrPred struct {
 	p2 Predicate
 }
 
+// String representation of Or
+func (p OrPred) String() string {
+	return fmt.Sprintf("(%v) || (%v)", p.p1, p.p2)
+}
+
 // Domain is the type of input that is required to evalute the predicate
 func (p OrPred) Domain() []Attribute {
 	return unionAttributes(p.p1.Domain(), p.p2.Domain())
@@ -151,6 +170,11 @@ func (p1 OrPred) Xor(p2 Predicate) XorPred {
 type XorPred struct {
 	p1 Predicate
 	p2 Predicate
+}
+
+// String representation of Xor
+func (p XorPred) String() string {
+	return fmt.Sprintf("(%v) != (%v)", p.p1, p.p2)
 }
 
 // Domain is the type of input that is required to evalute the predicate
@@ -194,9 +218,19 @@ type AdHoc struct {
 	f interface{}
 }
 
+// String representation of AdHoc
+func (p AdHoc) String() string {
+	dom := p.Domain()
+	s := make([]string, len(dom))
+	for i, v := range dom {
+		s[i] = string(v)
+	}
+	return fmt.Sprintf("f(%v)", strings.Join(s, ", "))
+}
+
 // Domain is the type of input that is required to evalute the predicate
 func (p AdHoc) Domain() []Attribute {
-	return fieldNames(reflect.TypeOf(p.f))
+	return fieldNames(reflect.TypeOf(p.f).In(0))
 }
 
 // Eval evalutes a predicate on an input tuple
@@ -254,6 +288,15 @@ func (p1 AdHoc) Xor(p2 Predicate) XorPred {
 type EQPred struct {
 	att []Attribute
 	lit interface{}
+}
+
+// String representation of EQ
+func (p EQPred) String() string {
+	if len(p.att) == 2 {
+		return fmt.Sprintf("%v == %v", p.att[0], p.att[1])
+	} else {
+		return fmt.Sprintf("%v == %v", p.att[0], p.lit)
+	}
 }
 
 // Equal to (==)
@@ -314,6 +357,15 @@ func (p1 EQPred) Xor(p2 Predicate) XorPred {
 type LTPred struct {
 	att []Attribute
 	lit interface{}
+}
+
+// String representation of LT
+func (p LTPred) String() string {
+	if len(p.att) == 2 {
+		return fmt.Sprintf("%v < %v", p.att[0], p.att[1])
+	} else {
+		return fmt.Sprintf("%v < %v", p.att[0], p.lit)
+	}
 }
 
 // Less than (<)
@@ -450,6 +502,15 @@ func (att1 Attribute) LE(v interface{}) LEPred {
 	}
 }
 
+// String representation of LE
+func (p LEPred) String() string {
+	if len(p.att) == 2 {
+		return fmt.Sprintf("%v <= %v", p.att[0], p.att[1])
+	} else {
+		return fmt.Sprintf("%v <= %v", p.att[0], p.lit)
+	}
+}
+
 // Domain is the type of input that is required to evalute the predicate
 func (p LEPred) Domain() []Attribute {
 	return p.att
@@ -554,6 +615,15 @@ func (p1 LEPred) Xor(p2 Predicate) XorPred {
 type GTPred struct {
 	att []Attribute
 	lit interface{}
+}
+
+// String representation of GT
+func (p GTPred) String() string {
+	if len(p.att) == 2 {
+		return fmt.Sprintf("%v > %v", p.att[0], p.att[1])
+	} else {
+		return fmt.Sprintf("%v > %v", p.att[0], p.lit)
+	}
 }
 
 // Greater than (>)
@@ -676,6 +746,15 @@ type GEPred struct {
 	lit interface{}
 }
 
+// String representation of EQ
+func (p GEPred) String() string {
+	if len(p.att) == 2 {
+		return fmt.Sprintf("%v >= %v", p.att[0], p.att[1])
+	} else {
+		return fmt.Sprintf("%v >= %v", p.att[0], p.lit)
+	}
+}
+
 // Greater than or equal to (>=)
 func (att1 Attribute) GE(v interface{}) GEPred {
 	if att2, ok := v.(Attribute); ok {
@@ -794,6 +873,15 @@ func (p1 GEPred) Xor(p2 Predicate) XorPred {
 type NEPred struct {
 	att []Attribute
 	lit interface{}
+}
+
+// String representation of EQ
+func (p NEPred) String() string {
+	if len(p.att) == 2 {
+		return fmt.Sprintf("%v != %v", p.att[0], p.att[1])
+	} else {
+		return fmt.Sprintf("%v != %v", p.att[0], p.lit)
+	}
 }
 
 // Not equal to (!=)
