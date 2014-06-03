@@ -14,7 +14,7 @@ func TestProject(t *testing.T) {
 		Qty int
 	}
 
-	r1 := Project(orders, r1tup{})
+	r1 := orders.Project(r1tup{})
 	if r1.GoString() != orders.GoString() {
 		t.Errorf("orders.Project(PNO, SNO, Qty) = \"%s\", want \"%s\"", r1.GoString(), orders.GoString())
 	}
@@ -23,7 +23,7 @@ func TestProject(t *testing.T) {
 		SNO int
 	}
 
-	r2 := Project(orders, r2tup{})
+	r2 := orders.Project(r2tup{})
 	r2GoString := `rel.New([]struct {
  PNO int 
  SNO int 
@@ -50,7 +50,7 @@ func TestProject(t *testing.T) {
 		PNO int
 		Qty int
 	}
-	r3 := Project(orders, r3tup{})
+	r3 := orders.Project(r3tup{})
 	if Deg(r3) != 2 || Card(r3) != 10 {
 		t.Errorf("orders.Project(PNO, Qty) has Deg %d, Card %d, want Deg %d, Card %d", Deg(r3), Card(r3), 2, 10)
 
@@ -63,7 +63,7 @@ func BenchmarkProjectTinyIdent(b *testing.B) {
 	// Tiny relation.
 	exRel := New(exampleRelSlice2(10), [][]string{[]string{"Foo"}})
 	b.ResetTimer()
-	r1 := Project(exRel, exTup2{})
+	r1 := exRel.Project(exTup2{})
 	for i := 0; i < b.N; i++ {
 		t := make(chan T)
 		r1.Tuples(t)
@@ -122,7 +122,7 @@ func BenchmarkProjectTinyDistinct(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	r1 := Project(exRel, fooOnly{})
+	r1 := exRel.Project(fooOnly{})
 	for i := 0; i < b.N; i++ {
 		t := make(chan T)
 		r1.Tuples(t)
@@ -183,7 +183,7 @@ func BenchmarkProjectTinyNonDistinct(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	r1 := Project(exRel, barOnly{})
+	r1 := exRel.Project(barOnly{})
 	for i := 0; i < b.N; i++ {
 		t := make(chan T)
 		r1.Tuples(t)
@@ -198,7 +198,7 @@ func BenchmarkProjectSmallIdent(b *testing.B) {
 	// small relation.
 	exRel := New(exampleRelSlice2(1000), [][]string{[]string{"Foo"}})
 	b.ResetTimer()
-	r1 := Project(exRel, exTup2{})
+	r1 := exRel.Project(exTup2{})
 	for i := 0; i < b.N; i++ {
 		t := make(chan T)
 		r1.Tuples(t)
@@ -217,7 +217,7 @@ func BenchmarkProjectSmallDistinct(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	r1 := Project(exRel, fooOnly{})
+	r1 := exRel.Project(fooOnly{})
 	for i := 0; i < b.N; i++ {
 		t := make(chan T)
 		r1.Tuples(t)
@@ -236,7 +236,7 @@ func BenchmarkProjectSmallNonDistinct(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	r1 := Project(exRel, barOnly{})
+	r1 := exRel.Project(barOnly{})
 	for i := 0; i < b.N; i++ {
 		t := make(chan T)
 		r1.Tuples(t)
@@ -251,7 +251,7 @@ func BenchmarkProjectMediumIdent(b *testing.B) {
 	// Medium relation.
 	exRel := New(exampleRelSlice2(100000), [][]string{[]string{"Foo"}})
 	b.ResetTimer()
-	r1 := Project(exRel, exTup2{})
+	r1 := exRel.Project(exTup2{})
 	for i := 0; i < b.N; i++ {
 		t := make(chan T)
 		r1.Tuples(t)
@@ -270,7 +270,7 @@ func BenchmarkProjectMediumDistinct(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	r1 := Project(exRel, fooOnly{})
+	r1 := exRel.Project(fooOnly{})
 	for i := 0; i < b.N; i++ {
 		t := make(chan T)
 		r1.Tuples(t)
@@ -289,7 +289,7 @@ func BenchmarkProjectMediumNonDistinct(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	r1 := Project(exRel, barOnly{})
+	r1 := exRel.Project(barOnly{})
 	for i := 0; i < b.N; i++ {
 		t := make(chan T)
 		r1.Tuples(t)

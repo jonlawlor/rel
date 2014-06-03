@@ -18,7 +18,7 @@ func TestJoin(t *testing.T) {
 		Qty    int     // from the orders table
 	}
 
-	r1 := Join(parts, orders, restup{})
+	r1 := parts.Join(orders, restup{})
 	wantString := `rel.New([]struct {
  PNO    int     
  PName  string  
@@ -59,7 +59,7 @@ func BenchmarkJoin(b *testing.B) {
 		Qty    int     // from the orders table
 	}
 
-	r1 := Join(parts, orders, restup{})
+	r1 := parts.Join(orders, restup{})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// each iteration produces 12 tuples

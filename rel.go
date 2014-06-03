@@ -52,9 +52,29 @@ type Relation interface {
 	// should this be allowed to consume an internal channel?
 	Tuples(chan T) // does this channel need a direction?
 
-	// these are not relational but they are sure nice to have
-	GoString() string
+	// the following methods are a part of relational algebra
+
+	Project(z2 T) Relation
+
+	Restrict(p Predicate) Relation
+
+	Rename(z2 T) Relation
+
+	Union(r2 Relation) Relation
+
+	SetDiff(r2 Relation) Relation
+
+	Join(r2 Relation, zero T) Relation
+
+	// non relational but still useful
+
+	GroupBy(t2, vt T, gfcn func(chan T) T) Relation
+
+	// not necessary but still very useful
+
 	String() string
+
+	GoString() string
 }
 
 // New creates a new Relation from a []struct, map[struct] or chan struct.
@@ -161,56 +181,6 @@ func Card(r Relation) (i int) {
 // number of attributes fetched on the database side.
 // Another question is how to represent non relational operations, such as
 // groupby, which has an implicit project.
-
-// There is also a question of how much work to do during the initial setup of
-// a new relation expression, when we might end up reordering it later.
-
-// Project creates a new relation with less than or equal degree
-// t2 has to be a new type which is a subdomain of r.
-func Project(r1 Relation, z2 T) ProjectExpr {
-	return ProjectExpr{r1, z2}
-}
-
-// Restrict creates a new relation with less than or equal cardinality
-// p has to be a func(tup T) bool where tup is a subdomain of the input r.
-// This is a general purpose restrict - we might want to have specific ones for
-// the typical theta comparisons or <= <, =, >, >=, because it will allow much
-// better optimization on the source data side.
-func Restrict(r Relation, p Predicate) RestrictExpr {
-	return RestrictExpr{r, p}
-}
-
-// Rename creates a new relation with new column names
-// z2 has to be a struct with the same number of fields as the input relation
-// note: we might want to change this into a projectrename operation?  It will
-// be tricky to represent this in go's type system, I think.
-func Rename(r1 Relation, z2 T) RenameExpr {
-	return RenameExpr{r1, z2}
-}
-
-// Union creates a new relation by unioning the bodies of both inputs
-//
-func Union(r1, r2 Relation) UnionExpr {
-	return UnionExpr{r1, r2}
-}
-
-// SetDiff creates a new relation by set minusing the two inputs
-//
-func SetDiff(r1, r2 Relation) SetDiffExpr {
-	return SetDiffExpr{r1, r2}
-}
-
-// Join creates a new relation by performing a natural join on the inputs
-//
-func Join(r1, r2 Relation, zero T) JoinExpr {
-	return JoinExpr{r1, r2, zero}
-}
-
-// GroupBy creates a new relation by grouping and applying a user defined func
-//
-func GroupBy(r1 Relation, t2, vt T, gfcn func(chan T) T) GroupByExpr {
-	return GroupByExpr{r1, t2, vt, gfcn}
-}
 
 // additional derived functions
 // SemiDiff(r2 Relation) Relation

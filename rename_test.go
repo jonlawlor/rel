@@ -14,7 +14,7 @@ func TestRename(t *testing.T) {
 		Qty int
 	}
 
-	r1 := Rename(orders, r1tup{})
+	r1 := orders.Rename(r1tup{})
 	if r1.GoString() != orders.GoString() {
 		t.Errorf("orders.Rename(PNO, SNO, Qty) = \"%s\", want \"%s\"", r1.GoString(), orders.GoString())
 
@@ -25,7 +25,7 @@ func TestRename(t *testing.T) {
 		Quantity int
 	}
 
-	r2 := Rename(orders, r2tup{})
+	r2 := orders.Rename(r2tup{})
 	r2GoString := `rel.New([]struct {
  PartNo   int 
  SupplyNo int 
@@ -56,7 +56,7 @@ func BenchmarkRename(b *testing.B) {
 		SupplyNo int
 		Quantity int
 	}
-	r1 := Rename(orders, r2tup{})
+	r1 := orders.Rename(r2tup{})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// each iteration produces 12 tuples

@@ -34,7 +34,7 @@ func TestGroupBy(t *testing.T) {
  {2, 700,  },
  {3, 200,  },
 })`
-	r1 := GroupBy(orders, r1tup{}, valtup{}, groupFcn)
+	r1 := orders.GroupBy(r1tup{}, valtup{}, groupFcn)
 	if r1.GoString() != wantString {
 		t.Errorf("orders.Groupby = \"%s\", want \"%s\"", r1.GoString(), wantString)
 	}
@@ -59,7 +59,7 @@ func BenchmarkGroupBy(b *testing.B) {
 		}
 		return res
 	}
-	r1 := GroupBy(orders, r1tup{}, valtup{}, groupFcn)
+	r1 := orders.GroupBy(r1tup{}, valtup{}, groupFcn)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// each iteration produces 4 tuples
