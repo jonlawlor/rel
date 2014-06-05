@@ -24,6 +24,8 @@ type Predicate interface {
 	And(p2 Predicate) AndPred
 	Or(p2 Predicate) OrPred
 	Xor(p2 Predicate) XorPred
+
+	String() string
 }
 
 // unionAttributes produces a union of two sets of attributes, without dups

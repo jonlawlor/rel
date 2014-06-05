@@ -7,7 +7,9 @@
 
 package rel
 
-import "reflect"
+import (
+	"reflect"
+)
 
 // Chan is an implementation of Relation using a channel
 type Chan struct {
@@ -79,13 +81,19 @@ func (r *Chan) GoString() string {
 
 // String returns a text representation of the Relation
 func (r *Chan) String() string {
-	return stringTabTable(r)
+	return "Relation(" + HeadingString(r) + ")"
 }
 
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
 func (r1 *Chan) Project(z2 T) Relation {
-	return &ProjectExpr{r1, z2}
+	att2 := fieldNames(reflect.TypeOf(z2))
+	if Deg(r1) == len(att2) {
+		// either projection is an error or a no op
+		return r1
+	} else {
+		return &ProjectExpr{r1, z2}
+	}
 }
 
 // Restrict creates a new relation with less than or equal cardinality

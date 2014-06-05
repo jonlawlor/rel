@@ -55,17 +55,14 @@ func (r *SetDiffExpr) CKeys() CandKeys {
 	return r.source1.CKeys()
 }
 
-// text representation
-const setDiffSymbol = "−"
-
 // GoString returns a text representation of the Relation
 func (r *SetDiffExpr) GoString() string {
-	return goStringTabTable(r)
+	return r.source1.GoString() + ".SetDiff(" + r.source2.GoString() + ")"
 }
 
 // String returns a text representation of the Relation
 func (r *SetDiffExpr) String() string {
-	return stringTabTable(r)
+	return r.source1.String() + "−" + r.source2.String()
 }
 
 // Project creates a new relation with less than or equal degree

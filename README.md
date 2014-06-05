@@ -24,9 +24,6 @@ Predicates are used in the restrict operation.
 
 TODOs
 =====
-+ Fix error
-+ Add non-anonymous function name to AdHoc predicate's string method, fix test
-+ Add string representation for relational expressions
 + Write tests for compound relational expressions & query rewrite
 + Add Error() to interface to provide notification if something went wrong
 + Implement tests for Error()

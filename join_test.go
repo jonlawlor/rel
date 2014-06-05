@@ -42,8 +42,8 @@ func TestJoin(t *testing.T) {
  {4, "Screw", "Red",   14, "London", 5, 400, },
 })`
 
-	if r1.GoString() != wantString {
-		t.Errorf("Join(parts, orders, restup{}).GoString() = \"%s\", want \"%s\"", r1.GoString(), wantString)
+	if GoString(r1) != wantString {
+		t.Errorf("Join(parts, orders, restup{}).GoString() = \"%s\", want \"%s\"", GoString(r1), wantString)
 	}
 	return
 }

@@ -88,18 +88,14 @@ func (r *RenameExpr) CKeys() CandKeys {
 	return cKeys2
 }
 
-// text representation
-
-const renameSymbol = "ρ"
-
 // GoString returns a text representation of the Relation
 func (r *RenameExpr) GoString() string {
-	return goStringTabTable(r)
+	return r.source.GoString() + ".Rename(" + HeadingString(r) + ")"
 }
 
 // String returns a text representation of the Relation
 func (r *RenameExpr) String() string {
-	return stringTabTable(r)
+	return "ρ" + HeadingString(r) + "/" + HeadingString(r.source) + "(" + r.source.String() + ")"
 }
 
 // Project creates a new relation with less than or equal degree

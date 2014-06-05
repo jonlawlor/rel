@@ -128,16 +128,14 @@ func (r *ProjectExpr) CKeys() CandKeys {
 
 // text representation
 
-const projectSymbol = "π"
-
 // GoString returns a text representation of the Relation
 func (r *ProjectExpr) GoString() string {
-	return goStringTabTable(r)
+	return r.source.GoString() + ".Project(" + HeadingString(r) + ")"
 }
 
 // String returns a text representation of the Relation
 func (r *ProjectExpr) String() string {
-	return stringTabTable(r)
+	return "π" + HeadingString(r) + "(" + r.source.String() + ")"
 }
 
 // Project creates a new relation with less than or equal degree

@@ -15,8 +15,8 @@ func TestRename(t *testing.T) {
 	}
 
 	r1 := orders.Rename(r1tup{})
-	if r1.GoString() != orders.GoString() {
-		t.Errorf("orders.Rename(PNO, SNO, Qty) = \"%s\", want \"%s\"", r1.GoString(), orders.GoString())
+	if GoString(r1) != GoString(orders) {
+		t.Errorf("orders.Rename(PNO, SNO, Qty) = \"%s\", want \"%s\"", GoString(r1), GoString(orders))
 
 	}
 	type r2tup struct {
@@ -44,8 +44,8 @@ func TestRename(t *testing.T) {
  {4, 4, 300, },
  {4, 5, 400, },
 })`
-	if r2.GoString() != r2GoString {
-		t.Errorf("orders.Rename(PartNo, SupplyNo, Quantity) = \"%s\", want \"%s\"", r2.GoString(), r2GoString)
+	if GoString(r2) != r2GoString {
+		t.Errorf("orders.Rename(PartNo, SupplyNo, Quantity) = \"%s\", want \"%s\"", GoString(r2), r2GoString)
 	}
 	return
 }

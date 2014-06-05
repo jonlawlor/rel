@@ -82,17 +82,14 @@ func (r *UnionExpr) CKeys() CandKeys {
 	return r.source1.CKeys()
 }
 
-// text representation
-const unionSymbol = "∪"
-
 // GoString returns a text representation of the Relation
 func (r *UnionExpr) GoString() string {
-	return goStringTabTable(r)
+	return r.source1.GoString() + ".Union(" + r.source2.GoString() + ")"
 }
 
 // String returns a text representation of the Relation
 func (r *UnionExpr) String() string {
-	return stringTabTable(r)
+	return r.source1.String() + "∪" + r.source2.String()
 }
 
 // Project creates a new relation with less than or equal degree

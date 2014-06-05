@@ -27,6 +27,7 @@ package rel
 import (
 	"fmt" // we might want to replace this with the errors package?
 	"reflect"
+	"strings"
 )
 
 // T is represents tuples, and it should always be a struct
@@ -149,6 +150,21 @@ func Heading(r Relation) []Attribute {
 	return fieldNames(reflect.TypeOf(r.Zero()))
 }
 
+// HeadingString is a string representation of the attributes of a relation
+// formatted like "{foo, bar}"
+func HeadingString(r Relation) string {
+	h := Heading(r)
+	s := make([]string, len(h))
+	for i, v := range h {
+		s[i] = string(v)
+	}
+	return strings.Join(s, ", ")
+}
+
+func GoString(r Relation) string {
+	return goStringTabTable(r)
+}
+
 // Deg returns the degree of the relation
 func Deg(r Relation) int {
 	return len(Heading(r))
@@ -168,19 +184,6 @@ func Card(r Relation) (i int) {
 	}
 	return
 }
-
-// The following methods generate relation expressions, also called queries.
-// The resulting type xxxExpr will typically implement some additional
-// interfaces that are used to infer when reordering is possible, such as
-// DistributeProjecter, which would indicate that the project operation is
-// distributable over the xxxExpr operation.
-// http://www.dcs.warwick.ac.uk/~wmb/CS319/pdf/opt.pdf gives a quick summary
-// of some of the relational algebra laws.
-// In this way, client types, such as an SQLTable relation, can implement
-// a DistributeProjecter interface, which would then allow us to limit the
-// number of attributes fetched on the database side.
-// Another question is how to represent non relational operations, such as
-// groupby, which has an implicit project.
 
 // additional derived functions
 // SemiDiff(r2 Relation) Relation

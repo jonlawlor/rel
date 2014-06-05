@@ -7,31 +7,22 @@ import (
 // tests for restrict op
 func TestRestrict(t *testing.T) {
 
-	// TODO(jonlawlor): replace with table driven test?
 	exRel := New(exampleRelSlice2(10), [][]string{[]string{"Foo"}})
 
-	r1 := exRel.Restrict(AdHoc{func(i struct{}) bool {
-		return true
-	}})
-
-	if Card(r1) != Card(exRel) {
-		t.Errorf("identity restrict has card = %d, want \"%d\"", Card(r1), Card(exRel))
+	var restrictTests = []struct {
+		in  Relation
+		out int
+	}{
+		{exRel.Restrict(AdHoc{func(i struct{}) bool { return true }}), 10},
+		{exRel.Restrict(AdHoc{func(i struct{}) bool { return false }}), 0},
+		{exRel.Restrict(AdHoc{func(i struct{ Foo int }) bool { return i.Foo > 5 }}), 4},
 	}
-
-	r2 := exRel.Restrict(AdHoc{func(i struct{}) bool {
-		return false
-	}})
-	if Card(r2) != 0 {
-		t.Errorf("restrict with false Predicate has card = %d, want \"%d\"", Card(r2), 0)
+	for _, tt := range restrictTests {
+		c := Card(tt.in)
+		if c != tt.out {
+			t.Errorf("Card(%s) => %v, want %v", tt.in.GoString(), c, tt.out)
+		}
 	}
-
-	r3 := exRel.Restrict(AdHoc{func(i struct{ Foo int }) bool {
-		return i.Foo > 5
-	}})
-	if Card(r3) != 4 {
-		t.Errorf("restrict has card = %d, want \"%d\"", Card(r3), 4)
-	}
-
 	return
 }
 

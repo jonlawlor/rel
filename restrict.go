@@ -62,17 +62,14 @@ func (r *RestrictExpr) CKeys() CandKeys {
 	return r.source.CKeys()
 }
 
-// text representation
-const restrictSymbol = "σ"
-
 // GoString returns a text representation of the Relation
 func (r *RestrictExpr) GoString() string {
-	return goStringTabTable(r)
+	return r.source.GoString() + ".Restrict(" + r.p.String() + ")"
 }
 
 // String returns a text representation of the Relation
 func (r *RestrictExpr) String() string {
-	return stringTabTable(r)
+	return "σ{" + r.p.String() + "}(" + r.source.String() + ")"
 }
 
 // Project creates a new relation with less than or equal degree

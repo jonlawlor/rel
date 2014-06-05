@@ -10,8 +10,6 @@ import (
 )
 
 // goStringTabTable is makes a gostring out of a given relation
-// this isn't a method of relation (and then named GoString()) because
-// go doesn't allow methods to be defined on interfaces.
 func goStringTabTable(r Relation) string {
 	// use a buffer to write to and later turn into a string
 	s := bytes.NewBufferString("rel.New([]struct {\n")
@@ -69,8 +67,6 @@ func goStringTabTable(r Relation) string {
 }
 
 // stringTabTable is makes a gostring out of a given relation
-// this isn't a method of relation (and then named GoString()) because
-// go doesn't allow methods to be defined on interfaces.
 func stringTabTable(r Relation) string {
 
 	// use a buffer to write to and later turn into a string

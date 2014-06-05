@@ -41,8 +41,8 @@ func TestProject(t *testing.T) {
  {4, 4, },
  {4, 5, },
 })`
-	if r2.GoString() != r2GoString {
-		t.Errorf("orders.Project(PNO, SNO) = \"%s\", want \"%s\"", r2.GoString(), r2GoString)
+	if GoString(r2) != r2GoString {
+		t.Errorf("orders.Project(PNO, SNO) = \"%s\", want \"%s\"", GoString(r2), r2GoString)
 
 	}
 
