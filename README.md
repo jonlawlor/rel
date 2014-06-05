@@ -14,22 +14,26 @@ The uses of the interfaces defined in the rel package are outlined here.
 Relation Interface
 ------------------
 
-Relations are channels of tuples, and operations on those channels.  The relational algebra operations of project, restrict, join, intersect, setdiff, and union all take at least one relation input and result in a relation output.
+Relations are channels of tuples, and operations on those channels.  The relational algebra operations of project, restrict, join, intersect, setdiff, and union all take at least one relation input and result in a relation output.  Many of the relational operations
+feature query rewrite, using the rules of relational algebra, for example: http://www.dcs.warwick.ac.uk/~wmb/CS319/pdf/opt.pdf.
 
 Predicate Interface
 -------------------
 Predicates are used in the restrict operation.
 
+
 TODOs
 =====
-+ Query rewrite using the rules of relational algebra, for example: http://www.dcs.warwick.ac.uk/~wmb/CS319/pdf/opt.pdf gives a quick summary.
++ Fix error
++ Add non-anonymous function name to AdHoc predicate's string method, fix test
++ Add string representation for relational expressions
++ Write tests for compound relational expressions & query rewrite
++ Add Error() to interface to provide notification if something went wrong
++ Implement tests for Error()
 + Use the go race detector & clear up any issues.  (this requires a 64bit arch)
 + Implement tests with deterministic output of relational operations.  Currently tests for things like GoString, join, and groupby are dependent on the (arbitrary) order of output tuples.  They should go through an orderby operation first, or just compare against a known good relation through setdiff.
-+ Change benchmarks to produce more useful measurements, such as per tuple overhead for each operation.
-+ Make String() function to provide shorter representations.
 + Implement sub packages for other data sources, such as csv readers, generic sql tables, json, or gob.
 + Implement non relational operations like update, insert, & order.
 + Write better docs
 + Write single godoc file
 + Implement channel cancelling
-+ Use the errors package for error handling

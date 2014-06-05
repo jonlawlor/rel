@@ -151,7 +151,7 @@ func fieldMap(e1, e2 reflect.Type) map[Attribute]fieldIndex {
 // the returned map's values have two fields i,j , which indicate the location of
 // the field name in the input types
 // if the field is absent from either of the inputs, it is not returned.
-func attributeMap(fn1 []Attribute, fn2 []Attribute) map[Attribute]fieldIndex {
+func attributeMap(fn1, fn2 []Attribute) map[Attribute]fieldIndex {
 	m := make(map[Attribute]fieldIndex)
 	for i, n1 := range fn1 {
 		for j, n2 := range fn2 {
@@ -162,6 +162,21 @@ func attributeMap(fn1 []Attribute, fn2 []Attribute) map[Attribute]fieldIndex {
 		}
 	}
 	return m
+}
+
+// isSubDomain returns true if the attributes in sub are all members of dom, otherwise false
+// this would be faster if []Attributes were always ordered
+func isSubDomain(sub, dom []Attribute) bool {
+SubLoop:
+	for _, n1 := range sub {
+		for _, n2 := range dom {
+			if n1 == n2 {
+				continue SubLoop
+			}
+		}
+		return false
+	}
+	return true
 }
 
 // partialProject takes the attributes of the input tup, and then for the

@@ -8,7 +8,12 @@ import (
 
 // tests & benchmarks for Predicates
 
+func exTup2Func(ex exTup2) bool {
+	return true
+}
+
 func TestStringer(t *testing.T) {
+
 	Foo := Attribute("Foo")
 	Bar := Attribute("Bar")
 	var predTests = []struct {
@@ -29,7 +34,8 @@ func TestStringer(t *testing.T) {
 		{Foo.GE("Bar"), "Foo >= Bar"},
 		{Foo.EQ(Bar), "Foo == Bar"},
 		{Foo.EQ("Bar"), "Foo == Bar"},
-		{AdHoc{func(ex exTup2) bool { return true }}, "f(Foo, Bar)"},
+		{AdHoc{func(ex exTup2) bool { return true }}, "func({Foo, Bar})"},
+		{AdHoc{exTup2Func}, "func({Foo, Bar})"},
 
 		{Foo.EQ(Bar).And(Foo.NE(Bar)), "(Foo == Bar) && (Foo != Bar)"},
 		{Foo.EQ(Bar).Or(Foo.NE(Bar)), "(Foo == Bar) || (Foo != Bar)"},

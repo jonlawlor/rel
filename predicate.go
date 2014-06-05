@@ -55,22 +55,22 @@ func Not(p Predicate) NotPred {
 
 // NotPred represents a logical not of a predicate
 type NotPred struct {
-	p Predicate
+	P Predicate
 }
 
 // String representation of Not
 func (p NotPred) String() string {
-	return fmt.Sprintf("!(%v)", p.p)
+	return fmt.Sprintf("!(%v)", p.P)
 }
 
 // Domain is the type of input that is required to evalute the predicate
 func (p NotPred) Domain() []Attribute {
-	return p.p.Domain()
+	return p.P.Domain()
 }
 
 // Eval evalutes a predicate on an input tuple
 func (p NotPred) EvalFunc(e reflect.Type) func(t T) bool {
-	f := p.p.EvalFunc(e)
+	f := p.P.EvalFunc(e)
 	return func(t T) bool { return !f(t) }
 }
 
@@ -91,24 +91,24 @@ func (p1 NotPred) Xor(p2 Predicate) XorPred {
 
 // AndPred represents a logical and predicate
 type AndPred struct {
-	p1 Predicate
-	p2 Predicate
+	P1 Predicate
+	P2 Predicate
 }
 
 // String representation of And
 func (p AndPred) String() string {
-	return fmt.Sprintf("(%v) && (%v)", p.p1, p.p2)
+	return fmt.Sprintf("(%v) && (%v)", p.P1, p.P2)
 }
 
 // Domain is the type of input that is required to evalute the predicate
 func (p AndPred) Domain() []Attribute {
-	return unionAttributes(p.p1.Domain(), p.p2.Domain())
+	return unionAttributes(p.P1.Domain(), p.P2.Domain())
 }
 
 // Eval evalutes a predicate on an input tuple
 func (p AndPred) EvalFunc(e reflect.Type) func(t T) bool {
-	f1 := p.p1.EvalFunc(e)
-	f2 := p.p2.EvalFunc(e)
+	f1 := p.P1.EvalFunc(e)
+	f2 := p.P2.EvalFunc(e)
 	return func(t T) bool { return f1(t) && f2(t) }
 }
 
@@ -129,25 +129,25 @@ func (p1 AndPred) Xor(p2 Predicate) XorPred {
 
 // OrPred represents a logical or predicate
 type OrPred struct {
-	p1 Predicate
-	p2 Predicate
+	P1 Predicate
+	P2 Predicate
 }
 
 // String representation of Or
 func (p OrPred) String() string {
-	return fmt.Sprintf("(%v) || (%v)", p.p1, p.p2)
+	return fmt.Sprintf("(%v) || (%v)", p.P1, p.P2)
 }
 
 // Domain is the type of input that is required to evalute the predicate
 func (p OrPred) Domain() []Attribute {
-	return unionAttributes(p.p1.Domain(), p.p2.Domain())
+	return unionAttributes(p.P1.Domain(), p.P2.Domain())
 }
 
 // Eval evalutes a predicate on an input tuple
 func (p OrPred) EvalFunc(e reflect.Type) func(t T) bool {
 
-	f1 := p.p1.EvalFunc(e)
-	f2 := p.p2.EvalFunc(e)
+	f1 := p.P1.EvalFunc(e)
+	f2 := p.P2.EvalFunc(e)
 	return func(t T) bool { return f1(t) || f2(t) }
 }
 
@@ -168,24 +168,24 @@ func (p1 OrPred) Xor(p2 Predicate) XorPred {
 
 // XorPred represents a logical xor predicate
 type XorPred struct {
-	p1 Predicate
-	p2 Predicate
+	P1 Predicate
+	P2 Predicate
 }
 
 // String representation of Xor
 func (p XorPred) String() string {
-	return fmt.Sprintf("(%v) != (%v)", p.p1, p.p2)
+	return fmt.Sprintf("(%v) != (%v)", p.P1, p.P2)
 }
 
 // Domain is the type of input that is required to evalute the predicate
 func (p XorPred) Domain() []Attribute {
-	return unionAttributes(p.p1.Domain(), p.p2.Domain())
+	return unionAttributes(p.P1.Domain(), p.P2.Domain())
 }
 
 // Eval evalutes a predicate on an input tuple
 func (p XorPred) EvalFunc(e reflect.Type) func(t T) bool {
-	f1 := p.p1.EvalFunc(e)
-	f2 := p.p2.EvalFunc(e)
+	f1 := p.P1.EvalFunc(e)
+	f2 := p.P2.EvalFunc(e)
 	return func(t T) bool {
 		return f1(t) != f2(t)
 	}
@@ -225,7 +225,13 @@ func (p AdHoc) String() string {
 	for i, v := range dom {
 		s[i] = string(v)
 	}
-	return fmt.Sprintf("f(%v)", strings.Join(s, ", "))
+	return fmt.Sprintf("func({%s})", strings.Join(s, ", "))
+	// Note we could use
+	// f := runtime.FuncForPC(reflect.ValueOf(p.f).Pointer()).Name()
+	// for named functions, but the name would require more manipulation to get
+	// to a useful brevity, and also would require some work to distinguish
+	// between named and anonymous functions.
+
 }
 
 // Domain is the type of input that is required to evalute the predicate

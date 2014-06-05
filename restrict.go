@@ -19,7 +19,7 @@ type RestrictExpr struct {
 	p Predicate
 }
 
-func (r RestrictExpr) Tuples(t chan T) {
+func (r *RestrictExpr) Tuples(t chan T) {
 	// transform the channel of tuples from the relation
 	mc := runtime.GOMAXPROCS(-1)
 
@@ -53,12 +53,12 @@ func (r RestrictExpr) Tuples(t chan T) {
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r RestrictExpr) Zero() T {
+func (r *RestrictExpr) Zero() T {
 	return r.source.Zero()
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r RestrictExpr) CKeys() CandKeys {
+func (r *RestrictExpr) CKeys() CandKeys {
 	return r.source.CKeys()
 }
 
@@ -66,58 +66,67 @@ func (r RestrictExpr) CKeys() CandKeys {
 const restrictSymbol = "σ"
 
 // GoString returns a text representation of the Relation
-func (r RestrictExpr) GoString() string {
+func (r *RestrictExpr) GoString() string {
 	return goStringTabTable(r)
 }
 
 // String returns a text representation of the Relation
-func (r RestrictExpr) String() string {
+func (r *RestrictExpr) String() string {
 	return stringTabTable(r)
 }
 
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
-func (r1 RestrictExpr) Project(z2 T) Relation {
-	return ProjectExpr{r1, z2}
+func (r1 *RestrictExpr) Project(z2 T) Relation {
+	att2 := fieldNames(reflect.TypeOf(z2))
+	if Deg(r1) == len(att2) {
+		// either projection is an error or a no op
+		return r1
+	}
+	if isSubDomain(r1.p.Domain(), att2) { // the predicate's attributes exist after project
+		return &RestrictExpr{r1.source.Project(z2), r1.p}
+	} else {
+		return &ProjectExpr{r1, z2}
+	}
 }
 
 // Restrict creates a new relation with less than or equal cardinality
 // p has to be a func(tup T) bool where tup is a subdomain of the input r.
-// This is a general purpose restrict - we might want to have specific ones for
-// the typical theta comparisons or <= <, =, >, >=, because it will allow much
-// better optimization on the source data side.
-func (r RestrictExpr) Restrict(p Predicate) Relation {
-	return RestrictExpr{r, p}
+func (r1 *RestrictExpr) Restrict(p Predicate) Relation {
+	// TODO(jonlawlor): implement predicate combination
+
+	// by reversing the order, this provides a way for AndPreds to pass through
+	return &RestrictExpr{r1.source.Restrict(p), r1.p}
 }
 
 // Rename creates a new relation with new column names
 // z2 has to be a struct with the same number of fields as the input relation
 // note: we might want to change this into a projectrename operation?  It will
 // be tricky to represent this in go's type system, I think.
-func (r1 RestrictExpr) Rename(z2 T) Relation {
-	return RenameExpr{r1, z2}
+func (r1 *RestrictExpr) Rename(z2 T) Relation {
+	return &RenameExpr{r1, z2}
 }
 
 // Union creates a new relation by unioning the bodies of both inputs
 //
-func (r1 RestrictExpr) Union(r2 Relation) Relation {
-	return UnionExpr{r1, r2}
+func (r1 *RestrictExpr) Union(r2 Relation) Relation {
+	return &UnionExpr{r1, r2}
 }
 
 // SetDiff creates a new relation by set minusing the two inputs
 //
-func (r1 RestrictExpr) SetDiff(r2 Relation) Relation {
-	return SetDiffExpr{r1, r2}
+func (r1 *RestrictExpr) SetDiff(r2 Relation) Relation {
+	return &SetDiffExpr{r1, r2}
 }
 
 // Join creates a new relation by performing a natural join on the inputs
 //
-func (r1 RestrictExpr) Join(r2 Relation, zero T) Relation {
-	return JoinExpr{r1, r2, zero}
+func (r1 *RestrictExpr) Join(r2 Relation, zero T) Relation {
+	return &JoinExpr{r1, r2, zero}
 }
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 RestrictExpr) GroupBy(t2, vt T, gfcn func(chan T) T) Relation {
-	return GroupByExpr{r1, t2, vt, gfcn}
+func (r1 *RestrictExpr) GroupBy(t2, vt T, gfcn func(chan T) T) Relation {
+	return &GroupByExpr{r1, t2, vt, gfcn}
 }

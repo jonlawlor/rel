@@ -17,7 +17,7 @@ type RenameExpr struct {
 // Tuples sends each tuple in the relation to a channel
 // note: this consumes the values of the relation, and when it is finished it
 // closes the input channel.
-func (r RenameExpr) Tuples(t chan T) {
+func (r *RenameExpr) Tuples(t chan T) {
 	// TODO(jonlawlor) add a check that the second interface's type is
 	// the same as the first, except that it has different names for
 	// the same fields.
@@ -56,12 +56,12 @@ func (r RenameExpr) Tuples(t chan T) {
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r RenameExpr) Zero() T {
+func (r *RenameExpr) Zero() T {
 	return r.zero
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r RenameExpr) CKeys() CandKeys {
+func (r *RenameExpr) CKeys() CandKeys {
 	z2 := reflect.TypeOf(r.zero)
 
 	// figure out the new names
@@ -93,19 +93,19 @@ func (r RenameExpr) CKeys() CandKeys {
 const renameSymbol = "ρ"
 
 // GoString returns a text representation of the Relation
-func (r RenameExpr) GoString() string {
+func (r *RenameExpr) GoString() string {
 	return goStringTabTable(r)
 }
 
 // String returns a text representation of the Relation
-func (r RenameExpr) String() string {
+func (r *RenameExpr) String() string {
 	return stringTabTable(r)
 }
 
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
-func (r1 RenameExpr) Project(z2 T) Relation {
-	return ProjectExpr{r1, z2}
+func (r1 *RenameExpr) Project(z2 T) Relation {
+	return &ProjectExpr{r1, z2}
 }
 
 // Restrict creates a new relation with less than or equal cardinality
@@ -113,38 +113,38 @@ func (r1 RenameExpr) Project(z2 T) Relation {
 // This is a general purpose restrict - we might want to have specific ones for
 // the typical theta comparisons or <= <, =, >, >=, because it will allow much
 // better optimization on the source data side.
-func (r RenameExpr) Restrict(p Predicate) Relation {
-	return RestrictExpr{r, p}
+func (r *RenameExpr) Restrict(p Predicate) Relation {
+	return &RestrictExpr{r, p}
 }
 
 // Rename creates a new relation with new column names
 // z2 has to be a struct with the same number of fields as the input relation
 // note: we might want to change this into a projectrename operation?  It will
 // be tricky to represent this in go's type system, I think.
-func (r1 RenameExpr) Rename(z2 T) Relation {
-	return RenameExpr{r1, z2}
+func (r1 *RenameExpr) Rename(z2 T) Relation {
+	return &RenameExpr{r1, z2}
 }
 
 // Union creates a new relation by unioning the bodies of both inputs
 //
-func (r1 RenameExpr) Union(r2 Relation) Relation {
-	return UnionExpr{r1, r2}
+func (r1 *RenameExpr) Union(r2 Relation) Relation {
+	return &UnionExpr{r1, r2}
 }
 
 // SetDiff creates a new relation by set minusing the two inputs
 //
-func (r1 RenameExpr) SetDiff(r2 Relation) Relation {
-	return SetDiffExpr{r1, r2}
+func (r1 *RenameExpr) SetDiff(r2 Relation) Relation {
+	return &SetDiffExpr{r1, r2}
 }
 
 // Join creates a new relation by performing a natural join on the inputs
 //
-func (r1 RenameExpr) Join(r2 Relation, zero T) Relation {
-	return JoinExpr{r1, r2, zero}
+func (r1 *RenameExpr) Join(r2 Relation, zero T) Relation {
+	return &JoinExpr{r1, r2, zero}
 }
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 RenameExpr) GroupBy(t2, vt T, gfcn func(chan T) T) Relation {
-	return GroupByExpr{r1, t2, vt, gfcn}
+func (r1 *RenameExpr) GroupBy(t2, vt T, gfcn func(chan T) T) Relation {
+	return &GroupByExpr{r1, t2, vt, gfcn}
 }
