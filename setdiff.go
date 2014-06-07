@@ -12,7 +12,7 @@ type SetDiffExpr struct {
 	source2 Relation
 }
 
-func (r *SetDiffExpr) Tuples(t chan T) {
+func (r *SetDiffExpr) Tuples(t chan<- T) {
 	// TODO(jonlawlor): check that the two relations conform, and if not
 	// then panic.
 
@@ -32,7 +32,7 @@ func (r *SetDiffExpr) Tuples(t chan T) {
 	go r.source1.Tuples(body1)
 	go r.source2.Tuples(body2)
 
-	go func(b1, b2, res chan T) {
+	go func(b1, b2 <-chan T, res chan<- T) {
 		for tup := range b2 {
 			mem[tup] = struct{}{}
 		}
@@ -114,6 +114,6 @@ func (r1 *SetDiffExpr) Join(r2 Relation, zero T) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *SetDiffExpr) GroupBy(t2, vt T, gfcn func(chan T) T) Relation {
+func (r1 *SetDiffExpr) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
 	return &GroupByExpr{r1, t2, vt, gfcn}
 }

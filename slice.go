@@ -25,9 +25,9 @@ type Slice struct {
 
 // Tuples sends each tuple in the relation to a channel
 // and when it is finished it closes the input channel.
-func (r *Slice) Tuples(t chan T) {
+func (r *Slice) Tuples(t chan<- T) {
 	if r.sourceDistinct {
-		go func(rbody reflect.Value, res chan T) {
+		go func(rbody reflect.Value, res chan<- T) {
 			for i := 0; i < rbody.Len(); i++ {
 				res <- rbody.Index(i).Interface()
 			}
@@ -39,7 +39,7 @@ func (r *Slice) Tuples(t chan T) {
 	// build up a map where each key is one of the tuples.  This consumes
 	// memory.
 	mem := map[T]struct{}{}
-	go func(rbody reflect.Value, res chan T) {
+	go func(rbody reflect.Value, res chan<- T) {
 		for i := 0; i < rbody.Len(); i++ {
 			tup := rbody.Index(i).Interface()
 			if _, dup := mem[tup]; !dup {
@@ -121,6 +121,6 @@ func (r1 *Slice) Join(r2 Relation, zero T) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *Slice) GroupBy(t2, vt T, gfcn func(chan T) T) Relation {
+func (r1 *Slice) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
 	return &GroupByExpr{r1, t2, vt, gfcn}
 }

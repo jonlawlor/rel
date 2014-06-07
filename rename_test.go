@@ -83,7 +83,7 @@ func TestRename(t *testing.T) {
 	type valTup struct {
 		QTY int
 	}
-	groupFcn := func(val chan T) T {
+	groupFcn := func(val <-chan T) T {
 		res := valTup{}
 		for vi := range val {
 			v := vi.(valTup)

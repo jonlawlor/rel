@@ -17,7 +17,7 @@ func TestGroupBy(t *testing.T) {
 	}
 
 	// a simple summation
-	groupFcn := func(val chan T) T {
+	groupFcn := func(val <-chan T) T {
 		res := valtup{}
 		for vi := range val {
 			v := vi.(valtup)
@@ -48,7 +48,7 @@ func TestGroupBy(t *testing.T) {
 	type valTup struct {
 		Weight float64
 	}
-	weightSum := func(val chan T) T {
+	weightSum := func(val <-chan T) T {
 		res := valTup{}
 		for vi := range val {
 			v := vi.(valTup)
@@ -127,7 +127,7 @@ func BenchmarkGroupBy(b *testing.B) {
 	}
 
 	// a simple summation
-	groupFcn := func(val chan T) T {
+	groupFcn := func(val <-chan T) T {
 		res := valtup{}
 		for vi := range val {
 			v := vi.(valtup)

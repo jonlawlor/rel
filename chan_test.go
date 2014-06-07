@@ -24,7 +24,7 @@ func toChan(r Relation) Relation {
 	ch := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, reflect.TypeOf(z)), 0)
 	t := make(chan T)
 	go r.Tuples(t)
-	go func(b chan T) {
+	go func(b <-chan T) {
 		for tup := range b {
 			ch.Send(reflect.ValueOf(tup))
 		}
@@ -62,7 +62,7 @@ func TestChan(t *testing.T) {
 	type valTup struct {
 		Qty int
 	}
-	groupFcn := func(val chan T) T {
+	groupFcn := func(val <-chan T) T {
 		res := valTup{}
 		for vi := range val {
 			v := vi.(valTup)

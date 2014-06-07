@@ -18,7 +18,7 @@ type ProjectExpr struct {
 // Tuples sends each tuple in the relation to a channel
 // note: this consumes the values of the relation, and when it is finished it
 // closes the input channel.
-func (r *ProjectExpr) Tuples(t chan T) {
+func (r *ProjectExpr) Tuples(t chan<- T) {
 	// transform the channel of tuples from the relation
 	z1 := r.source.Zero()
 	// first figure out if the tuple types of the relation and
@@ -33,7 +33,7 @@ func (r *ProjectExpr) Tuples(t chan T) {
 	if e1.AssignableTo(e2) {
 		// nothing to do.  This may be removable if we can rewrite queries to
 		// ignore idenity projections.
-		go func(body chan T, res chan T) {
+		go func(body <-chan T, res chan<- T) {
 			for tup1 := range body {
 				res <- tup1
 			}
@@ -52,7 +52,7 @@ func (r *ProjectExpr) Tuples(t chan T) {
 	// TODO(jonlawlor): refactor with the code in the CKeys() method
 	cKeys := subsetCandidateKeys(r.source.CKeys(), Heading(r.source), fMap)
 	if len(cKeys) == 0 {
-		go func(body, res chan T) {
+		go func(body <-chan T, res chan<- T) {
 			m := map[interface{}]struct{}{}
 			for tup1 := range body {
 				tup2 := reflect.Indirect(reflect.New(e2))
@@ -74,7 +74,7 @@ func (r *ProjectExpr) Tuples(t chan T) {
 		// assign fields from the old relation to fields in the new
 
 		// TODO(jonlawlor) add parallelism here
-		go func(body, res chan T) {
+		go func(body <-chan T, res chan<- T) {
 			for tup1 := range body {
 				tup2 := reflect.Indirect(reflect.New(e2))
 				rtup1 := reflect.ValueOf(tup1)
@@ -180,6 +180,6 @@ func (r1 *ProjectExpr) Join(r2 Relation, zero T) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *ProjectExpr) GroupBy(t2, vt T, gfcn func(chan T) T) Relation {
+func (r1 *ProjectExpr) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
 	return &GroupByExpr{r1, t2, vt, gfcn}
 }

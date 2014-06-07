@@ -19,7 +19,7 @@ type RestrictExpr struct {
 	p Predicate
 }
 
-func (r *RestrictExpr) Tuples(t chan T) {
+func (r *RestrictExpr) Tuples(t chan<- T) {
 	// transform the channel of tuples from the relation
 	mc := runtime.GOMAXPROCS(-1)
 
@@ -30,7 +30,7 @@ func (r *RestrictExpr) Tuples(t chan T) {
 
 	var wg sync.WaitGroup
 	wg.Add(mc)
-	go func(res chan T) {
+	go func(res chan<- T) {
 		wg.Wait()
 		close(res)
 	}(t)
@@ -38,7 +38,7 @@ func (r *RestrictExpr) Tuples(t chan T) {
 	body1 := make(chan T)
 	r.source.Tuples(body1)
 	for i := 0; i < mc; i++ {
-		go func(body, res chan T, p Predicate) {
+		go func(body <-chan T, res chan<- T, p Predicate) {
 			for tup1 := range body {
 				// call the predicate with the new tuple to determine if it should
 				// go into the results
@@ -126,6 +126,6 @@ func (r1 *RestrictExpr) Join(r2 Relation, zero T) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *RestrictExpr) GroupBy(t2, vt T, gfcn func(chan T) T) Relation {
+func (r1 *RestrictExpr) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
 	return &GroupByExpr{r1, t2, vt, gfcn}
 }

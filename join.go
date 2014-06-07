@@ -14,7 +14,7 @@ type JoinExpr struct {
 	zero    T
 }
 
-func (r *JoinExpr) Tuples(t chan T) {
+func (r *JoinExpr) Tuples(t chan<- T) {
 	mc := runtime.GOMAXPROCS(-1)
 	e3 := reflect.TypeOf(r.zero)
 
@@ -43,14 +43,14 @@ func (r *JoinExpr) Tuples(t chan T) {
 	// processing the join operation
 	var wg sync.WaitGroup
 	wg.Add(mc)
-	go func(res chan T) {
+	go func(res chan<- T) {
 		wg.Wait()
 		close(res)
 	}(t)
 
 	// create a go routine that generates the join for each of the input tuples
 	for i := 0; i < mc; i++ {
-		go func(b1, b2, res chan T) {
+		go func(b1, b2 <-chan T, res chan<- T) {
 			for b1 != nil || b2 != nil {
 				select {
 				case tup1, ok := <-b1:
@@ -202,6 +202,6 @@ func (r1 *JoinExpr) Join(r2 Relation, zero T) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *JoinExpr) GroupBy(t2, vt T, gfcn func(chan T) T) Relation {
+func (r1 *JoinExpr) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
 	return &GroupByExpr{r1, t2, vt, gfcn}
 }

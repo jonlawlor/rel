@@ -23,7 +23,7 @@ type GroupByExpr struct {
 	// the value of the group after the input channel is closed.
 	// We might want to be able to short circuit this evaluation in a few
 	// cases though?
-	gfcn func(chan T) T
+	gfcn func(<-chan T) T
 }
 
 // the implementation for groupby creates a map from the groups to
@@ -36,7 +36,7 @@ type GroupByExpr struct {
 // complete their work, and then send a done signal to a channel which
 // can then close the result channel.
 
-func (r *GroupByExpr) Tuples(t chan T) {
+func (r *GroupByExpr) Tuples(t chan<- T) {
 	// figure out the new elements used for each of the derived types
 	e1 := reflect.TypeOf(r.source.Zero())
 	e2 := reflect.TypeOf(r.zero)    // type of the resulting relation's tuples
@@ -75,7 +75,7 @@ func (r *GroupByExpr) Tuples(t chan T) {
 	// TODO(jonlawlor): figure out how to avoid reallocation
 	vgfieldMap := fieldMap(e2, ev)
 
-	go func(b1, res chan T) {
+	go func(b1 <-chan T, res chan<- T) {
 		for tup := range b1 {
 			// this reflection may be a bottleneck, and we may be able to
 			// replace it with a concurrent version.
@@ -94,7 +94,7 @@ func (r *GroupByExpr) Tuples(t chan T) {
 				// applies the grouping function, and then when all values
 				// are sent, gets the result from the grouping function and
 				// puts it into the result tuple, which it then returns
-				go func(gtupi T, groupChan chan T) {
+				go func(gtupi T, groupChan <-chan T) {
 					defer wg.Done()
 					// run the grouping function and turn the result
 					// into the reflect.Value
@@ -244,6 +244,6 @@ func (r1 *GroupByExpr) Join(r2 Relation, zero T) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *GroupByExpr) GroupBy(t2, vt T, gfcn func(chan T) T) Relation {
+func (r1 *GroupByExpr) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
 	return &GroupByExpr{r1, t2, vt, gfcn}
 }

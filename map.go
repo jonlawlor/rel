@@ -26,7 +26,7 @@ type Map struct {
 }
 
 // Tuples sends each tuple in the relation to a channel
-func (r *Map) Tuples(t chan T) {
+func (r *Map) Tuples(t chan<- T) {
 	go func() {
 		for _, rtup := range r.rbody.MapKeys() {
 			t <- rtup.Interface()
@@ -104,6 +104,6 @@ func (r1 *Map) Join(r2 Relation, zero T) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *Map) GroupBy(t2, vt T, gfcn func(chan T) T) Relation {
+func (r1 *Map) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
 	return &GroupByExpr{r1, t2, vt, gfcn}
 }

@@ -30,9 +30,9 @@ type Chan struct {
 // Tuples sends each tuple in the relation to a channel
 // note: this consumes the values of the relation, and when it is finished it
 // closes the input channel.
-func (r *Chan) Tuples(t chan T) {
+func (r *Chan) Tuples(t chan<- T) {
 	if r.sourceDistinct {
-		go func(rbody reflect.Value, res chan T) {
+		go func(rbody reflect.Value, res chan<- T) {
 			for {
 				rtup, ok := rbody.Recv()
 				if !ok {
@@ -47,7 +47,7 @@ func (r *Chan) Tuples(t chan T) {
 	// build up a map where each key is one of the tuples.  This consumes
 	// memory.
 	mem := map[T]struct{}{}
-	go func(rbody reflect.Value, res chan T) {
+	go func(rbody reflect.Value, res chan<- T) {
 		for {
 			rtup, ok := rbody.Recv()
 			if !ok {
@@ -133,6 +133,6 @@ func (r1 *Chan) Join(r2 Relation, zero T) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *Chan) GroupBy(t2, vt T, gfcn func(chan T) T) Relation {
+func (r1 *Chan) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
 	return &GroupByExpr{r1, t2, vt, gfcn}
 }

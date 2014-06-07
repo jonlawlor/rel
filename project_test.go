@@ -95,7 +95,7 @@ func TestProject(t *testing.T) {
 	type valTup struct {
 		Weight float64
 	}
-	groupFcn := func(val chan T) T {
+	groupFcn := func(val <-chan T) T {
 		res := valTup{}
 		for vi := range val {
 			v := vi.(valTup)

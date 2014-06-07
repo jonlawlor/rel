@@ -51,7 +51,7 @@ type Relation interface {
 	// Tuples takes a channel of interface and keeps sending
 	// the tuples in the relation over the channel.
 	// should this be allowed to consume an internal channel?
-	Tuples(chan T) // does this channel need a direction?
+	Tuples(chan<- T) // does this channel need a direction?
 
 	// the following methods are a part of relational algebra
 
@@ -69,7 +69,7 @@ type Relation interface {
 
 	// non relational but still useful
 
-	GroupBy(t2, vt T, gfcn func(chan T) T) Relation
+	GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation
 
 	// not necessary but still very useful
 
@@ -110,7 +110,7 @@ func New(v interface{}, ckeystr [][]string) Relation {
 
 	case reflect.Chan:
 		r := new(Chan)
-		r.rbody = rbody
+		r.rbody = rbody // TODO(jonlawlor): check direction
 		if len(ckeystr) == 0 {
 			r.cKeys = defaultKeys(z)
 			// note that even zero degree relations need to be distinct

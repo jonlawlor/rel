@@ -17,7 +17,7 @@ type RenameExpr struct {
 // Tuples sends each tuple in the relation to a channel
 // note: this consumes the values of the relation, and when it is finished it
 // closes the input channel.
-func (r *RenameExpr) Tuples(t chan T) {
+func (r *RenameExpr) Tuples(t chan<- T) {
 	// TODO(jonlawlor) add a check that the second interface's type is
 	// the same as the first, except that it has different names for
 	// the same fields.
@@ -34,7 +34,7 @@ func (r *RenameExpr) Tuples(t chan T) {
 	// locations
 	n := z2.NumField()
 
-	go func(body, res chan T) {
+	go func(body <-chan T, res chan<- T) {
 		if z1.AssignableTo(z2) {
 			for tup1 := range body {
 				res <- tup1
@@ -141,6 +141,6 @@ func (r1 *RenameExpr) Join(r2 Relation, zero T) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *RenameExpr) GroupBy(t2, vt T, gfcn func(chan T) T) Relation {
+func (r1 *RenameExpr) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
 	return &GroupByExpr{r1, t2, vt, gfcn}
 }
