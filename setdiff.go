@@ -62,7 +62,7 @@ func (r *SetDiffExpr) GoString() string {
 
 // String returns a text representation of the Relation
 func (r *SetDiffExpr) String() string {
-	return r.source1.String() + "−" + r.source2.String()
+	return r.source1.String() + " − " + r.source2.String()
 }
 
 // Project creates a new relation with less than or equal degree

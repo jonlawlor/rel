@@ -95,7 +95,7 @@ func (r *RenameExpr) GoString() string {
 
 // String returns a text representation of the Relation
 func (r *RenameExpr) String() string {
-	return "ρ" + HeadingString(r) + "/" + HeadingString(r.source) + "(" + r.source.String() + ")"
+	return "ρ{" + HeadingString(r) + "}/{" + HeadingString(r.source) + "}(" + r.source.String() + ")"
 }
 
 // Project creates a new relation with less than or equal degree

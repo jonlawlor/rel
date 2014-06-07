@@ -55,9 +55,86 @@ func TestProject(t *testing.T) {
 		t.Errorf("orders.Project(PNO, Qty) has Deg %d, Card %d, want Deg %d, Card %d", Deg(r3), Card(r3), 2, 10)
 
 	}
-	return
-}
 
+	// test the degrees, cardinality, and string representation
+	type partsTup struct {
+		PNO    int
+		PName  string
+		Weight float64
+		City   string
+	}
+
+	rel := parts.Project(partsTup{})
+	type distinctTup struct {
+		PNO   int
+		PName string
+	}
+	type nonDistinctTup struct {
+		PName string
+		City  string
+	}
+	type titleCaseTup struct {
+		Pno    int
+		PName  string
+		Weight float64
+		City   string
+	}
+
+	type joinTup struct {
+		PNO    int
+		PName  string
+		Weight float64
+		City   string
+		SNO    int
+		Qty    int
+	}
+	type groupByTup struct {
+		City   string
+		Weight float64
+	}
+	type valTup struct {
+		Weight float64
+	}
+	groupFcn := func(val chan T) T {
+		res := valTup{}
+		for vi := range val {
+			v := vi.(valTup)
+			res.Weight += v.Weight
+		}
+		return res
+	}
+	var relTest = []struct {
+		rel          Relation
+		expectString string
+		expectDeg    int
+		expectCard   int
+	}{
+		{rel, "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City))", 4, 6},
+		{rel.Restrict(Attribute("PNO").EQ(1)), "π{PNO, PName, Weight, City}(σ{PNO == 1}(Relation(PNO, PName, Color, Weight, City)))", 4, 1},
+		{rel.Project(distinctTup{}), "π{PNO, PName}(Relation(PNO, PName, Color, Weight, City))", 2, 6},
+		{rel.Project(nonDistinctTup{}), "π{PName, City}(Relation(PNO, PName, Color, Weight, City))", 2, 6},
+		{rel.Rename(titleCaseTup{}), "ρ{Pno, PName, Weight, City}/{PNO, PName, Weight, City}(π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)))", 4, 6},
+		{rel.SetDiff(rel.Restrict(Attribute("Weight").LT(15.0))), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)) − π{PNO, PName, Weight, City}(σ{Weight < 15}(Relation(PNO, PName, Color, Weight, City)))", 4, 3},
+		{rel.Union(rel.Restrict(Attribute("Weight").LE(12.0))), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)) ∪ π{PNO, PName, Weight, City}(σ{Weight <= 12}(Relation(PNO, PName, Color, Weight, City)))", 4, 6},
+		{rel.Join(suppliers, joinTup{}), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)) ⋈ Relation(SNO, SName, Status, City)", 6, 10},
+		{rel.GroupBy(groupByTup{}, valTup{}, groupFcn), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)).GroupBy({City, Weight}, {Weight})", 2, 3},
+	}
+
+	for i, tt := range relTest {
+		str := tt.rel.String()
+		deg := Deg(tt.rel)
+		card := Card(tt.rel)
+		if str != tt.expectString {
+			t.Errorf("%d has String() => %v, want %v", i, str, tt.expectString)
+		}
+		if deg != tt.expectDeg {
+			t.Errorf("%d %s has Deg() => %v, want %v", i, tt.expectString, deg, tt.expectDeg)
+		}
+		if card != tt.expectCard {
+			t.Errorf("%d %s has Card() => %v, want %v", i, tt.expectString, card, tt.expectCard)
+		}
+	}
+}
 func BenchmarkProjectTinyIdent(b *testing.B) {
 	// test the time it takes to do an identity projection for a
 	// Tiny relation.

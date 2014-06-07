@@ -1,9 +1,5 @@
 package rel
 
-import (
-	"testing"
-)
-
 // test creation of relations, including tests to determine the cost of
 // representing slices of structs as relations instead of native.
 
@@ -44,40 +40,4 @@ func exampleRelChan2(c int) chan exTup2 {
 		close(recs)
 	}()
 	return recs
-}
-
-// test the degrees
-func TestDeg(t *testing.T) {
-	fix := []struct {
-		name string
-		in   int
-		out  int
-	}{
-		{"suppliers", Deg(suppliers), 4},
-		{"parts", Deg(parts), 5},
-		{"orders", Deg(orders), 3},
-	}
-	for i, dt := range fix {
-		if dt.in != dt.out {
-			t.Errorf("%d. %s.Deg() => %d, want %d", i, dt.name, dt.in, dt.out)
-		}
-	}
-}
-
-// test cardinality
-func TestCard(t *testing.T) {
-	fix := []struct {
-		name string
-		in   int
-		out  int
-	}{
-		{"suppliers", Card(suppliers), 5},
-		{"parts", Card(parts), 6},
-		{"orders", Card(orders), 12},
-	}
-	for i, dt := range fix {
-		if dt.in != dt.out {
-			t.Errorf("%d. %s.Card() => %d, want %d", i, dt.name, dt.in, dt.out)
-		}
-	}
 }

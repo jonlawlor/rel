@@ -119,6 +119,8 @@ func (r1 *RestrictExpr) SetDiff(r2 Relation) Relation {
 // Join creates a new relation by performing a natural join on the inputs
 //
 func (r1 *RestrictExpr) Join(r2 Relation, zero T) Relation {
+	// TODO(jonlawlor): test to see if the restrict op can also be applied to
+	// r2.
 	return &JoinExpr{r1, r2, zero}
 }
 

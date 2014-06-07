@@ -4,6 +4,7 @@ package rel
 
 import (
 	"reflect"
+	"strings"
 	"sync"
 )
 
@@ -113,15 +114,10 @@ func (r *GroupByExpr) Tuples(t chan T) {
 		for _, v := range groupMap {
 			close(v)
 		}
-	}(body, t)
-
-	// start a process to close the results channel when the waitgroup
-	// is finished
-	go func(res chan T) {
+		// close the results channel when the waitgroup is finished
 		wg.Wait()
 		close(res)
-	}(t)
-
+	}(body, t)
 	return
 }
 
@@ -166,7 +162,7 @@ func (r *GroupByExpr) CKeys() CandKeys {
 	}
 	names := fieldNames(e2)
 
-	ck2 := subsetCandidateKeys(r.CKeys(), names, groupFieldMap)
+	ck2 := subsetCandidateKeys(r.source.CKeys(), names, groupFieldMap)
 
 	// determine the new names and types
 	cn := fieldNames(e2)
@@ -185,7 +181,15 @@ func (r *GroupByExpr) GoString() string {
 
 // String returns a text representation of the Relation
 func (r *GroupByExpr) String() string {
-	return stringTabTable(r)
+	h := fieldNames(reflect.TypeOf(r.valZero))
+	s := make([]string, len(h))
+	for i, v := range h {
+		s[i] = string(v)
+	}
+
+	// TODO(jonlawlor) add better identification to the grouping func
+	return r.source.String() + ".GroupBy({" + HeadingString(r) + "}, {" + strings.Join(s, ", ") + "})"
+
 }
 
 // rewrite is more difficult in groupby, because it is not a part of
@@ -194,6 +198,9 @@ func (r *GroupByExpr) String() string {
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
 func (r1 *GroupByExpr) Project(z2 T) Relation {
+	// TODO(jonlawlor): add query rewrite if projection does not include any
+	// of the attributes in the valZero.  In that situation, no grouping is
+	// needed.
 	att2 := fieldNames(reflect.TypeOf(z2))
 	if Deg(r1) == len(att2) {
 		// either projection is an error or a no op

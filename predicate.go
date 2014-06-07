@@ -292,6 +292,8 @@ func (p1 AdHoc) Xor(p2 Predicate) XorPred {
 //
 // The v param is an interface because it might be a literal, or another
 // attribute.
+// Note that you can have a runtime error if the predicate's literal has the
+// wrong type, which is particularly important with ints and floats.
 
 type EQPred struct {
 	att []Attribute

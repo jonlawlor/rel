@@ -135,7 +135,7 @@ func (r *ProjectExpr) GoString() string {
 
 // String returns a text representation of the Relation
 func (r *ProjectExpr) String() string {
-	return "π" + HeadingString(r) + "(" + r.source.String() + ")"
+	return "π{" + HeadingString(r) + "}(" + r.source.String() + ")"
 }
 
 // Project creates a new relation with less than or equal degree
