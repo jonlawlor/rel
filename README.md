@@ -24,11 +24,10 @@ Predicates are used in the restrict operation.
 
 TODOs
 =====
-+ Write tests for compound relational expressions & query rewrite
 + Add Error() to interface to provide notification if something went wrong
 + Implement tests for Error()
 + Use the go race detector & clear up any issues.  (this requires a 64bit arch)
-+ Reach 100% test coverage
++ Reach 100% test coverage (currenty 70%)
 + Implement tests with deterministic output of relational operations.  Currently tests for things like GoString, join, and groupby are dependent on the (arbitrary) order of output tuples.  They should go through an orderby operation first, or just compare against a known good relation through setdiff.
 + Implement sub packages for other data sources, such as csv readers, generic sql tables, json, or gob.
 + Implement non relational operations like update, insert, & order.

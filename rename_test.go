@@ -47,7 +47,81 @@ func TestRename(t *testing.T) {
 	if GoString(r2) != r2GoString {
 		t.Errorf("orders.Rename(PartNo, SupplyNo, Quantity) = \"%s\", want \"%s\"", GoString(r2), r2GoString)
 	}
-	return
+	// test the degrees, cardinality, and string representation
+	type upperCaseTup struct {
+		PNO int
+		SNO int
+		QTY int
+	}
+
+	rel := orders.Rename(upperCaseTup{})
+	type distinctTup struct {
+		PNO int
+		SNO int
+	}
+	type nonDistinctTup struct {
+		PNO int
+		QTY int
+	}
+	type titleCaseTup struct {
+		Pno int
+		Sno int
+		Qty int
+	}
+	type joinTup struct {
+		PNO    int
+		SNO    int
+		QTY    int
+		SName  string
+		Status int
+		City   string
+	}
+	type groupByTup struct {
+		PNO int
+		QTY int
+	}
+	type valTup struct {
+		QTY int
+	}
+	groupFcn := func(val chan T) T {
+		res := valTup{}
+		for vi := range val {
+			v := vi.(valTup)
+			res.QTY += v.QTY
+		}
+		return res
+	}
+	var relTest = []struct {
+		rel          Relation
+		expectString string
+		expectDeg    int
+		expectCard   int
+	}{
+		{rel, "ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty))", 3, 12},
+		{rel.Restrict(Attribute("PNO").EQ(1)), "σ{PNO == 1}(ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)))", 3, 6},
+		{rel.Project(distinctTup{}), "π{PNO, SNO}(ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)))", 2, 12},
+		{rel.Project(nonDistinctTup{}), "π{PNO, QTY}(ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)))", 2, 10},
+		{rel.Rename(titleCaseTup{}), "ρ{Pno, Sno, Qty}/{PNO, SNO, QTY}(ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)))", 3, 12},
+		{rel.SetDiff(orders.Rename(upperCaseTup{})), "ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)) − ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty))", 3, 0},
+		{rel.Union(orders.Rename(upperCaseTup{})), "ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)) ∪ ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty))", 3, 12},
+		{rel.Join(suppliers, joinTup{}), "ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)) ⋈ Relation(SNO, SName, Status, City)", 6, 11},
+		{rel.GroupBy(groupByTup{}, valTup{}, groupFcn), "ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)).GroupBy({PNO, QTY}, {QTY})", 2, 4},
+	}
+
+	for i, tt := range relTest {
+		str := tt.rel.String()
+		deg := Deg(tt.rel)
+		card := Card(tt.rel)
+		if str != tt.expectString {
+			t.Errorf("%d has String() => %v, want %v", i, str, tt.expectString)
+		}
+		if deg != tt.expectDeg {
+			t.Errorf("%d %s has Deg() => %v, want %v", i, tt.expectString, deg, tt.expectDeg)
+		}
+		if card != tt.expectCard {
+			t.Errorf("%d %s has Card() => %v, want %v", i, tt.expectString, card, tt.expectCard)
+		}
+	}
 }
 
 func BenchmarkRename(b *testing.B) {
