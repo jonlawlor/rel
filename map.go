@@ -1,4 +1,4 @@
-// Map is a relation with underlying data stored in a map.
+// mapLiteral is a relation with underlying data stored in a map.
 // It is intended to be used for general purpose source data that can only be
 // queried as a whole, or that has been preprocessed.  It can also be used as
 // an adapter to interface with other sources of data.  Basically anything
@@ -12,8 +12,8 @@ import (
 	"reflect"
 )
 
-// Map is an implementation of Relation using a map
-type Map struct {
+// mapLiteral is an implementation of Relation using a map
+type mapLiteral struct {
 
 	// the map of tuples in the relation, with tuples in the key
 	rbody reflect.Value // should always hold a map
@@ -28,7 +28,7 @@ type Map struct {
 }
 
 // Tuples sends each tuple in the relation to a channel
-func (r *Map) Tuples(t chan<- T) chan<- struct{} {
+func (r *mapLiteral) Tuples(t chan<- T) chan<- struct{} {
 	cancel := make(chan struct{})
 
 	if r.Err() != nil {
@@ -50,28 +50,28 @@ func (r *Map) Tuples(t chan<- T) chan<- struct{} {
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *Map) Zero() T {
+func (r *mapLiteral) Zero() T {
 	return r.zero
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *Map) CKeys() CandKeys {
+func (r *mapLiteral) CKeys() CandKeys {
 	return r.cKeys
 }
 
 // GoString returns a text representation of the Relation
-func (r *Map) GoString() string {
+func (r *mapLiteral) GoString() string {
 	return goStringTabTable(r)
 }
 
 // String returns a text representation of the Relation
-func (r *Map) String() string {
+func (r *mapLiteral) String() string {
 	return "Relation(" + HeadingString(r) + ")"
 }
 
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
-func (r1 *Map) Project(z2 T) Relation {
+func (r1 *mapLiteral) Project(z2 T) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -89,7 +89,7 @@ func (r1 *Map) Project(z2 T) Relation {
 // This is a general purpose restrict - we might want to have specific ones for
 // the typical theta comparisons or <= <, =, >, >=, because it will allow much
 // better optimization on the source data side.
-func (r1 *Map) Restrict(p Predicate) Relation {
+func (r1 *mapLiteral) Restrict(p Predicate) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -100,7 +100,7 @@ func (r1 *Map) Restrict(p Predicate) Relation {
 // z2 has to be a struct with the same number of fields as the input relation
 // note: we might want to change this into a projectrename operation?  It will
 // be tricky to represent this in go's type system, I think.
-func (r1 *Map) Rename(z2 T) Relation {
+func (r1 *mapLiteral) Rename(z2 T) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -109,7 +109,7 @@ func (r1 *Map) Rename(z2 T) Relation {
 
 // Union creates a new relation by unioning the bodies of both inputs
 //
-func (r1 *Map) Union(r2 Relation) Relation {
+func (r1 *mapLiteral) Union(r2 Relation) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -121,7 +121,7 @@ func (r1 *Map) Union(r2 Relation) Relation {
 
 // SetDiff creates a new relation by set minusing the two inputs
 //
-func (r1 *Map) SetDiff(r2 Relation) Relation {
+func (r1 *mapLiteral) SetDiff(r2 Relation) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -133,7 +133,7 @@ func (r1 *Map) SetDiff(r2 Relation) Relation {
 
 // Join creates a new relation by performing a natural join on the inputs
 //
-func (r1 *Map) Join(r2 Relation, zero T) Relation {
+func (r1 *mapLiteral) Join(r2 Relation, zero T) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -145,7 +145,7 @@ func (r1 *Map) Join(r2 Relation, zero T) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *Map) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
+func (r1 *mapLiteral) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -153,6 +153,6 @@ func (r1 *Map) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
 }
 
 // Error returns an error encountered during construction or computation
-func (r1 *Map) Err() error {
+func (r1 *mapLiteral) Err() error {
 	return r1.err
 }

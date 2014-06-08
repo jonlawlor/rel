@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// tests & benchmarks for the rel.Chan type
+// tests & benchmarks for the rel.chanLiteral type
 
 // unlike the rel.Map and rel.Slice type, this has to drain the resulting
 // relation, otherwise there will be hanging go-routines.  It would be better
@@ -18,7 +18,7 @@ func drain(t chan exTup2) {
 	return
 }
 
-func toChan(r Relation) Relation {
+func tochanLiteral(r Relation) Relation {
 	// construct a channel using reflection
 	z := r.Zero()
 	ch := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, reflect.TypeOf(z)), 0)
@@ -30,10 +30,10 @@ func toChan(r Relation) Relation {
 		}
 		ch.Close()
 	}(t)
-	return &Chan{ch, r.CKeys(), r.Zero(), true, nil}
+	return &chanLiteral{ch, r.CKeys(), r.Zero(), true, nil}
 }
 
-func TestChan(t *testing.T) {
+func TestchanLiteral(t *testing.T) {
 	type distinctTup struct {
 		PNO int
 		SNO int
@@ -76,15 +76,15 @@ func TestChan(t *testing.T) {
 		expectDeg    int
 		expectCard   int
 	}{
-		{toChan(orders), "Relation(PNO, SNO, Qty)", 3, 12},
-		{toChan(orders).Restrict(Attribute("PNO").EQ(1)), "σ{PNO == 1}(Relation(PNO, SNO, Qty))", 3, 6},
-		{toChan(orders).Project(distinctTup{}), "π{PNO, SNO}(Relation(PNO, SNO, Qty))", 2, 12},
-		{toChan(orders).Project(nonDistinctTup{}), "π{PNO, Qty}(Relation(PNO, SNO, Qty))", 2, 10},
-		{toChan(orders).Rename(titleCaseTup{}), "ρ{Pno, Sno, Qty}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty))", 3, 12},
-		{toChan(orders).SetDiff(toChan(orders)), "Relation(PNO, SNO, Qty) − Relation(PNO, SNO, Qty)", 3, 0},
-		{toChan(orders).Union(toChan(orders)), "Relation(PNO, SNO, Qty) ∪ Relation(PNO, SNO, Qty)", 3, 12},
-		{toChan(orders).Join(toChan(suppliers), joinTup{}), "Relation(PNO, SNO, Qty) ⋈ Relation(SNO, SName, Status, City)", 6, 11},
-		{toChan(orders).GroupBy(groupByTup{}, valTup{}, groupFcn), "Relation(PNO, SNO, Qty).GroupBy({PNO, Qty}, {Qty})", 2, 4},
+		{tochanLiteral(orders), "Relation(PNO, SNO, Qty)", 3, 12},
+		{tochanLiteral(orders).Restrict(Attribute("PNO").EQ(1)), "σ{PNO == 1}(Relation(PNO, SNO, Qty))", 3, 6},
+		{tochanLiteral(orders).Project(distinctTup{}), "π{PNO, SNO}(Relation(PNO, SNO, Qty))", 2, 12},
+		{tochanLiteral(orders).Project(nonDistinctTup{}), "π{PNO, Qty}(Relation(PNO, SNO, Qty))", 2, 10},
+		{tochanLiteral(orders).Rename(titleCaseTup{}), "ρ{Pno, Sno, Qty}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty))", 3, 12},
+		{tochanLiteral(orders).SetDiff(tochanLiteral(orders)), "Relation(PNO, SNO, Qty) − Relation(PNO, SNO, Qty)", 3, 0},
+		{tochanLiteral(orders).Union(tochanLiteral(orders)), "Relation(PNO, SNO, Qty) ∪ Relation(PNO, SNO, Qty)", 3, 12},
+		{tochanLiteral(orders).Join(tochanLiteral(suppliers), joinTup{}), "Relation(PNO, SNO, Qty) ⋈ Relation(SNO, SName, Status, City)", 6, 11},
+		{tochanLiteral(orders).GroupBy(groupByTup{}, valTup{}, groupFcn), "Relation(PNO, SNO, Qty).GroupBy({PNO, Qty}, {Qty})", 2, 4},
 	}
 
 	for i, tt := range relTest {
@@ -103,7 +103,7 @@ func TestChan(t *testing.T) {
 	}
 }
 
-func BenchmarkChanNewTinySimple(b *testing.B) {
+func BenchmarkChanLiteralNewTinySimple(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRelChan2(10)
 	ck := [][]string{[]string{"foo"}}
@@ -116,7 +116,7 @@ func BenchmarkChanNewTinySimple(b *testing.B) {
 	drain(exRel)
 }
 
-func BenchmarkChanNewTinyNonDistinct(b *testing.B) {
+func BenchmarkChanLiteralNewTinyNonDistinct(b *testing.B) {
 	// test the time it takes to make a new relation with a given size,
 	// but without any candidate keys.  The New function will run
 	// a distinct on the input data.
@@ -131,7 +131,7 @@ func BenchmarkChanNewTinyNonDistinct(b *testing.B) {
 	drain(exRel)
 }
 
-func BenchmarkChanNewSmallSimple(b *testing.B) {
+func BenchmarkChanLiteralNewSmallSimple(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRelChan2(1000)
 	ck := [][]string{[]string{"foo"}}
@@ -144,7 +144,7 @@ func BenchmarkChanNewSmallSimple(b *testing.B) {
 	drain(exRel)
 }
 
-func BenchmarkChanNewSmallNonDistinct(b *testing.B) {
+func BenchmarkChanLiteralNewSmallNonDistinct(b *testing.B) {
 	// test the time it takes to make a new relation with a given size,
 	// but without any candidate keys.  The New function will run
 	// a distinct on the input data.
@@ -159,7 +159,7 @@ func BenchmarkChanNewSmallNonDistinct(b *testing.B) {
 	drain(exRel)
 }
 
-func BenchmarkChanNewMediumSimple(b *testing.B) {
+func BenchmarkChanLiteralNewMediumSimple(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRelChan2(100000)
 	ck := [][]string{[]string{"foo"}}
@@ -172,7 +172,7 @@ func BenchmarkChanNewMediumSimple(b *testing.B) {
 	drain(exRel)
 }
 
-func BenchmarkChanNewMediumNonDistinct(b *testing.B) {
+func BenchmarkChanLiteralNewMediumNonDistinct(b *testing.B) {
 	// test the time it takes to make a new relation with a given size,
 	// but without any candidate keys.  The New function will run
 	// a distinct on the input data.
@@ -187,7 +187,7 @@ func BenchmarkChanNewMediumNonDistinct(b *testing.B) {
 	drain(exRel)
 }
 
-func BenchmarkChanNewLargeSimple(b *testing.B) {
+func BenchmarkChanLiteralNewLargeSimple(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRelChan2(10000000)
 	ck := [][]string{[]string{"foo"}}
@@ -200,7 +200,7 @@ func BenchmarkChanNewLargeSimple(b *testing.B) {
 	drain(exRel)
 }
 
-func BenchmarkChanNewLargeNonDistinct(b *testing.B) {
+func BenchmarkChanLiteralNewLargeNonDistinct(b *testing.B) {
 	// test the time it takes to make a new relation with a given size,
 	// but without any candidate keys.  The New function will run
 	// a distinct on the input data.

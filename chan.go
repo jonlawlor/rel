@@ -1,4 +1,4 @@
-// Chan is a relation with underlying data stored in a channel.
+// chanLiteral is a relation with underlying data stored in a channel.
 // It is intended to be used for general purpose source data that can only be
 // queried as a whole, or that has been preprocessed.  It can also be used as
 // an adapter to interface with other sources of data.  Basically anything
@@ -11,8 +11,8 @@ import (
 	"reflect"
 )
 
-// Chan is an implementation of Relation using a channel
-type Chan struct {
+// chanLiteral is an implementation of Relation using a channel
+type chanLiteral struct {
 	// the channel of tuples in the relation
 	rbody reflect.Value
 
@@ -32,7 +32,7 @@ type Chan struct {
 // Tuples sends each tuple in the relation to a channel
 // note: this consumes the values of the relation, and when it is finished it
 // closes the input channel.
-func (r *Chan) Tuples(t chan<- T) chan<- struct{} {
+func (r *chanLiteral) Tuples(t chan<- T) chan<- struct{} {
 	cancel := make(chan struct{})
 
 	if r.Err() != nil {
@@ -49,7 +49,7 @@ func (r *Chan) Tuples(t chan<- T) chan<- struct{} {
 				chosen, rtup, ok := reflect.Select(cases)
 				if !ok || chosen == 1 {
 					// cancel has been closed, so close the results
-					// TODO(jonlawlor): include a cancel channel in the rel.Chan
+					// TODO(jonlawlor): include a cancel channel in the rel.chanLiteral
 					// struct so that we can continue the cancellation to the data
 					// source.
 					break
@@ -71,7 +71,7 @@ func (r *Chan) Tuples(t chan<- T) chan<- struct{} {
 			chosen, rtup, ok := reflect.Select(cases)
 			if !ok || chosen == 1 {
 				// cancel has been closed, so close the results
-				// TODO(jonlawlor): include a cancel channel in the rel.Chan
+				// TODO(jonlawlor): include a cancel channel in the rel.chanLiteral
 				// struct so that we can continue the cancellation to the data
 				// source.
 				break
@@ -88,28 +88,28 @@ func (r *Chan) Tuples(t chan<- T) chan<- struct{} {
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *Chan) Zero() T {
+func (r *chanLiteral) Zero() T {
 	return r.zero
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *Chan) CKeys() CandKeys {
+func (r *chanLiteral) CKeys() CandKeys {
 	return r.cKeys
 }
 
 // GoString returns a text representation of the Relation
-func (r *Chan) GoString() string {
+func (r *chanLiteral) GoString() string {
 	return goStringTabTable(r)
 }
 
 // String returns a text representation of the Relation
-func (r *Chan) String() string {
+func (r *chanLiteral) String() string {
 	return "Relation(" + HeadingString(r) + ")"
 }
 
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
-func (r1 *Chan) Project(z2 T) Relation {
+func (r1 *chanLiteral) Project(z2 T) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -127,7 +127,7 @@ func (r1 *Chan) Project(z2 T) Relation {
 // This is a general purpose restrict - we might want to have specific ones for
 // the typical theta comparisons or <= <, =, >, >=, because it will allow much
 // better optimization on the source data side.
-func (r1 *Chan) Restrict(p Predicate) Relation {
+func (r1 *chanLiteral) Restrict(p Predicate) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -138,7 +138,7 @@ func (r1 *Chan) Restrict(p Predicate) Relation {
 // z2 has to be a struct with the same number of fields as the input relation
 // note: we might want to change this into a projectrename operation?  It will
 // be tricky to represent this in go's type system, I think.
-func (r1 *Chan) Rename(z2 T) Relation {
+func (r1 *chanLiteral) Rename(z2 T) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -147,7 +147,7 @@ func (r1 *Chan) Rename(z2 T) Relation {
 
 // Union creates a new relation by unioning the bodies of both inputs
 //
-func (r1 *Chan) Union(r2 Relation) Relation {
+func (r1 *chanLiteral) Union(r2 Relation) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -159,7 +159,7 @@ func (r1 *Chan) Union(r2 Relation) Relation {
 
 // SetDiff creates a new relation by set minusing the two inputs
 //
-func (r1 *Chan) SetDiff(r2 Relation) Relation {
+func (r1 *chanLiteral) SetDiff(r2 Relation) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -171,7 +171,7 @@ func (r1 *Chan) SetDiff(r2 Relation) Relation {
 
 // Join creates a new relation by performing a natural join on the inputs
 //
-func (r1 *Chan) Join(r2 Relation, zero T) Relation {
+func (r1 *chanLiteral) Join(r2 Relation, zero T) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -183,7 +183,7 @@ func (r1 *Chan) Join(r2 Relation, zero T) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *Chan) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
+func (r1 *chanLiteral) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -191,6 +191,6 @@ func (r1 *Chan) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
 }
 
 // Error returns an error encountered during construction or computation
-func (r1 *Chan) Err() error {
+func (r1 *chanLiteral) Err() error {
 	return r1.err
 }

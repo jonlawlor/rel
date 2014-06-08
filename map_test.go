@@ -5,9 +5,9 @@ import (
 	"testing"
 )
 
-// tests & benchmarks for the rel.Map type
+// tests & benchmarks for the rel.mapLiteral type
 
-func toMap(r Relation) Relation {
+func tomapLiteral(r Relation) Relation {
 	// construct a channel using reflection
 	z := r.Zero()
 	m := reflect.MakeMap(reflect.MapOf(reflect.TypeOf(z), reflect.TypeOf(struct{}{})))
@@ -17,12 +17,12 @@ func toMap(r Relation) Relation {
 	for tup := range t {
 		m.SetMapIndex(reflect.ValueOf(tup), v)
 	}
-	return &Map{m, r.CKeys(), r.Zero(), nil}
+	return &mapLiteral{m, r.CKeys(), r.Zero(), nil}
 }
 
 // test the degrees, cardinality, and string representation
-func TestMap(t *testing.T) {
-	rel := toMap(orders)
+func TestmapLiteral(t *testing.T) {
+	rel := tomapLiteral(orders)
 	type distinctTup struct {
 		PNO int
 		SNO int
@@ -92,7 +92,7 @@ func TestMap(t *testing.T) {
 	}
 }
 
-func BenchmarkMapNewTinySimple(b *testing.B) {
+func BenchmarkMapLiteralNewTinySimple(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRelMap2(10)
 	ck := [][]string{[]string{"foo"}}
@@ -102,7 +102,7 @@ func BenchmarkMapNewTinySimple(b *testing.B) {
 	}
 }
 
-func BenchmarkMapNewTinyNonDistinct(b *testing.B) {
+func BenchmarkMapLiteralNewTinyNonDistinct(b *testing.B) {
 	// test the time it takes to make a new relation with a given size,
 	// but without any candidate keys.  The New function will run
 	// a distinct on the input data.
@@ -114,7 +114,7 @@ func BenchmarkMapNewTinyNonDistinct(b *testing.B) {
 	}
 }
 
-func BenchmarkMapNewSmallSimple(b *testing.B) {
+func BenchmarkMapLiteralNewSmallSimple(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRelMap2(1000)
 	ck := [][]string{[]string{"foo"}}
@@ -124,7 +124,7 @@ func BenchmarkMapNewSmallSimple(b *testing.B) {
 	}
 }
 
-func BenchmarkMapNewSmallNonDistinct(b *testing.B) {
+func BenchmarkMapLiteralNewSmallNonDistinct(b *testing.B) {
 	// test the time it takes to make a new relation with a given size,
 	// but without any candidate keys.  The New function will run
 	// a distinct on the input data.
@@ -136,7 +136,7 @@ func BenchmarkMapNewSmallNonDistinct(b *testing.B) {
 	}
 }
 
-func BenchmarkMapNewMediumSimple(b *testing.B) {
+func BenchmarkMapLiteralNewMediumSimple(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRelMap2(100000)
 	ck := [][]string{[]string{"foo"}}
@@ -146,7 +146,7 @@ func BenchmarkMapNewMediumSimple(b *testing.B) {
 	}
 }
 
-func BenchmarkMapNewMediumNonDistinct(b *testing.B) {
+func BenchmarkMapLiteralNewMediumNonDistinct(b *testing.B) {
 	// test the time it takes to make a new relation with a given size,
 	// but without any candidate keys.  The New function will run
 	// a distinct on the input data.
@@ -158,7 +158,7 @@ func BenchmarkMapNewMediumNonDistinct(b *testing.B) {
 	}
 }
 
-func BenchmarkMapNewLargeSimple(b *testing.B) {
+func BenchmarkMapLiteralNewLargeSimple(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRelMap2(10000000)
 	ck := [][]string{[]string{"foo"}}
@@ -168,7 +168,7 @@ func BenchmarkMapNewLargeSimple(b *testing.B) {
 	}
 }
 
-func BenchmarkMapNewLargeNonDistinct(b *testing.B) {
+func BenchmarkMapLiteralNewLargeNonDistinct(b *testing.B) {
 	// test the time it takes to make a new relation with a given size,
 	// but without any candidate keys.  The New function will run
 	// a distinct on the input data.

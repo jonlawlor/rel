@@ -4,10 +4,10 @@ import (
 	"testing"
 )
 
-// tests & benchmarks for the rel.Slice type
+// tests & benchmarks for the rel.sliceLiteral type
 
 // test the degrees, cardinality, and string representation
-func TestSlice(t *testing.T) {
+func TestsliceLiteral(t *testing.T) {
 	rel := orders
 	type distinctTup struct {
 		PNO int
@@ -78,7 +78,7 @@ func TestSlice(t *testing.T) {
 	}
 }
 
-func BenchmarkSliceNewTinySimple(b *testing.B) {
+func BenchmarkSliceLiteralNewTinySimple(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRelSlice2(10)
 	ck := [][]string{[]string{"foo"}}
@@ -88,7 +88,7 @@ func BenchmarkSliceNewTinySimple(b *testing.B) {
 	}
 }
 
-func BenchmarkSliceNewTinyNonDistinct(b *testing.B) {
+func BenchmarkSliceLiteralNewTinyNonDistinct(b *testing.B) {
 	// test the time it takes to make a new relation with a given size,
 	// but without any candidate keys.  The New function will run
 	// a distinct on the input data.
@@ -100,7 +100,7 @@ func BenchmarkSliceNewTinyNonDistinct(b *testing.B) {
 	}
 }
 
-func BenchmarkSliceNewSmallSimple(b *testing.B) {
+func BenchmarkSliceLiteralNewSmallSimple(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRelSlice2(1000)
 	ck := [][]string{[]string{"foo"}}
@@ -110,7 +110,7 @@ func BenchmarkSliceNewSmallSimple(b *testing.B) {
 	}
 }
 
-func BenchmarkSliceNewSmallNonDistinct(b *testing.B) {
+func BenchmarkSliceLiteralNewSmallNonDistinct(b *testing.B) {
 	// test the time it takes to make a new relation with a given size,
 	// but without any candidate keys.  The New function will run
 	// a distinct on the input data.
@@ -122,7 +122,7 @@ func BenchmarkSliceNewSmallNonDistinct(b *testing.B) {
 	}
 }
 
-func BenchmarkSliceNewMediumSimple(b *testing.B) {
+func BenchmarkSliceLiteralNewMediumSimple(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRelSlice2(100000)
 	ck := [][]string{[]string{"foo"}}
@@ -132,7 +132,7 @@ func BenchmarkSliceNewMediumSimple(b *testing.B) {
 	}
 }
 
-func BenchmarkSliceNewMediumNonDistinct(b *testing.B) {
+func BenchmarkSliceLiteralNewMediumNonDistinct(b *testing.B) {
 	// test the time it takes to make a new relation with a given size,
 	// but without any candidate keys.  The New function will run
 	// a distinct on the input data.
@@ -144,7 +144,7 @@ func BenchmarkSliceNewMediumNonDistinct(b *testing.B) {
 	}
 }
 
-func BenchmarkSliceNewLargeSimple(b *testing.B) {
+func BenchmarkSliceLiteralNewLargeSimple(b *testing.B) {
 	// test the time it takes to make a new relation with a given size
 	exRel := exampleRelSlice2(10000000)
 	ck := [][]string{[]string{"foo"}}
@@ -154,7 +154,7 @@ func BenchmarkSliceNewLargeSimple(b *testing.B) {
 	}
 }
 
-func BenchmarkSliceNewLargeNonDistinct(b *testing.B) {
+func BenchmarkSliceLiteralNewLargeNonDistinct(b *testing.B) {
 	// test the time it takes to make a new relation with a given size,
 	// but without any candidate keys.  The New function will run
 	// a distinct on the input data.

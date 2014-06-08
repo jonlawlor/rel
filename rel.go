@@ -92,7 +92,7 @@ func New(v interface{}, ckeystr [][]string) Relation {
 
 	switch rbody.Kind() {
 	case reflect.Map:
-		r := new(Map)
+		r := new(mapLiteral)
 		r.rbody = rbody
 		if len(ckeystr) == 0 {
 			// maps are already distinct on the key, so the Map relation type
@@ -112,7 +112,7 @@ func New(v interface{}, ckeystr [][]string) Relation {
 		return r
 
 	case reflect.Chan:
-		r := new(Chan)
+		r := new(chanLiteral)
 		r.rbody = rbody // TODO(jonlawlor): check direction
 		if len(ckeystr) == 0 {
 			r.cKeys = defaultKeys(z)
@@ -128,7 +128,7 @@ func New(v interface{}, ckeystr [][]string) Relation {
 		return r
 
 	case reflect.Slice:
-		r := new(Slice)
+		r := new(sliceLiteral)
 		r.rbody = rbody
 		if len(ckeystr) == 0 {
 			r.cKeys = defaultKeys(z)
