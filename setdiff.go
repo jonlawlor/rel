@@ -12,9 +12,8 @@ type SetDiffExpr struct {
 	source2 Relation
 }
 
-func (r *SetDiffExpr) Tuples(t chan<- T) {
-	// TODO(jonlawlor): check that the two relations conform, and if not
-	// then panic.
+func (r *SetDiffExpr) Tuples(t chan<- T) chan<- struct{} {
+	cancel := make(chan struct{})
 
 	mem := make(map[interface{}]struct{})
 	// setdiff is unique in that it has to immediately consume all of the
@@ -29,20 +28,49 @@ func (r *SetDiffExpr) Tuples(t chan<- T) {
 	// get the values out of the source relations
 	body1 := make(chan T)
 	body2 := make(chan T)
-	go r.source1.Tuples(body1)
-	go r.source2.Tuples(body2)
+	bcancel1 := r.source1.Tuples(body1)
+	bcancel2 := r.source2.Tuples(body2)
 
 	go func(b1, b2 <-chan T, res chan<- T) {
-		for tup := range b2 {
-			mem[tup] = struct{}{}
-		}
-		for tup := range b1 {
-			if _, rem := mem[tup]; !rem {
-				res <- tup
+	Loop2:
+		for {
+			select {
+			case tup, ok := <-b2:
+				if !ok {
+					break Loop2
+				}
+				mem[tup] = struct{}{}
+			case <-cancel:
+				break Loop2
 			}
 		}
-		close(res)
+	Loop1:
+		for {
+			select {
+			case tup, ok := <-b1:
+				if !ok {
+					break Loop1
+				}
+				if _, rem := mem[tup]; !rem {
+					select {
+					case res <- tup:
+					case <-cancel:
+						break Loop1
+					}
+				}
+			case <-cancel:
+				break Loop1
+			}
+		}
+		select {
+		case <-cancel:
+			close(bcancel1)
+			close(bcancel2)
+		default:
+			close(res)
+		}
 	}(body1, body2, t)
+	return cancel
 }
 
 // Zero returns the zero value of the relation (a blank tuple)

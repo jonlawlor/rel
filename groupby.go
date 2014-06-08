@@ -36,7 +36,8 @@ type GroupByExpr struct {
 // complete their work, and then send a done signal to a channel which
 // can then close the result channel.
 
-func (r *GroupByExpr) Tuples(t chan<- T) {
+func (r *GroupByExpr) Tuples(t chan<- T) chan<- struct{} {
+	cancel := make(chan struct{})
 	// figure out the new elements used for each of the derived types
 	e1 := reflect.TypeOf(r.source.Zero())
 	e2 := reflect.TypeOf(r.zero)    // type of the resulting relation's tuples
@@ -54,7 +55,7 @@ func (r *GroupByExpr) Tuples(t chan<- T) {
 
 	// create the channel of tuples from source
 	body := make(chan T)
-	r.source.Tuples(body)
+	bcancel := r.source.Tuples(body)
 
 	// for each of the tuples, extract the group values out and set
 	// the ones that are not in vtup to the values in the tuple.
@@ -76,37 +77,49 @@ func (r *GroupByExpr) Tuples(t chan<- T) {
 	vgfieldMap := fieldMap(e2, ev)
 
 	go func(b1 <-chan T, res chan<- T) {
-		for tup := range b1 {
-			// this reflection may be a bottleneck, and we may be able to
-			// replace it with a concurrent version.
-			gtupi, vtupi := partialProject(reflect.ValueOf(tup), e2, ev, e2fieldMap, evfieldMap)
+	Loop:
+		for {
+			select {
+			case tup, ok := <-b1:
+				if !ok {
+					break Loop
+				}
+				// this reflection may be a bottleneck, and we may be able to
+				// replace it with a concurrent version.
+				gtupi, vtupi := partialProject(reflect.ValueOf(tup), e2, ev, e2fieldMap, evfieldMap)
 
-			// the map cannot be accessed concurrently though
-			// a lock needs to be placed here
-			if _, exists := groupMap[gtupi]; !exists {
-				wg.Add(1)
-				// create the channel
-				groupChan := make(chan T)
-				groupMap[gtupi] = groupChan
-				// remove the lock
+				// the map cannot be accessed concurrently though
+				// a lock needs to be placed here
+				if _, exists := groupMap[gtupi]; !exists {
+					wg.Add(1)
+					// create the channel
+					groupChan := make(chan T)
+					groupMap[gtupi] = groupChan
+					// remove the lock
 
-				// launch a goroutine which consumes values from the group,
-				// applies the grouping function, and then when all values
-				// are sent, gets the result from the grouping function and
-				// puts it into the result tuple, which it then returns
-				go func(gtupi T, groupChan <-chan T) {
-					defer wg.Done()
-					// run the grouping function and turn the result
-					// into the reflect.Value
-					vtup := reflect.ValueOf(r.gfcn(groupChan))
-					// combine the returned values with the group tuple
-					// to create the new complete tuple
-					res <- combineTuples(reflect.ValueOf(gtupi), vtup, e2, vgfieldMap).Interface()
-				}(gtupi, groupChan)
+					// launch a goroutine which consumes values from the group,
+					// applies the grouping function, and then when all values
+					// are sent, gets the result from the grouping function and
+					// puts it into the result tuple, which it then returns
+					go func(gtupi T, groupChan <-chan T) {
+						defer wg.Done()
+						// run the grouping function and turn the result
+						// into the reflect.Value
+						vtup := reflect.ValueOf(r.gfcn(groupChan))
+						// combine the returned values with the group tuple
+						// to create the new complete tuple
+						select {
+						case res <- combineTuples(reflect.ValueOf(gtupi), vtup, e2, vgfieldMap).Interface().(T):
+						case <-cancel:
+							// do nothing, everything has already been closed
+						}
+					}(gtupi, groupChan)
+				}
+				groupMap[gtupi] <- vtupi
+			case <-cancel:
+				close(bcancel)
+				break Loop
 			}
-			// this send can also be done concurrently, or we could buffer
-			// the channel
-			groupMap[gtupi] <- vtupi
 		}
 		// close all of the group channels so the processes can finish
 		// this can only be done after the tuples in the original relation
@@ -116,9 +129,14 @@ func (r *GroupByExpr) Tuples(t chan<- T) {
 		}
 		// close the results channel when the waitgroup is finished
 		wg.Wait()
-		close(res)
+		select {
+		case <-cancel:
+			return
+		default:
+			close(res)
+		}
 	}(body, t)
-	return
+	return cancel
 }
 
 // Zero returns the zero value of the relation (a blank tuple)

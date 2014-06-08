@@ -17,7 +17,8 @@ type RenameExpr struct {
 // Tuples sends each tuple in the relation to a channel
 // note: this consumes the values of the relation, and when it is finished it
 // closes the input channel.
-func (r *RenameExpr) Tuples(t chan<- T) {
+func (r *RenameExpr) Tuples(t chan<- T) chan<- struct{} {
+	cancel := make(chan struct{})
 	// TODO(jonlawlor) add a check that the second interface's type is
 	// the same as the first, except that it has different names for
 	// the same fields.
@@ -29,30 +30,61 @@ func (r *RenameExpr) Tuples(t chan<- T) {
 	z2 := reflect.TypeOf(r.zero)
 
 	body1 := make(chan T)
-	r.source.Tuples(body1)
+	bcancel := r.source.Tuples(body1)
 	// assign the values of the original to the new names in the same
 	// locations
 	n := z2.NumField()
 
 	go func(body <-chan T, res chan<- T) {
 		if z1.AssignableTo(z2) {
-			for tup1 := range body {
-				res <- tup1
+		Loop1:
+			for {
+				select {
+				case tup1, ok := <-body:
+					if !ok {
+						break Loop1
+					}
+					select {
+					case res <- tup1:
+					case <-cancel:
+						close(bcancel)
+						return
+					}
+				case <-cancel:
+					close(bcancel)
+					return
+				}
 			}
-		} else {
-			for tup1 := range body {
+			close(res)
+			return
+		}
+	Loop2:
+		for {
+			select {
+			case tup1, ok := <-body:
+				if !ok {
+					break Loop2
+				}
 				tup2 := reflect.Indirect(reflect.New(z2))
 				rtup1 := reflect.ValueOf(tup1)
 				for i := 0; i < n; i++ {
 					tupf2 := tup2.Field(i)
 					tupf2.Set(rtup1.Field(i))
 				}
-				res <- tup2.Interface()
+				select {
+				case res <- tup2.Interface():
+				case <-cancel:
+					close(bcancel)
+					return
+				}
+			case <-cancel:
+				close(bcancel)
+				return
 			}
 		}
 		close(res)
 	}(body1, t)
-	return
+	return cancel
 }
 
 // Zero returns the zero value of the relation (a blank tuple)

@@ -14,7 +14,8 @@ type JoinExpr struct {
 	zero    T
 }
 
-func (r *JoinExpr) Tuples(t chan<- T) {
+func (r *JoinExpr) Tuples(t chan<- T) chan<- struct{} {
+	cancel := make(chan struct{})
 	mc := runtime.GOMAXPROCS(-1)
 	e3 := reflect.TypeOf(r.zero)
 
@@ -30,8 +31,8 @@ func (r *JoinExpr) Tuples(t chan<- T) {
 	// create channels over the body of the source relations
 	body1 := make(chan T)
 	body2 := make(chan T)
-	r.source1.Tuples(body1)
-	r.source2.Tuples(body2)
+	bcancel1 := r.source1.Tuples(body1)
+	bcancel2 := r.source2.Tuples(body2)
 
 	// Create the memory of previously sent tuples so that the joins can
 	// continue to compare against old values.
@@ -45,12 +46,20 @@ func (r *JoinExpr) Tuples(t chan<- T) {
 	wg.Add(mc)
 	go func(res chan<- T) {
 		wg.Wait()
-		close(res)
+		// if we've been cancelled, send it up to the source
+		select {
+		case <-cancel:
+			close(bcancel1)
+			close(bcancel2)
+		default:
+			close(res)
+		}
 	}(t)
 
 	// create a go routine that generates the join for each of the input tuples
 	for i := 0; i < mc; i++ {
 		go func(b1, b2 <-chan T, res chan<- T) {
+		Loop:
 			for b1 != nil || b2 != nil {
 				select {
 				case tup1, ok := <-b1:
@@ -76,7 +85,11 @@ func (r *JoinExpr) Tuples(t chan<- T) {
 							tup3 := reflect.Indirect(reflect.New(e3))
 							combineTuples2(&tup3, rtup1, map31)
 							combineTuples2(&tup3, rtup2, map32)
-							res <- tup3.Interface()
+							select {
+							case res <- tup3.Interface():
+							case <-cancel:
+								break Loop
+							}
 						}
 					}
 
@@ -95,17 +108,22 @@ func (r *JoinExpr) Tuples(t chan<- T) {
 							tup3 := reflect.Indirect(reflect.New(e3))
 							combineTuples2(&tup3, rtup1, map31)
 							combineTuples2(&tup3, rtup2, map32)
-							res <- tup3.Interface()
-
+							select {
+							case res <- tup3.Interface():
+							case <-cancel:
+								break Loop
+							}
 						}
 					}
+				case <-cancel:
+					break Loop
 				}
 			}
 			wg.Done()
 		}(body1, body2, t)
 	}
 
-	return
+	return cancel
 }
 
 // Zero returns the zero value of the relation (a blank tuple)

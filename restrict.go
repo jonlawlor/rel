@@ -19,7 +19,9 @@ type RestrictExpr struct {
 	p Predicate
 }
 
-func (r *RestrictExpr) Tuples(t chan<- T) {
+func (r *RestrictExpr) Tuples(t chan<- T) chan<- struct{} {
+	cancel := make(chan struct{})
+
 	// transform the channel of tuples from the relation
 	mc := runtime.GOMAXPROCS(-1)
 
@@ -28,28 +30,48 @@ func (r *RestrictExpr) Tuples(t chan<- T) {
 
 	predFunc := r.p.EvalFunc(e1)
 
+	body1 := make(chan T)
+	bcancel := r.source.Tuples(body1)
+
 	var wg sync.WaitGroup
 	wg.Add(mc)
 	go func(res chan<- T) {
 		wg.Wait()
-		close(res)
+		// if we've been cancelled, send it up to the source
+		select {
+		case <-cancel:
+			close(bcancel)
+		default:
+			close(res)
+		}
 	}(t)
 
-	body1 := make(chan T)
-	r.source.Tuples(body1)
 	for i := 0; i < mc; i++ {
 		go func(body <-chan T, res chan<- T, p Predicate) {
-			for tup1 := range body {
-				// call the predicate with the new tuple to determine if it should
-				// go into the results
-				if predFunc(tup1) {
-					res <- tup1
+		Loop:
+			for {
+				select {
+				case tup1, ok := <-body:
+					if !ok {
+						break Loop
+					}
+					// call the predicate with the new tuple to determine if it should
+					// go into the results
+					if predFunc(tup1) {
+						select {
+						case res <- tup1:
+						case <-cancel:
+							break Loop
+						}
+					}
+				case <-cancel:
+					break Loop
 				}
 			}
 			wg.Done()
 		}(body1, t, r.p)
 	}
-	return
+	return cancel
 }
 
 // Zero returns the zero value of the relation (a blank tuple)

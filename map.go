@@ -26,13 +26,19 @@ type Map struct {
 }
 
 // Tuples sends each tuple in the relation to a channel
-func (r *Map) Tuples(t chan<- T) {
+func (r *Map) Tuples(t chan<- T) chan<- struct{} {
+	cancel := make(chan struct{})
 	go func() {
 		for _, rtup := range r.rbody.MapKeys() {
-			t <- rtup.Interface()
+			select {
+			case t <- rtup.Interface().(T):
+			case <-cancel:
+				break
+			}
 		}
 		close(t)
 	}()
+	return cancel
 }
 
 // Zero returns the zero value of the relation (a blank tuple)

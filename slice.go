@@ -25,15 +25,20 @@ type Slice struct {
 
 // Tuples sends each tuple in the relation to a channel
 // and when it is finished it closes the input channel.
-func (r *Slice) Tuples(t chan<- T) {
+func (r *Slice) Tuples(t chan<- T) chan<- struct{} {
+	cancel := make(chan struct{})
 	if r.sourceDistinct {
 		go func(rbody reflect.Value, res chan<- T) {
 			for i := 0; i < rbody.Len(); i++ {
-				res <- rbody.Index(i).Interface()
+				select {
+				case res <- rbody.Index(i).Interface().(T):
+				case <-cancel:
+					break
+				}
 			}
 			close(res)
 		}(r.rbody, t)
-		return
+		return cancel
 	}
 
 	// build up a map where each key is one of the tuples.  This consumes
@@ -41,15 +46,19 @@ func (r *Slice) Tuples(t chan<- T) {
 	mem := map[T]struct{}{}
 	go func(rbody reflect.Value, res chan<- T) {
 		for i := 0; i < rbody.Len(); i++ {
-			tup := rbody.Index(i).Interface()
+			tup := rbody.Index(i).Interface().(T)
 			if _, dup := mem[tup]; !dup {
-				res <- tup
+				select {
+				case res <- tup:
+				case <-cancel:
+					break
+				}
 				mem[tup] = struct{}{}
 			}
 		}
 		close(res)
 	}(r.rbody, t)
-	return
+	return cancel
 }
 
 // Zero returns the zero value of the relation (a blank tuple)

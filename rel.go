@@ -50,8 +50,9 @@ type Relation interface {
 
 	// Tuples takes a channel of interface and keeps sending
 	// the tuples in the relation over the channel.
-	// should this be allowed to consume an internal channel?
-	Tuples(chan<- T) // does this channel need a direction?
+	// It returns a "cancel" channel that can be used to halt computations
+	// early
+	Tuples(chan<- T) (cancel chan<- struct{})
 
 	// the following methods are a part of relational algebra
 
@@ -178,7 +179,7 @@ func Deg(r Relation) int {
 // implementation as default.
 func Card(r Relation) (i int) {
 	body := make(chan T)
-	r.Tuples(body)
+	_ = r.Tuples(body)
 	for _ = range body {
 		i++
 	}

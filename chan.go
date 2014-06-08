@@ -30,27 +30,43 @@ type Chan struct {
 // Tuples sends each tuple in the relation to a channel
 // note: this consumes the values of the relation, and when it is finished it
 // closes the input channel.
-func (r *Chan) Tuples(t chan<- T) {
+func (r *Chan) Tuples(t chan<- T) chan<- struct{} {
+	cancel := make(chan struct{})
+
 	if r.sourceDistinct {
 		go func(rbody reflect.Value, res chan<- T) {
+			resSel := reflect.SelectCase{reflect.SelectRecv, rbody, reflect.Value{}}
+			canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+			cases := []reflect.SelectCase{resSel, canSel}
 			for {
-				rtup, ok := rbody.Recv()
-				if !ok {
+				chosen, rtup, ok := reflect.Select(cases)
+				if !ok || chosen == 1 {
+					// cancel has been closed, so close the results
+					// TODO(jonlawlor): include a cancel channel in the rel.Chan
+					// struct so that we can continue the cancellation to the data
+					// source.
 					break
 				}
 				res <- rtup.Interface()
 			}
 			close(res)
 		}(r.rbody, t)
-		return
+		return cancel
 	}
 	// build up a map where each key is one of the tuples.  This consumes
 	// memory.
 	mem := map[T]struct{}{}
 	go func(rbody reflect.Value, res chan<- T) {
+		resSel := reflect.SelectCase{reflect.SelectRecv, rbody, reflect.Value{}}
+		canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+		cases := []reflect.SelectCase{resSel, canSel}
 		for {
-			rtup, ok := rbody.Recv()
-			if !ok {
+			chosen, rtup, ok := reflect.Select(cases)
+			if !ok || chosen == 1 {
+				// cancel has been closed, so close the results
+				// TODO(jonlawlor): include a cancel channel in the rel.Chan
+				// struct so that we can continue the cancellation to the data
+				// source.
 				break
 			}
 			tup := rtup.Interface()
@@ -61,7 +77,7 @@ func (r *Chan) Tuples(t chan<- T) {
 		}
 		close(res)
 	}(r.rbody, t)
-	return
+	return cancel
 }
 
 // Zero returns the zero value of the relation (a blank tuple)

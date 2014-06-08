@@ -23,7 +23,7 @@ func toChan(r Relation) Relation {
 	z := r.Zero()
 	ch := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, reflect.TypeOf(z)), 0)
 	t := make(chan T)
-	go r.Tuples(t)
+	_ = r.Tuples(t)
 	go func(b <-chan T) {
 		for tup := range b {
 			ch.Send(reflect.ValueOf(tup))
