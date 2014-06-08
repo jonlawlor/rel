@@ -33,4 +33,4 @@ TODOs
 + Implement non relational operations like update, insert, & order.
 + Write better docs
 + Write single godoc file
-+ Implement channel cancelling
++ Implement tests for channel cancelling
