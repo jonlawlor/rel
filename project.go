@@ -13,6 +13,8 @@ type ProjectExpr struct {
 
 	// the new tuple type
 	zero T
+
+	err error
 }
 
 // Tuples sends each tuple in the relation to a channel
@@ -20,6 +22,12 @@ type ProjectExpr struct {
 // closes the input channel.
 func (r *ProjectExpr) Tuples(t chan<- T) chan<- struct{} {
 	cancel := make(chan struct{})
+
+	if r.Err() != nil {
+		close(t)
+		return cancel
+	}
+
 	// transform the channel of tuples from the relation
 	z1 := r.source.Zero()
 	// first figure out if the tuple types of the relation and
@@ -52,6 +60,9 @@ func (r *ProjectExpr) Tuples(t chan<- T) chan<- struct{} {
 					close(bcancel)
 					return
 				}
+			}
+			if err := r.source.Err(); err != nil {
+				r.err = err
 			}
 			close(res)
 		}(body1, t)
@@ -186,15 +197,21 @@ func (r *ProjectExpr) String() string {
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
 func (r1 *ProjectExpr) Project(z2 T) Relation {
+	if r1.Err() != nil {
+		return r1
+	}
 	// the second project will always override the first
-	return &ProjectExpr{r1.source, z2}
+	return &ProjectExpr{r1.source, z2, nil}
 
 }
 
 // Restrict creates a new relation with less than or equal cardinality
 // p has to be a func(tup T) bool where tup is a subdomain of the input r.
 func (r1 *ProjectExpr) Restrict(p Predicate) Relation {
-	return &ProjectExpr{r1.source.Restrict(p), r1.zero}
+	if r1.Err() != nil {
+		return r1
+	}
+	return &ProjectExpr{r1.source.Restrict(p), r1.zero, nil}
 }
 
 // Rename creates a new relation with new column names
@@ -202,29 +219,58 @@ func (r1 *ProjectExpr) Restrict(p Predicate) Relation {
 // note: we might want to change this into a projectrename operation?  It will
 // be tricky to represent this in go's type system, I think.
 func (r1 *ProjectExpr) Rename(z2 T) Relation {
-	return &RenameExpr{r1, z2}
+	if r1.Err() != nil {
+		return r1
+	}
+	return &RenameExpr{r1, z2, nil}
 }
 
 // Union creates a new relation by unioning the bodies of both inputs
 //
 func (r1 *ProjectExpr) Union(r2 Relation) Relation {
-	return &UnionExpr{r1, r2}
+	if r1.Err() != nil {
+		return r1
+	}
+	if r2.Err() != nil {
+		return r2
+	}
+	return &UnionExpr{r1, r2, nil}
 }
 
 // SetDiff creates a new relation by set minusing the two inputs
 //
 func (r1 *ProjectExpr) SetDiff(r2 Relation) Relation {
-	return &SetDiffExpr{r1, r2}
+	if r1.Err() != nil {
+		return r1
+	}
+	if r2.Err() != nil {
+		return r2
+	}
+	return &SetDiffExpr{r1, r2, nil}
 }
 
 // Join creates a new relation by performing a natural join on the inputs
 //
 func (r1 *ProjectExpr) Join(r2 Relation, zero T) Relation {
-	return &JoinExpr{r1, r2, zero}
+	if r1.Err() != nil {
+		return r1
+	}
+	if r2.Err() != nil {
+		return r2
+	}
+	return &JoinExpr{r1, r2, zero, nil}
 }
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
 func (r1 *ProjectExpr) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
-	return &GroupByExpr{r1, t2, vt, gfcn}
+	if r1.Err() != nil {
+		return r1
+	}
+	return &GroupByExpr{r1, t2, vt, gfcn, nil}
+}
+
+// Error returns an error encountered during construction or computation
+func (r1 *ProjectExpr) Err() error {
+	return r1.err
 }

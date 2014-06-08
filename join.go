@@ -12,10 +12,18 @@ type JoinExpr struct {
 	source1 Relation
 	source2 Relation
 	zero    T
+
+	err error
 }
 
 func (r *JoinExpr) Tuples(t chan<- T) chan<- struct{} {
 	cancel := make(chan struct{})
+
+	if r.Err() != nil {
+		close(t)
+		return cancel
+	}
+
 	mc := runtime.GOMAXPROCS(-1)
 	e3 := reflect.TypeOf(r.zero)
 
@@ -52,6 +60,11 @@ func (r *JoinExpr) Tuples(t chan<- T) chan<- struct{} {
 			close(bcancel1)
 			close(bcancel2)
 		default:
+			if err := r.source1.Err(); err != nil {
+				r.err = err
+			} else if err := r.source2.Err(); err != nil {
+				r.err = err
+			}
 			close(res)
 		}
 	}(t)
@@ -154,6 +167,9 @@ func (r *JoinExpr) String() string {
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
 func (r1 *JoinExpr) Project(z2 T) Relation {
+	if r1.Err() != nil {
+		return r1
+	}
 	// TODO(jonlawlor): this can be sped up if we compare the candidate keys
 	// used in the relation to the new domain, along with the source relations
 	// domains.
@@ -162,13 +178,16 @@ func (r1 *JoinExpr) Project(z2 T) Relation {
 		// either projection is an error or a no op
 		return r1
 	} else {
-		return &ProjectExpr{r1, z2}
+		return &ProjectExpr{r1, z2, nil}
 	}
 }
 
 // Restrict creates a new relation with less than or equal cardinality
 // p has to be a func(tup T) bool where tup is a subdomain of the input r.
 func (r1 *JoinExpr) Restrict(p Predicate) Relation {
+	if r1.Err() != nil {
+		return r1
+	}
 
 	// decompose compound predicates
 	if andPred, ok := p.(AndPred); ok {
@@ -181,14 +200,14 @@ func (r1 *JoinExpr) Restrict(p Predicate) Relation {
 	h2 := Heading(r1.source2)
 	if isSubDomain(dom, h1) {
 		if isSubDomain(dom, h2) {
-			return &JoinExpr{r1.source1.Restrict(p), r1.source2.Restrict(p), r1.zero}
+			return &JoinExpr{r1.source1.Restrict(p), r1.source2.Restrict(p), r1.zero, nil}
 		} else {
-			return &JoinExpr{r1.source1.Restrict(p), r1.source2, r1.zero}
+			return &JoinExpr{r1.source1.Restrict(p), r1.source2, r1.zero, nil}
 		}
 	} else if isSubDomain(dom, h2) {
-		return &JoinExpr{r1.source1, r1.source2.Restrict(p), r1.zero}
+		return &JoinExpr{r1.source1, r1.source2.Restrict(p), r1.zero, nil}
 	} else {
-		return &RestrictExpr{r1, p}
+		return &RestrictExpr{r1, p, nil}
 	}
 }
 
@@ -197,29 +216,58 @@ func (r1 *JoinExpr) Restrict(p Predicate) Relation {
 // note: we might want to change this into a projectrename operation?  It will
 // be tricky to represent this in go's type system, I think.
 func (r1 *JoinExpr) Rename(z2 T) Relation {
-	return &RenameExpr{r1, z2}
+	if r1.Err() != nil {
+		return r1
+	}
+	return &RenameExpr{r1, z2, nil}
 }
 
 // Union creates a new relation by unioning the bodies of both inputs
 //
 func (r1 *JoinExpr) Union(r2 Relation) Relation {
-	return &UnionExpr{r1, r2}
+	if r1.Err() != nil {
+		return r1
+	}
+	if r2.Err() != nil {
+		return r2
+	}
+	return &UnionExpr{r1, r2, nil}
 }
 
 // SetDiff creates a new relation by set minusing the two inputs
 //
 func (r1 *JoinExpr) SetDiff(r2 Relation) Relation {
-	return &SetDiffExpr{r1, r2}
+	if r1.Err() != nil {
+		return r1
+	}
+	if r2.Err() != nil {
+		return r2
+	}
+	return &SetDiffExpr{r1, r2, nil}
 }
 
 // Join creates a new relation by performing a natural join on the inputs
 //
 func (r1 *JoinExpr) Join(r2 Relation, zero T) Relation {
-	return &JoinExpr{r1, r2, zero}
+	if r1.Err() != nil {
+		return r1
+	}
+	if r2.Err() != nil {
+		return r2
+	}
+	return &JoinExpr{r1, r2, zero, nil}
 }
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
 func (r1 *JoinExpr) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
-	return &GroupByExpr{r1, t2, vt, gfcn}
+	if r1.Err() != nil {
+		return r1
+	}
+	return &GroupByExpr{r1, t2, vt, gfcn, nil}
+}
+
+// Error returns an error encountered during construction or computation
+func (r1 *JoinExpr) Err() error {
+	return r1.err
 }

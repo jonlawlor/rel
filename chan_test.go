@@ -30,7 +30,7 @@ func toChan(r Relation) Relation {
 		}
 		ch.Close()
 	}(t)
-	return &Chan{ch, r.CKeys(), r.Zero(), true}
+	return &Chan{ch, r.CKeys(), r.Zero(), true, nil}
 }
 
 func TestChan(t *testing.T) {

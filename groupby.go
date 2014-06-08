@@ -24,6 +24,8 @@ type GroupByExpr struct {
 	// We might want to be able to short circuit this evaluation in a few
 	// cases though?
 	gfcn func(<-chan T) T
+
+	err error
 }
 
 // the implementation for groupby creates a map from the groups to
@@ -38,6 +40,12 @@ type GroupByExpr struct {
 
 func (r *GroupByExpr) Tuples(t chan<- T) chan<- struct{} {
 	cancel := make(chan struct{})
+
+	if r.Err() != nil {
+		close(t)
+		return cancel
+	}
+
 	// figure out the new elements used for each of the derived types
 	e1 := reflect.TypeOf(r.source.Zero())
 	e2 := reflect.TypeOf(r.zero)    // type of the resulting relation's tuples
@@ -133,6 +141,9 @@ func (r *GroupByExpr) Tuples(t chan<- T) chan<- struct{} {
 		case <-cancel:
 			return
 		default:
+			if err := r.source.Err(); err != nil {
+				r.err = err
+			}
 			close(res)
 		}
 	}(body, t)
@@ -216,6 +227,9 @@ func (r *GroupByExpr) String() string {
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
 func (r1 *GroupByExpr) Project(z2 T) Relation {
+	if r1.Err() != nil {
+		return r1
+	}
 	// TODO(jonlawlor): add query rewrite if projection does not include any
 	// of the attributes in the valZero.  In that situation, no grouping is
 	// needed.
@@ -224,14 +238,17 @@ func (r1 *GroupByExpr) Project(z2 T) Relation {
 		// either projection is an error or a no op
 		return r1
 	} else {
-		return &ProjectExpr{r1, z2}
+		return &ProjectExpr{r1, z2, nil}
 	}
 }
 
 // Restrict creates a new relation with less than or equal cardinality
 // p has to be a func(tup T) bool where tup is a subdomain of the input r.
-func (r *GroupByExpr) Restrict(p Predicate) Relation {
-	return &RestrictExpr{r, p}
+func (r1 *GroupByExpr) Restrict(p Predicate) Relation {
+	if r1.Err() != nil {
+		return r1
+	}
+	return &RestrictExpr{r1, p, nil}
 }
 
 // Rename creates a new relation with new column names
@@ -239,29 +256,58 @@ func (r *GroupByExpr) Restrict(p Predicate) Relation {
 // note: we might want to change this into a projectrename operation?  It will
 // be tricky to represent this in go's type system, I think.
 func (r1 *GroupByExpr) Rename(z2 T) Relation {
-	return &RenameExpr{r1, z2}
+	if r1.Err() != nil {
+		return r1
+	}
+	return &RenameExpr{r1, z2, nil}
 }
 
 // Union creates a new relation by unioning the bodies of both inputs
 //
 func (r1 *GroupByExpr) Union(r2 Relation) Relation {
-	return &UnionExpr{r1, r2}
+	if r1.Err() != nil {
+		return r1
+	}
+	if r2.Err() != nil {
+		return r2
+	}
+	return &UnionExpr{r1, r2, nil}
 }
 
 // SetDiff creates a new relation by set minusing the two inputs
 //
 func (r1 *GroupByExpr) SetDiff(r2 Relation) Relation {
-	return &SetDiffExpr{r1, r2}
+	if r1.Err() != nil {
+		return r1
+	}
+	if r2.Err() != nil {
+		return r2
+	}
+	return &SetDiffExpr{r1, r2, nil}
 }
 
 // Join creates a new relation by performing a natural join on the inputs
 //
 func (r1 *GroupByExpr) Join(r2 Relation, zero T) Relation {
-	return &JoinExpr{r1, r2, zero}
+	if r1.Err() != nil {
+		return r1
+	}
+	if r2.Err() != nil {
+		return r2
+	}
+	return &JoinExpr{r1, r2, zero, nil}
 }
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
 func (r1 *GroupByExpr) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
-	return &GroupByExpr{r1, t2, vt, gfcn}
+	if r1.Err() != nil {
+		return r1
+	}
+	return &GroupByExpr{r1, t2, vt, gfcn, nil}
+}
+
+// Error returns an error encountered during construction or computation
+func (r1 *GroupByExpr) Err() error {
+	return r1.err
 }

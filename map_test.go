@@ -17,7 +17,7 @@ func toMap(r Relation) Relation {
 	for tup := range t {
 		m.SetMapIndex(reflect.ValueOf(tup), v)
 	}
-	return &Map{m, r.CKeys(), r.Zero()}
+	return &Map{m, r.CKeys(), r.Zero(), nil}
 }
 
 // test the degrees, cardinality, and string representation

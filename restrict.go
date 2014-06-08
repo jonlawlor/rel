@@ -17,10 +17,17 @@ type RestrictExpr struct {
 
 	// the restriction predicate
 	p Predicate
+
+	err error
 }
 
 func (r *RestrictExpr) Tuples(t chan<- T) chan<- struct{} {
 	cancel := make(chan struct{})
+
+	if r.Err() != nil {
+		close(t)
+		return cancel
+	}
 
 	// transform the channel of tuples from the relation
 	mc := runtime.GOMAXPROCS(-1)
@@ -42,6 +49,9 @@ func (r *RestrictExpr) Tuples(t chan<- T) chan<- struct{} {
 		case <-cancel:
 			close(bcancel)
 		default:
+			if err := r.source.Err(); err != nil {
+				r.err = err
+			}
 			close(res)
 		}
 	}(t)
@@ -97,25 +107,31 @@ func (r *RestrictExpr) String() string {
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
 func (r1 *RestrictExpr) Project(z2 T) Relation {
+	if r1.Err() != nil {
+		return r1
+	}
 	att2 := fieldNames(reflect.TypeOf(z2))
 	if Deg(r1) == len(att2) {
 		// either projection is an error or a no op
 		return r1
 	}
 	if isSubDomain(r1.p.Domain(), att2) { // the predicate's attributes exist after project
-		return &RestrictExpr{r1.source.Project(z2), r1.p}
+		return &RestrictExpr{r1.source.Project(z2), r1.p, nil}
 	} else {
-		return &ProjectExpr{r1, z2}
+		return &ProjectExpr{r1, z2, nil}
 	}
 }
 
 // Restrict creates a new relation with less than or equal cardinality
 // p has to be a func(tup T) bool where tup is a subdomain of the input r.
 func (r1 *RestrictExpr) Restrict(p Predicate) Relation {
+	if r1.Err() != nil {
+		return r1
+	}
 	// TODO(jonlawlor): implement predicate combination
 
 	// by reversing the order, this provides a way for AndPreds to pass through
-	return &RestrictExpr{r1.source.Restrict(p), r1.p}
+	return &RestrictExpr{r1.source.Restrict(p), r1.p, nil}
 }
 
 // Rename creates a new relation with new column names
@@ -123,31 +139,60 @@ func (r1 *RestrictExpr) Restrict(p Predicate) Relation {
 // note: we might want to change this into a projectrename operation?  It will
 // be tricky to represent this in go's type system, I think.
 func (r1 *RestrictExpr) Rename(z2 T) Relation {
-	return &RenameExpr{r1, z2}
+	if r1.Err() != nil {
+		return r1
+	}
+	return &RenameExpr{r1, z2, nil}
 }
 
 // Union creates a new relation by unioning the bodies of both inputs
 //
 func (r1 *RestrictExpr) Union(r2 Relation) Relation {
-	return &UnionExpr{r1, r2}
+	if r1.Err() != nil {
+		return r1
+	}
+	if r2.Err() != nil {
+		return r2
+	}
+	return &UnionExpr{r1, r2, nil}
 }
 
 // SetDiff creates a new relation by set minusing the two inputs
 //
 func (r1 *RestrictExpr) SetDiff(r2 Relation) Relation {
-	return &SetDiffExpr{r1, r2}
+	if r1.Err() != nil {
+		return r1
+	}
+	if r2.Err() != nil {
+		return r2
+	}
+	return &SetDiffExpr{r1, r2, nil}
 }
 
 // Join creates a new relation by performing a natural join on the inputs
 //
 func (r1 *RestrictExpr) Join(r2 Relation, zero T) Relation {
+	if r1.Err() != nil {
+		return r1
+	}
+	if r2.Err() != nil {
+		return r2
+	}
 	// TODO(jonlawlor): test to see if the restrict op can also be applied to
 	// r2.
-	return &JoinExpr{r1, r2, zero}
+	return &JoinExpr{r1, r2, zero, nil}
 }
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
 func (r1 *RestrictExpr) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
-	return &GroupByExpr{r1, t2, vt, gfcn}
+	if r1.Err() != nil {
+		return r1
+	}
+	return &GroupByExpr{r1, t2, vt, gfcn, nil}
+}
+
+// Error returns an error encountered during construction or computation
+func (r1 *RestrictExpr) Err() error {
+	return r1.err
 }

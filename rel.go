@@ -77,6 +77,8 @@ type Relation interface {
 	String() string
 
 	GoString() string
+
+	Err() error
 }
 
 // New creates a new Relation from a []struct, map[struct] or chan struct.
