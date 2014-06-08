@@ -17,6 +17,8 @@ Relation Interface
 Relations are channels of tuples, and operations on those channels.  The relational algebra operations of project, restrict, join, intersect, setdiff, and union all take at least one relation input and result in a relation output.  Many of the relational operations
 feature query rewrite, using the rules of relational algebra, for example: http://www.dcs.warwick.ac.uk/~wmb/CS319/pdf/opt.pdf.
 
+Results tuples can be cancelled, or Relational operations can be an error.  The difference between them is that errors come from the source, and cancellation comes from the sink.
+
 Predicate Interface
 -------------------
 Predicates are used in the restrict operation.
