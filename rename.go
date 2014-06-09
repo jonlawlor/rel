@@ -179,6 +179,9 @@ func (r1 *RenameExpr) Union(r2 Relation) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
+	if r2.Err() != nil {
+		return r2
+	}
 	return &UnionExpr{r1, r2, nil}
 }
 
@@ -188,6 +191,9 @@ func (r1 *RenameExpr) SetDiff(r2 Relation) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
+	if r2.Err() != nil {
+		return r2
+	}
 	return &SetDiffExpr{r1, r2, nil}
 }
 
@@ -196,6 +202,9 @@ func (r1 *RenameExpr) SetDiff(r2 Relation) Relation {
 func (r1 *RenameExpr) Join(r2 Relation, zero T) Relation {
 	if r1.Err() != nil {
 		return r1
+	}
+	if r2.Err() != nil {
+		return r2
 	}
 	return &JoinExpr{r1, r2, zero, nil}
 }
