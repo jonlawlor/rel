@@ -37,6 +37,7 @@ TODOs
 + Implement Map
 + Write better docs
 + Write single godoc file
++ Hook up chan_mem to some kind of copying mechanism.
 
 Errors
 ======
