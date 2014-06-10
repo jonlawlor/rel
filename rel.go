@@ -68,6 +68,8 @@ type Relation interface {
 
 	Join(r2 Relation, zero T) Relation
 
+	Map(mfcn func(from T) (to T), z2 T, ckeystr [][]string) Relation
+
 	// non relational but still useful
 
 	GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation

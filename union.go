@@ -209,6 +209,15 @@ func (r1 *UnionExpr) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
 	return &GroupByExpr{r1, t2, vt, gfcn, nil}
 }
 
+// Map creates a new relation by applying a function to tuples in the source
+func (r1 *UnionExpr) Map(mfcn func(from T) (to T), z2 T, ckeystr [][]string) Relation {
+	if r1.Err() != nil {
+		return r1
+	}
+	// map is distributable over union
+	return &UnionExpr{r1.source1.Map(mfcn, z2, ckeystr), r1.source2.Map(mfcn, z2, ckeystr), nil}
+}
+
 // Error returns an error encountered during construction or computation
 func (r1 *UnionExpr) Err() error {
 	return r1.err

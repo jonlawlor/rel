@@ -1,6 +1,7 @@
 package rel
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -18,7 +19,7 @@ func TestJoin(t *testing.T) {
 		Qty    int     // from the orders table
 	}
 
-	r1 := parts.Join(orders, restup{})
+	r1 := parts().Join(orders(), restup{})
 	wantString := `rel.New([]struct {
  PNO    int     
  PName  string  
@@ -54,7 +55,7 @@ func TestJoin(t *testing.T) {
 		SNO    int
 		Qty    int
 	}
-	rel := parts.Join(orders, joinTup1{})
+	rel := parts().Join(orders(), joinTup1{})
 	type distinctTup struct {
 		PNO   int
 		PName string
@@ -98,6 +99,22 @@ func TestJoin(t *testing.T) {
 		}
 		return res
 	}
+
+	type mapRes struct {
+		PNO     int
+		TotalWt float64
+	}
+	mapFcn := func(tup1 T) T {
+		if v, ok := tup1.(joinTup1); ok {
+			return mapRes{v.PNO, v.Weight * float64(v.Qty)}
+		} else {
+			return mapRes{}
+		}
+	}
+	mapKeys := [][]string{
+		[]string{"PNO", "SNO"},
+	}
+
 	var relTest = []struct {
 		rel          Relation
 		expectString string
@@ -111,24 +128,63 @@ func TestJoin(t *testing.T) {
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, PName, Weight, City, Sno, Qty}/{PNO, PName, Weight, City, SNO, Qty}(Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty))", 6, 12},
 		{rel.SetDiff(rel.Restrict(Attribute("Weight").LT(15.0))), "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty) − σ{Weight < 15}(Relation(PNO, PName, Color, Weight, City)) ⋈ Relation(PNO, SNO, Qty)", 6, 3},
 		{rel.Union(rel.Restrict(Attribute("Weight").LE(12.0))), "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty) ∪ σ{Weight <= 12}(Relation(PNO, PName, Color, Weight, City)) ⋈ Relation(PNO, SNO, Qty)", 6, 12},
-		{rel.Join(suppliers, joinTup2{}), "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty) ⋈ Relation(SNO, SName, Status, City)", 8, 4},
+		{rel.Join(suppliers(), joinTup2{}), "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty) ⋈ Relation(SNO, SName, Status, City)", 8, 4},
 		{rel.GroupBy(groupByTup{}, valTup{}, groupFcn), "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty).GroupBy({City, Weight}, {Qty, Weight})", 2, 3},
+		{rel.Map(mapFcn, mapRes{}, mapKeys), "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty).Map({PNO, PName, Weight, City, SNO, Qty}->{PNO, TotalWt})", 2, 12}, // this is not actually distinct
+		{rel.Map(mapFcn, mapRes{}, [][]string{}), "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty).Map({PNO, PName, Weight, City, SNO, Qty}->{PNO, TotalWt})", 2, 10},
 	}
 
 	for i, tt := range relTest {
-		str := tt.rel.String()
-		deg := Deg(tt.rel)
-		card := Card(tt.rel)
-		if str != tt.expectString {
+		if str := tt.rel.String(); str != tt.expectString {
 			t.Errorf("%d has String() => %v, want %v", i, str, tt.expectString)
 		}
-		if deg != tt.expectDeg {
+		if deg := Deg(tt.rel); deg != tt.expectDeg {
 			t.Errorf("%d %s has Deg() => %v, want %v", i, tt.expectString, deg, tt.expectDeg)
 		}
-		if card != tt.expectCard {
+		if card := Card(tt.rel); card != tt.expectCard {
 			t.Errorf("%d %s has Card() => %v, want %v", i, tt.expectString, card, tt.expectCard)
 		}
 	}
+	// test cancellation
+	res := make(chan T)
+	cancel := rel.Tuples(res)
+	close(cancel)
+	select {
+	case <-res:
+		t.Errorf("cancel did not end tuple generation")
+	default:
+		// passed test
+	}
+	// test errors
+	err := fmt.Errorf("testing error")
+	rel1 := parts().Join(orders(), joinTup1{}).(*JoinExpr)
+	rel1.err = err
+	rel2 := parts().Join(orders(), joinTup1{}).(*JoinExpr)
+	rel2.err = err
+	res = make(chan T)
+	_ = rel1.Tuples(res)
+	if _, ok := <-res; ok {
+		t.Errorf("%d did not short circuit Tuples")
+	}
+	errTest := []Relation{
+		rel1.Project(distinctTup{}),
+		rel1.Restrict(Not(Attribute("PNO").EQ(1))),
+		rel1.Rename(titleCaseTup{}),
+		rel1.Union(rel2),
+		rel.Union(rel2),
+		rel1.SetDiff(rel2),
+		rel.SetDiff(rel2),
+		rel1.Join(rel2, orderTup{}),
+		rel.Join(rel2, orderTup{}),
+		rel1.GroupBy(groupByTup{}, valTup{}, groupFcn),
+		rel1.Map(mapFcn, mapRes{}, mapKeys),
+	}
+	for i, errRel := range errTest {
+		if errRel.Err() != err {
+			t.Errorf("%d did not short circuit error", i)
+		}
+	}
+
 }
 func BenchmarkJoin(b *testing.B) {
 	type restup struct {
@@ -141,7 +197,7 @@ func BenchmarkJoin(b *testing.B) {
 		Qty    int     // from the orders table
 	}
 
-	r1 := parts.Join(orders, restup{})
+	r1 := parts().Join(orders(), restup{})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// each iteration produces 12 tuples

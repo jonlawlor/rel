@@ -267,6 +267,28 @@ func (r1 *JoinExpr) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
 	return &GroupByExpr{r1, t2, vt, gfcn, nil}
 }
 
+// Map creates a new relation by applying a function to tuples in the source
+func (r1 *JoinExpr) Map(mfcn func(from T) (to T), z2 T, ckeystr [][]string) Relation {
+	if r1.Err() != nil {
+		return r1
+	}
+	// determine the type of the returned tuples
+	r := new(MapExpr)
+	r.source1 = r1
+	r.zero = z2
+	r.fcn = mfcn
+	if len(ckeystr) == 0 {
+		// all relations have a candidate key of all of their attributes, or
+		// a non zero subset if the relation is not dee or dum
+		r.cKeys = defaultKeys(z2)
+	} else {
+		r.isDistinct = true
+		// convert from [][]string to CandKeys
+		r.cKeys = string2CandKeys(ckeystr)
+	}
+	return r
+}
+
 // Error returns an error encountered during construction or computation
 func (r1 *JoinExpr) Err() error {
 	return r1.err

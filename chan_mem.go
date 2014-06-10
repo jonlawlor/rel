@@ -1,5 +1,6 @@
 package rel
 
+/*  for future use in a relation Copy method
 import "sync"
 
 // TODO(jonlawlor) incorporate this in functions such as join, union, and
@@ -80,3 +81,4 @@ func (m *Memory) copyFromMem(i int, to chan T) int {
 	}
 	return i
 }
+*/

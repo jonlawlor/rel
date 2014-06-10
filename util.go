@@ -1,7 +1,6 @@
 package rel
 
 import (
-	"fmt" // we might want to replace this with errors
 	"reflect"
 	"sort"
 )
@@ -82,33 +81,6 @@ func defaultKeys(z interface{}) CandKeys {
 	// get the names of the fields out of the interface
 	e := reflect.TypeOf(z)
 	return CandKeys{fieldNames(e)}
-}
-
-// checkCandidateKeys checks the set of candidate keys
-// this ensures that the names of the keys are all in the attributes
-// of the relation
-func checkCandidateKeys(ckeys CandKeys, cn []Attribute) (err error) {
-	// TODO(jonlawlor) cannonicalize these somehow
-	names := make(map[Attribute]struct{})
-	for _, n := range cn {
-		names[n] = struct{}{}
-	}
-	for _, ck := range ckeys {
-		if len(ck) == 0 {
-			// note that this doesn't fire if ckeys is also empty
-			// but that is by design
-			err = fmt.Errorf("empty candidate key not allowed")
-			return
-		}
-		for _, k := range ck {
-			_, keyFound := names[k]
-			if !keyFound {
-				err = fmt.Errorf("prime attribute not found: %s", k)
-				return
-			}
-		}
-	}
-	return
 }
 
 // subsetCandidateKeys subsets candidate keys so they only include given fields
@@ -252,23 +224,4 @@ func partialEquals(tup1 reflect.Value, tup2 reflect.Value, fmap map[Attribute]fi
 		}
 	}
 	return true
-}
-
-// distinct changes an interface channel to a channel of unique interfaces
-// TODO(jonlawlor): change this to a function that takes a destination chan
-// and returns a function which can be used to send values to the destination
-// if they have not already been sent.  We might want a mutex as well?
-func distinct(b1 chan T) (b2 chan T) {
-	m := make(map[interface{}]struct{})
-	b2 = make(chan T)
-	go func() {
-		for v := range b1 {
-			if _, dup := m[v]; !dup {
-				m[v] = struct{}{}
-				b2 <- v
-			}
-		}
-		close(b2)
-	}()
-	return
 }

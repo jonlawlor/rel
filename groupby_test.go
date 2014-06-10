@@ -1,6 +1,7 @@
 package rel
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -34,7 +35,7 @@ func TestGroupBy(t *testing.T) {
  {2, 700,  },
  {3, 200,  },
 })`
-	r1 := orders.GroupBy(r1tup{}, valtup{}, groupFcn)
+	r1 := orders().GroupBy(r1tup{}, valtup{}, groupFcn)
 	if r1.GoString() != wantString {
 		t.Errorf("orders.Groupby = \"%s\", want \"%s\"", r1.GoString(), wantString)
 	}
@@ -57,7 +58,7 @@ func TestGroupBy(t *testing.T) {
 		return res
 	}
 
-	rel := parts.GroupBy(groupByTup1{}, valTup{}, weightSum)
+	rel := parts().GroupBy(groupByTup1{}, valTup{}, weightSum)
 	type distinctTup struct {
 		PNO   int
 		PName string
@@ -85,6 +86,23 @@ func TestGroupBy(t *testing.T) {
 		City   string
 		Weight float64
 	}
+
+	type mapRes struct {
+		PNO     int
+		PName   string
+		Weight2 float64
+	}
+	mapFcn := func(tup1 T) T {
+		if v, ok := tup1.(groupByTup1); ok {
+			return mapRes{v.PNO, v.PName, v.Weight / 2}
+		} else {
+			return mapRes{}
+		}
+	}
+	mapKeys := [][]string{
+		[]string{"PNO"},
+	}
+
 	var relTest = []struct {
 		rel          Relation
 		expectString string
@@ -98,24 +116,64 @@ func TestGroupBy(t *testing.T) {
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, PName, Weight, City}/{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}))", 4, 6},
 		{rel.SetDiff(rel.Restrict(Attribute("Weight").LT(15.0))), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}) − σ{Weight < 15}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}))", 4, 3},
 		{rel.Union(rel.Restrict(Attribute("Weight").LE(12.0))), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}) ∪ σ{Weight <= 12}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}))", 4, 6},
-		{rel.Join(suppliers, joinTup{}), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}) ⋈ Relation(SNO, SName, Status, City)", 6, 10},
+		{rel.Join(suppliers(), joinTup{}), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}) ⋈ Relation(SNO, SName, Status, City)", 6, 10},
 		{rel.GroupBy(groupByTup2{}, valTup{}, weightSum), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}).GroupBy({City, Weight}, {Weight})", 2, 3},
+		{rel.Map(mapFcn, mapRes{}, mapKeys), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}).Map({PNO, PName, Weight, City}->{PNO, PName, Weight2})", 3, 6},
+		{rel.Map(mapFcn, mapRes{}, [][]string{}), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}).Map({PNO, PName, Weight, City}->{PNO, PName, Weight2})", 3, 6},
 	}
 
 	for i, tt := range relTest {
-		str := tt.rel.String()
-		deg := Deg(tt.rel)
-		card := Card(tt.rel)
-		if str != tt.expectString {
+		if str := tt.rel.String(); str != tt.expectString {
 			t.Errorf("%d has String() => %v, want %v", i, str, tt.expectString)
 		}
-		if deg != tt.expectDeg {
+		if deg := Deg(tt.rel); deg != tt.expectDeg {
 			t.Errorf("%d %s has Deg() => %v, want %v", i, tt.expectString, deg, tt.expectDeg)
 		}
-		if card != tt.expectCard {
+		if card := Card(tt.rel); card != tt.expectCard {
 			t.Errorf("%d %s has Card() => %v, want %v", i, tt.expectString, card, tt.expectCard)
 		}
 	}
+	// test cancellation
+	res := make(chan T)
+	cancel := rel.Tuples(res)
+	close(cancel)
+	select {
+	case <-res:
+		t.Errorf("cancel did not end tuple generation")
+	default:
+		// passed test
+	}
+
+	// test errors
+	err := fmt.Errorf("testing error")
+	rel1 := parts().GroupBy(groupByTup1{}, valTup{}, weightSum).(*GroupByExpr)
+	rel1.err = err
+	rel2 := parts().GroupBy(groupByTup1{}, valTup{}, weightSum).(*GroupByExpr)
+	rel2.err = err
+	res = make(chan T)
+	_ = rel1.Tuples(res)
+	if _, ok := <-res; ok {
+		t.Errorf("%d did not short circuit Tuples")
+	}
+	errTest := []Relation{
+		rel1.Project(distinctTup{}),
+		rel1.Restrict(Not(Attribute("PNO").EQ(1))),
+		rel1.Rename(titleCaseTup{}),
+		rel1.Union(rel2),
+		rel.Union(rel2),
+		rel1.SetDiff(rel2),
+		rel.SetDiff(rel2),
+		rel1.Join(rel2, orderTup{}),
+		rel.Join(rel2, orderTup{}),
+		rel1.GroupBy(groupByTup2{}, valTup{}, groupFcn),
+		rel1.Map(mapFcn, mapRes{}, mapKeys),
+	}
+	for i, errRel := range errTest {
+		if errRel.Err() != err {
+			t.Errorf("%d did not short circuit error", i)
+		}
+	}
+
 }
 func BenchmarkGroupBy(b *testing.B) {
 	type r1tup struct {
@@ -135,7 +193,7 @@ func BenchmarkGroupBy(b *testing.B) {
 		}
 		return res
 	}
-	r1 := orders.GroupBy(r1tup{}, valtup{}, groupFcn)
+	r1 := orders().GroupBy(r1tup{}, valtup{}, groupFcn)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// each iteration produces 4 tuples

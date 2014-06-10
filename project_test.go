@@ -1,6 +1,7 @@
 package rel
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -14,16 +15,16 @@ func TestProject(t *testing.T) {
 		Qty int
 	}
 
-	r1 := orders.Project(r1tup{})
-	if r1.GoString() != orders.GoString() {
-		t.Errorf("orders.Project(PNO, SNO, Qty) = \"%s\", want \"%s\"", r1.GoString(), orders.GoString())
+	r1 := orders().Project(r1tup{})
+	if r1.GoString() != orders().GoString() {
+		t.Errorf("orders.Project(PNO, SNO, Qty) = \"%s\", want \"%s\"", r1.GoString(), orders().GoString())
 	}
 	type r2tup struct {
 		PNO int
 		SNO int
 	}
 
-	r2 := orders.Project(r2tup{})
+	r2 := orders().Project(r2tup{})
 	r2GoString := `rel.New([]struct {
  PNO int 
  SNO int 
@@ -50,21 +51,14 @@ func TestProject(t *testing.T) {
 		PNO int
 		Qty int
 	}
-	r3 := orders.Project(r3tup{})
+	r3 := orders().Project(r3tup{})
 	if Deg(r3) != 2 || Card(r3) != 10 {
 		t.Errorf("orders.Project(PNO, Qty) has Deg %d, Card %d, want Deg %d, Card %d", Deg(r3), Card(r3), 2, 10)
 
 	}
 
 	// test the degrees, cardinality, and string representation
-	type partsTup struct {
-		PNO    int
-		PName  string
-		Weight float64
-		City   string
-	}
-
-	rel := parts.Project(partsTup{})
+	rel := parts().Project(partTup{})
 	type distinctTup struct {
 		PNO   int
 		PName string
@@ -103,6 +97,22 @@ func TestProject(t *testing.T) {
 		}
 		return res
 	}
+	type mapRes struct {
+		PNO     int
+		PName   string
+		Weight2 float64
+	}
+	mapFcn := func(tup1 T) T {
+		if v, ok := tup1.(partTup); ok {
+			return mapRes{v.PNO, v.PName, v.Weight / 2}
+		} else {
+			return mapRes{}
+		}
+	}
+	mapKeys := [][]string{
+		[]string{"PNO"},
+	}
+
 	var relTest = []struct {
 		rel          Relation
 		expectString string
@@ -116,24 +126,64 @@ func TestProject(t *testing.T) {
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, PName, Weight, City}/{PNO, PName, Weight, City}(π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)))", 4, 6},
 		{rel.SetDiff(rel.Restrict(Attribute("Weight").LT(15.0))), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)) − π{PNO, PName, Weight, City}(σ{Weight < 15}(Relation(PNO, PName, Color, Weight, City)))", 4, 3},
 		{rel.Union(rel.Restrict(Attribute("Weight").LE(12.0))), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)) ∪ π{PNO, PName, Weight, City}(σ{Weight <= 12}(Relation(PNO, PName, Color, Weight, City)))", 4, 6},
-		{rel.Join(suppliers, joinTup{}), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)) ⋈ Relation(SNO, SName, Status, City)", 6, 10},
+		{rel.Join(suppliers(), joinTup{}), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)) ⋈ Relation(SNO, SName, Status, City)", 6, 10},
 		{rel.GroupBy(groupByTup{}, valTup{}, groupFcn), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)).GroupBy({City, Weight}, {Weight})", 2, 3},
+		{rel.Map(mapFcn, mapRes{}, mapKeys), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)).Map({PNO, PName, Weight, City}->{PNO, PName, Weight2})", 3, 6},
+		{rel.Map(mapFcn, mapRes{}, [][]string{}), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)).Map({PNO, PName, Weight, City}->{PNO, PName, Weight2})", 3, 6},
 	}
 
 	for i, tt := range relTest {
-		str := tt.rel.String()
-		deg := Deg(tt.rel)
-		card := Card(tt.rel)
-		if str != tt.expectString {
+		if str := tt.rel.String(); str != tt.expectString {
 			t.Errorf("%d has String() => %v, want %v", i, str, tt.expectString)
 		}
-		if deg != tt.expectDeg {
+		if deg := Deg(tt.rel); deg != tt.expectDeg {
 			t.Errorf("%d %s has Deg() => %v, want %v", i, tt.expectString, deg, tt.expectDeg)
 		}
-		if card != tt.expectCard {
+		if card := Card(tt.rel); card != tt.expectCard {
 			t.Errorf("%d %s has Card() => %v, want %v", i, tt.expectString, card, tt.expectCard)
 		}
 	}
+	// test cancellation
+	res := make(chan T)
+	cancel := rel.Tuples(res)
+	close(cancel)
+	select {
+	case <-res:
+		t.Errorf("cancel did not end tuple generation")
+	default:
+		// passed test
+	}
+
+	// test errors
+	err := fmt.Errorf("testing error")
+	rel1 := parts().Project(partTup{}).(*ProjectExpr)
+	rel1.err = err
+	rel2 := parts().Project(partTup{}).(*ProjectExpr)
+	rel2.err = err
+	res = make(chan T)
+	_ = rel1.Tuples(res)
+	if _, ok := <-res; ok {
+		t.Errorf("did not short circuit Tuples")
+	}
+	errTest := []Relation{
+		rel1.Project(distinctTup{}),
+		rel1.Restrict(Not(Attribute("PNO").EQ(1))),
+		rel1.Rename(titleCaseTup{}),
+		rel1.Union(rel2),
+		rel.Union(rel2),
+		rel1.SetDiff(rel2),
+		rel.SetDiff(rel2),
+		rel1.Join(rel2, orderTup{}),
+		rel.Join(rel2, orderTup{}),
+		rel1.GroupBy(groupByTup{}, valTup{}, groupFcn),
+		rel1.Map(mapFcn, mapRes{}, mapKeys),
+	}
+	for i, errRel := range errTest {
+		if errRel.Err() != err {
+			t.Errorf("%d did not short circuit error", i)
+		}
+	}
+
 }
 func BenchmarkProjectTinyIdent(b *testing.B) {
 	// test the time it takes to do an identity projection for a

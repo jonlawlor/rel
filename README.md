@@ -27,11 +27,10 @@ Predicates are used in the restrict operation.
 TODOs
 =====
 + Add errors to indicate when relations are constructed from invalid operations
-+ Implement tests for Err()
-+ Implement tests for channel canceling
-+ Implement tests for Map
++ finish adding error check on close(res)
++ finish coverage on error short circuit
 + Use the go race detector & clear up any issues.  (this requires a 64bit arch)
-+ Reach 100% test coverage (currently 60%)
++ Reach 100% test coverage (currently 80%)
 + Implement tests with deterministic output of relational operations.  Currently tests for things like GoString, join, and groupby are dependent on the (arbitrary) order of output tuples.  They should go through an orderby operation first, or just compare against a known good relation through setdiff.
 + Implement sub packages for other data sources, such as csv readers, generic sql tables, json, or gob.
 + Implement non relational operations like order.
