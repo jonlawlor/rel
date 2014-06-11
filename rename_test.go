@@ -179,6 +179,11 @@ func TestRename(t *testing.T) {
 			t.Errorf("%d did not short circuit error", i)
 		}
 	}
+
+	errRel := (&errorRel{upperCaseTup{}, 1, nil}).Rename(upperCaseTup{})
+	if c := Card(errRel); c != 1 {
+		t.Errorf("errored relation had Card() => %v, wanted %v", c, 1)
+	}
 }
 
 func BenchmarkRename(b *testing.B) {

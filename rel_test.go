@@ -1,5 +1,9 @@
 package rel
 
+import (
+	"testing"
+)
+
 // test creation of relations, including tests to determine the cost of
 // representing slices of structs as relations instead of native.
 
@@ -40,4 +44,54 @@ func exampleRelChan2(c int) chan exTup2 {
 		close(recs)
 	}()
 	return recs
+}
+
+// test of rel.New using a slice of tuples
+func TestNewSlice(t *testing.T) {
+	r := New(exampleRelSlice2(1), [][]string{[]string{"Foo"}})
+	if c := Card(r); c != 1 {
+		t.Errorf("rel.New has Card() => %v, want %v", c, 1)
+	}
+}
+
+//test of rel.New using a map of tuples
+func TestNewMap(t *testing.T) {
+	r := New(exampleRelMap2(1), [][]string{[]string{"Foo"}})
+	if c := Card(r); c != 1 {
+		t.Errorf("rel.New has Card() => %v, want %v", c, 1)
+	}
+
+}
+
+// test of rel.New using a chan of tuples
+func TestNewChan(t *testing.T) {
+	r := New(exampleRelChan2(1), [][]string{[]string{"Foo"}})
+	if c := Card(r); c != 1 {
+		t.Errorf("rel.New has Card() => %v, want %v", c, 1)
+	}
+}
+
+// test of rel.New using a non distinct slice of tuples
+func TestNewNonDistinctSlice(t *testing.T) {
+	r := New(exampleRelSlice2(1), [][]string{})
+	if c := Card(r); c != 1 {
+		t.Errorf("rel.New has Card() => %v, want %v", c, 1)
+	}
+}
+
+//test of rel.New using a non distinct map of tuples
+func TestNewNonDistinctMap(t *testing.T) {
+	r := New(exampleRelMap2(1), [][]string{})
+	if c := Card(r); c != 1 {
+		t.Errorf("rel.New has Card() => %v, want %v", c, 1)
+	}
+
+}
+
+// test of rel.New using a non distinct chan of tuples
+func TestNewNonDistinctChan(t *testing.T) {
+	r := New(exampleRelChan2(1), [][]string{})
+	if c := Card(r); c != 1 {
+		t.Errorf("rel.New has Card() => %v, want %v", c, 1)
+	}
 }

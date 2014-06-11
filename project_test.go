@@ -184,6 +184,10 @@ func TestProject(t *testing.T) {
 		}
 	}
 
+	errRel := (&errorRel{distinctTup{}, 1, nil}).Project(distinctTup{})
+	if c := Card(errRel); c != 1 {
+		t.Errorf("errored relation had Card() => %v, wanted %v", c, 1)
+	}
 }
 func BenchmarkProjectTinyIdent(b *testing.B) {
 	// test the time it takes to do an identity projection for a
