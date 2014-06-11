@@ -41,7 +41,7 @@ TODOs
 
 Errors
 ======
-I'm not sure what to do with errors yet.  There are 2 types of errors that can be handled: errors in relational construction, like projecting a relation to a set of tuples that are not a subset of the original relation, and errors during computation, like when a data source unexpectedly disconnects.  There are two types of error handling available to us: either panic (and maybe recover) which is expensive, or having some kind of Error() method of relations, which returns an error.  If no error has been encountered, then Error should return nil, otherwise some kind of formatted string.  Having 2-arg outputs is not conducive to the method chaining that is used.
+There are 2 types of errors that can be handled: errors in relational construction, like projecting a relation to a set of tuples that are not a subset of the original relation, and errors during computation, like when a data source unexpectedly disconnects.  There are two types of error handling available to us: either panic (and maybe recover) which is expensive, or having some kind of Error() method of relations, which returns an error.  If no error has been encountered, then Error should return nil, otherwise some kind of formatted string.  Having 2-arg outputs is not conducive to the method chaining that is used.
 
 I think the best course of action is to reserve panic for problems that are not possible for the rel package to handle in advance - like a type error in an AdHoc predicate or grouping function, which rel has no control over.
 
