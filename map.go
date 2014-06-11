@@ -60,6 +60,9 @@ func (r *MapExpr) Tuples(t chan<- T) chan<- struct{} {
 					return
 				}
 			}
+			if err := r.source1.Err(); err != nil {
+				r.err = err
+			}
 			close(t)
 		}(body1, t)
 
@@ -89,6 +92,9 @@ func (r *MapExpr) Tuples(t chan<- T) chan<- struct{} {
 				close(bcancel)
 				return
 			}
+		}
+		if err := r.source1.Err(); err != nil {
+			r.err = err
 		}
 		close(t)
 	}(body1, t)

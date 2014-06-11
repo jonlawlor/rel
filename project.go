@@ -9,7 +9,7 @@ import (
 // projection is a type that represents a project operation
 type ProjectExpr struct {
 	// the input relation
-	source Relation
+	source1 Relation
 
 	// the new tuple type
 	zero T
@@ -29,7 +29,7 @@ func (r *ProjectExpr) Tuples(t chan<- T) chan<- struct{} {
 	}
 
 	// transform the channel of tuples from the relation
-	z1 := r.source.Zero()
+	z1 := r.source1.Zero()
 	// first figure out if the tuple types of the relation and
 	// projection are equivalent.  If so, convert the tuples to
 	// the (possibly new) type and then return the new relation.
@@ -37,7 +37,7 @@ func (r *ProjectExpr) Tuples(t chan<- T) chan<- struct{} {
 	e2 := reflect.TypeOf(r.zero)
 
 	body1 := make(chan T)
-	bcancel := r.source.Tuples(body1)
+	bcancel := r.source1.Tuples(body1)
 
 	if e1.AssignableTo(e2) {
 		// nothing to do.
@@ -61,7 +61,7 @@ func (r *ProjectExpr) Tuples(t chan<- T) chan<- struct{} {
 					return
 				}
 			}
-			if err := r.source.Err(); err != nil {
+			if err := r.source1.Err(); err != nil {
 				r.err = err
 			}
 			close(res)
@@ -77,7 +77,7 @@ func (r *ProjectExpr) Tuples(t chan<- T) chan<- struct{} {
 	// figure out if we need to distinct the results because there are no
 	// candidate keys left
 	// TODO(jonlawlor): refactor with the code in the CKeys() method
-	cKeys := subsetCandidateKeys(r.source.CKeys(), Heading(r.source), fMap)
+	cKeys := subsetCandidateKeys(r.source1.CKeys(), Heading(r.source1), fMap)
 	if len(cKeys) == 0 {
 		go func(body <-chan T, res chan<- T) {
 			m := map[interface{}]struct{}{}
@@ -98,7 +98,7 @@ func (r *ProjectExpr) Tuples(t chan<- T) chan<- struct{} {
 					if _, isdup := m[tup2.Interface()]; !isdup {
 						m[tup2.Interface()] = struct{}{}
 						select {
-						case t <- tup2.Interface():
+						case res <- tup2.Interface():
 						case <-cancel:
 							close(bcancel)
 							return
@@ -109,7 +109,10 @@ func (r *ProjectExpr) Tuples(t chan<- T) chan<- struct{} {
 					return
 				}
 			}
-			close(t)
+			if err := r.source1.Err(); err != nil {
+				r.err = err
+			}
+			close(res)
 		}(body1, t)
 		return cancel
 	}
@@ -132,7 +135,7 @@ func (r *ProjectExpr) Tuples(t chan<- T) chan<- struct{} {
 				}
 				select {
 				// set the field in the new tuple to the value from the old one
-				case t <- tup2.Interface():
+				case res <- tup2.Interface():
 				case <-cancel:
 					close(bcancel)
 					return
@@ -142,7 +145,10 @@ func (r *ProjectExpr) Tuples(t chan<- T) chan<- struct{} {
 				return
 			}
 		}
-		close(t)
+		if err := r.source1.Err(); err != nil {
+			r.err = err
+		}
+		close(res)
 	}(body1, t)
 
 	return cancel
@@ -155,9 +161,9 @@ func (r *ProjectExpr) Zero() T {
 
 // CKeys is the set of candidate keys in the relation
 func (r *ProjectExpr) CKeys() CandKeys {
-	z1 := r.source.Zero()
+	z1 := r.source1.Zero()
 
-	cKeys := r.source.CKeys()
+	cKeys := r.source1.CKeys()
 
 	// first figure out if the tuple types of the relation and projection are
 	// equivalent.  If so, we don't have to do anything with the candidate
@@ -172,7 +178,7 @@ func (r *ProjectExpr) CKeys() CandKeys {
 
 	// otherwise we have to subset the candidate keys.
 	fMap := fieldMap(e1, e2)
-	cKeys = subsetCandidateKeys(cKeys, Heading(r.source), fMap)
+	cKeys = subsetCandidateKeys(cKeys, Heading(r.source1), fMap)
 
 	// every relation except dee and dum have at least one candidate key
 	if len(cKeys) == 0 {
@@ -186,12 +192,12 @@ func (r *ProjectExpr) CKeys() CandKeys {
 
 // GoString returns a text representation of the Relation
 func (r *ProjectExpr) GoString() string {
-	return r.source.GoString() + ".Project(" + HeadingString(r) + ")"
+	return r.source1.GoString() + ".Project(" + HeadingString(r) + ")"
 }
 
 // String returns a text representation of the Relation
 func (r *ProjectExpr) String() string {
-	return "π{" + HeadingString(r) + "}(" + r.source.String() + ")"
+	return "π{" + HeadingString(r) + "}(" + r.source1.String() + ")"
 }
 
 // Project creates a new relation with less than or equal degree
@@ -201,7 +207,7 @@ func (r1 *ProjectExpr) Project(z2 T) Relation {
 		return r1
 	}
 	// the second project will always override the first
-	return &ProjectExpr{r1.source, z2, nil}
+	return &ProjectExpr{r1.source1, z2, nil}
 
 }
 
@@ -211,7 +217,7 @@ func (r1 *ProjectExpr) Restrict(p Predicate) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
-	return &ProjectExpr{r1.source.Restrict(p), r1.zero, nil}
+	return &ProjectExpr{r1.source1.Restrict(p), r1.zero, nil}
 }
 
 // Rename creates a new relation with new column names

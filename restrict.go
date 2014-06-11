@@ -13,7 +13,7 @@ import (
 // type as the tuples of the relation, and returns a boolean.
 type RestrictExpr struct {
 	// the input relation
-	source Relation
+	source1 Relation
 
 	// the restriction predicate
 	p Predicate
@@ -32,13 +32,13 @@ func (r *RestrictExpr) Tuples(t chan<- T) chan<- struct{} {
 	// transform the channel of tuples from the relation
 	mc := runtime.GOMAXPROCS(-1)
 
-	z1 := r.source.Zero()
+	z1 := r.source1.Zero()
 	e1 := reflect.TypeOf(z1)
 
 	predFunc := r.p.EvalFunc(e1)
 
 	body1 := make(chan T)
-	bcancel := r.source.Tuples(body1)
+	bcancel := r.source1.Tuples(body1)
 
 	var wg sync.WaitGroup
 	wg.Add(mc)
@@ -49,7 +49,7 @@ func (r *RestrictExpr) Tuples(t chan<- T) chan<- struct{} {
 		case <-cancel:
 			close(bcancel)
 		default:
-			if err := r.source.Err(); err != nil {
+			if err := r.source1.Err(); err != nil {
 				r.err = err
 			}
 			close(res)
@@ -86,22 +86,22 @@ func (r *RestrictExpr) Tuples(t chan<- T) chan<- struct{} {
 
 // Zero returns the zero value of the relation (a blank tuple)
 func (r *RestrictExpr) Zero() T {
-	return r.source.Zero()
+	return r.source1.Zero()
 }
 
 // CKeys is the set of candidate keys in the relation
 func (r *RestrictExpr) CKeys() CandKeys {
-	return r.source.CKeys()
+	return r.source1.CKeys()
 }
 
 // GoString returns a text representation of the Relation
 func (r *RestrictExpr) GoString() string {
-	return r.source.GoString() + ".Restrict(" + r.p.String() + ")"
+	return r.source1.GoString() + ".Restrict(" + r.p.String() + ")"
 }
 
 // String returns a text representation of the Relation
 func (r *RestrictExpr) String() string {
-	return "σ{" + r.p.String() + "}(" + r.source.String() + ")"
+	return "σ{" + r.p.String() + "}(" + r.source1.String() + ")"
 }
 
 // Project creates a new relation with less than or equal degree
@@ -116,7 +116,7 @@ func (r1 *RestrictExpr) Project(z2 T) Relation {
 		return r1
 	}
 	if isSubDomain(r1.p.Domain(), att2) { // the predicate's attributes exist after project
-		return &RestrictExpr{r1.source.Project(z2), r1.p, nil}
+		return &RestrictExpr{r1.source1.Project(z2), r1.p, nil}
 	} else {
 		return &ProjectExpr{r1, z2, nil}
 	}
@@ -131,7 +131,7 @@ func (r1 *RestrictExpr) Restrict(p Predicate) Relation {
 	// TODO(jonlawlor): implement predicate combination
 
 	// by reversing the order, this provides a way for AndPreds to pass through
-	return &RestrictExpr{r1.source.Restrict(p), r1.p, nil}
+	return &RestrictExpr{r1.source1.Restrict(p), r1.p, nil}
 }
 
 // Rename creates a new relation with new column names

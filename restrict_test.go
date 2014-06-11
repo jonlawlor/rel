@@ -87,7 +87,7 @@ func TestRestrict(t *testing.T) {
 		expectCard   int
 	}{
 		{rel, "σ{Qty > 100}(Relation(PNO, SNO, Qty))", 3, 10},
-		{rel.Restrict(Attribute("PNO").EQ(1)), "σ{Qty > 100}(σ{PNO == 1}(Relation(PNO, SNO, Qty)))", 3, 4},
+		{rel.Restrict(Attribute("PNO").EQ(1).And(Attribute("Qty").GT(200))), "σ{Qty > 100}(σ{(PNO == 1) && (Qty > 200)}(Relation(PNO, SNO, Qty)))", 3, 2},
 		{rel.Project(distinctTup{}), "π{PNO, SNO}(σ{Qty > 100}(Relation(PNO, SNO, Qty)))", 2, 10},
 		{rel.Project(nonDistinctTup{}), "σ{Qty > 100}(π{PNO, Qty}(Relation(PNO, SNO, Qty)))", 2, 9},
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, Sno, Qty}/{PNO, SNO, Qty}(σ{Qty > 100}(Relation(PNO, SNO, Qty)))", 3, 10},

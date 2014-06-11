@@ -9,7 +9,7 @@ import (
 )
 
 type GroupByExpr struct {
-	source Relation
+	source1 Relation
 
 	// zero is the resulting relation tuple type
 	zero T
@@ -47,7 +47,7 @@ func (r *GroupByExpr) Tuples(t chan<- T) chan<- struct{} {
 	}
 
 	// figure out the new elements used for each of the derived types
-	e1 := reflect.TypeOf(r.source.Zero())
+	e1 := reflect.TypeOf(r.source1.Zero())
 	e2 := reflect.TypeOf(r.zero)    // type of the resulting relation's tuples
 	ev := reflect.TypeOf(r.valZero) // type of the tuples put into groupby values
 
@@ -63,7 +63,7 @@ func (r *GroupByExpr) Tuples(t chan<- T) chan<- struct{} {
 
 	// create the channel of tuples from source
 	body := make(chan T)
-	bcancel := r.source.Tuples(body)
+	bcancel := r.source1.Tuples(body)
 
 	// for each of the tuples, extract the group values out and set
 	// the ones that are not in vtup to the values in the tuple.
@@ -141,7 +141,7 @@ func (r *GroupByExpr) Tuples(t chan<- T) chan<- struct{} {
 		case <-cancel:
 			return
 		default:
-			if err := r.source.Err(); err != nil {
+			if err := r.source1.Err(); err != nil {
 				r.err = err
 			}
 			close(res)
@@ -163,7 +163,7 @@ func (r *GroupByExpr) CKeys() CandKeys {
 	// in the resulting relation, which means the groupby function was
 	// just a map) or the group itself.
 
-	e1 := reflect.TypeOf(r.source.Zero())
+	e1 := reflect.TypeOf(r.source1.Zero())
 	e2 := reflect.TypeOf(r.zero)    // type of the resulting relation's tuples
 	ev := reflect.TypeOf(r.valZero) // type of the tuples put into groupby values
 
@@ -191,7 +191,7 @@ func (r *GroupByExpr) CKeys() CandKeys {
 	}
 	names := fieldNames(e2)
 
-	ck2 := subsetCandidateKeys(r.source.CKeys(), names, groupFieldMap)
+	ck2 := subsetCandidateKeys(r.source1.CKeys(), names, groupFieldMap)
 
 	// determine the new names and types
 	cn := fieldNames(e2)
@@ -217,7 +217,7 @@ func (r *GroupByExpr) String() string {
 	}
 
 	// TODO(jonlawlor) add better identification to the grouping func
-	return r.source.String() + ".GroupBy({" + HeadingString(r) + "}, {" + strings.Join(s, ", ") + "})"
+	return r.source1.String() + ".GroupBy({" + HeadingString(r) + "}, {" + strings.Join(s, ", ") + "})"
 
 }
 

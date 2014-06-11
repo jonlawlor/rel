@@ -63,6 +63,9 @@ func (r *RenameExpr) Tuples(t chan<- T) chan<- struct{} {
 					return
 				}
 			}
+			if err := r.source1.Err(); err != nil {
+				r.err = err
+			}
 			close(res)
 			return
 		}
