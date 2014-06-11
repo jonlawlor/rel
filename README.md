@@ -27,7 +27,6 @@ Predicates are used in the restrict operation.
 TODOs
 =====
 + Add errors to indicate when relations are constructed from invalid operations
-+ finish adding error check on close(res)
 + finish coverage on error short circuit
 + Use the go race detector & clear up any issues.  (this requires a 64bit arch)
 + Reach 100% test coverage (currently 80%)
@@ -37,6 +36,8 @@ TODOs
 + Write better docs
 + Write single godoc file
 + Hook up chan_mem to some kind of copying mechanism.
++ Add more predicate tests
++ Add candidate key tests
 
 Errors
 ======
