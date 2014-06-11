@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"fmt"
 	"reflect"
+	"strings"
 	"text/tabwriter"
 )
 
@@ -29,12 +30,9 @@ func goStringTabTable(r Relation) string {
 	s.WriteString("}{\n")
 
 	// write the body
-	//TODO(jonlawlor): see if buffering the channel improves performance
 	tups := make(chan T)
 	r.Tuples(tups)
 
-	// TODO(jonlawlor): abstract the per-tuple functional mapping to another
-	// method?
 	deg := Deg(r)
 	for tup := range tups {
 		rtup := reflect.ValueOf(tup)
@@ -52,7 +50,6 @@ func goStringTabTable(r Relation) string {
 				// TODO(jonlawlor): I'm not sure all have to be enumerated
 				fmt.Fprintf(w, "%d,\t", f.Int())
 			case reflect.Float32, reflect.Float64:
-				// TODO(jonlawlor): is there a general float type to use here?
 				fmt.Fprintf(w, "%g,\t", f.Float())
 			default:
 				fmt.Fprintf(w, "\xff%v\xff,\t", f)
@@ -87,20 +84,25 @@ func stringTabTable(r Relation) string {
 	// adjacent.
 
 	// create heading information
-	cn := Heading(r)
-	ct := fieldTypes(reflect.TypeOf(r.Zero()))
-	for i := range cn {
-		fmt.Fprintf(w, "\t\xff%s\xff\t\xff%v\xff\t\n", cn[i], ct[i])
+	deg := Deg(r)
+
+	// make a spacer, to be replaced later
+	for i := 0; i < deg; i++ {
+		fmt.Fprintf(w, "+\t ")
 	}
+	fmt.Fprintf(w, "\t+\n")
+
+	// heading
+	cn := Heading(r)
+	for _, name := range cn {
+		fmt.Fprintf(w, "|\t \xff%s\xff ", name)
+	}
+	fmt.Fprintf(w, "\t|\n")
 
 	// write the body
-	//TODO(jonlawlor): see if buffering the channel improves performance
 	tups := make(chan T)
 	r.Tuples(tups)
 
-	// TODO(jonlawlor): abstract the per-tuple functional mapping to another
-	// method?
-	deg := Deg(r)
 	for tup := range tups {
 		rtup := reflect.ValueOf(tup)
 		// this part might be replacable with some workers that
@@ -113,10 +115,8 @@ func stringTabTable(r Relation) string {
 			case reflect.Bool:
 				fmt.Fprintf(w, "|\t %t ", f.Bool())
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				// TODO(jonlawlor): I'm not sure all have to be enumerated
 				fmt.Fprintf(w, "|\t %d ", f.Int())
 			case reflect.Float32, reflect.Float64:
-				// TODO(jonlawlor): there may be another representation
 				fmt.Fprintf(w, "|\t %g ", f.Float())
 			default:
 				fmt.Fprintf(w, "|\t \xff%v\xff ", f)
@@ -126,5 +126,13 @@ func stringTabTable(r Relation) string {
 	}
 
 	w.Flush()
-	return s.String()
+	str := s.String()
+
+	// replace the blanks in the spacers with "-"
+	// TODO(jonlawlor): maybe there is a way to do this during construction
+	// instead of afterwards?
+
+	lineWidth := strings.Index(str, "\n")
+	sep := " " + strings.Replace(str[1:lineWidth], " ", "-", -1)
+	return sep + str[lineWidth:lineWidth*2+2] + sep + str[lineWidth*2+1:] + sep
 }

@@ -9,7 +9,6 @@ import (
 // including String, GoString, and benchmarks
 
 func TestGoString(t *testing.T) {
-	// TODO(jonlawlor): replace with table driven test?
 	out := `rel.New([]struct {
  PNO    int     
  PName  string  
@@ -26,6 +25,22 @@ func TestGoString(t *testing.T) {
 })`
 	if in := fmt.Sprintf("%#v", parts()); in != out {
 		t.Errorf("String(Parts) = %q, want %q", in, out)
+	}
+}
+
+func TestString(t *testing.T) {
+	out := ` +------+--------+--------+---------+---------+
+ |  PNO |  PName |  Color |  Weight |    City |
+ +------+--------+--------+---------+---------+
+ |    1 |    Nut |    Red |      12 |  London |
+ |    2 |   Bolt |  Green |      17 |   Paris |
+ |    3 |  Screw |   Blue |      17 |    Oslo |
+ |    4 |  Screw |    Red |      14 |  London |
+ |    5 |    Cam |   Blue |      12 |   Paris |
+ |    6 |    Cog |    Red |      19 |  London |
+ +------+--------+--------+---------+---------+`
+	if in := stringTabTable(parts()); in != out {
+		t.Errorf("String(Parts) = %v, want %v", in, out)
 	}
 }
 
