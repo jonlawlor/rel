@@ -82,7 +82,9 @@ func TestMatrixExample(t *testing.T) {
 		{2, 2, 17.0},
 	}, [][]string{[]string{"R", "C"}})
 
-	C := A.Rename(multElemA{}).Join(B.Rename(multElemB{}), multElemC{}).Map(mapMult, multRes{}, [][]string{[]string{"R", "C", "M"}}).GroupBy(matrixElem{}, valTup{}, groupAdd)
+	C := A.Rename(multElemA{}).Join(B.Rename(multElemB{}), multElemC{}).
+		Map(mapMult, multRes{}, [][]string{[]string{"R", "C", "M"}}).
+		GroupBy(matrixElem{}, valTup{}, groupAdd)
 
 	expectStr := `rel.New([]struct {
  R int     

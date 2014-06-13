@@ -5,7 +5,7 @@ Relational Algebra in Go.  Most Go doesn't need relational algebra, but most rel
 
 This implements most of the traditional elements of relational algebra, including project, restrict, join, intersect, setdiff, and union.  It also implements some of the common non-relational operations, including groupby, map, and order.  To learn more about relational algebra, C. J. Date's Database in Depth is a great place to start, and is used as the source of terminology in the rel package.
 
-The semantics of this package are very similar to Microsoft's LINQ, although the syntax is somewhat different.  This isn't LINQ though - it is a library, and it is not integrated with the language, which means rel has a significant performance cost relative to normal go code that doesn't use reflection.  On the plus side, you can see how it does everything.
+The semantics of this package are very similar to Microsoft's LINQ, although the syntax is somewhat different.  This isn't LINQ though - it is a library, and it is not integrated with the language, which means rel has a significant performance cost relative to normal go code that doesn't use reflection.  Unlike LINQ, you can see how it does everything, and have more control over how queries are executed.
 
 Interfaces
 ==========
@@ -136,8 +136,10 @@ B := New([]matrixElem{
 },[][]string{[]string{"R", "C"}})
 
 
-C := A.Rename(multElemA{}).Join(B.Rename(multElemB{}),multElemC{}).Map(mapMult, multRes{}, [][]string{[]string{"R", "C", "M"}}).GroupBy(matrixElem{}, valTup{}, groupAdd)
-
+C := A.Rename(multElemA{}).Join(B.Rename(multElemB{}), multElemC{}).
+	Map(mapMult, multRes{}, [][]string{[]string{"R", "C", "M"}}).
+	GroupBy(matrixElem{}, valTup{}, groupAdd)
+	
 fmt.Println("%#v",C)
 
 // returns:
