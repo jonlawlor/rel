@@ -74,15 +74,6 @@ func stringTabTable(r Relation) string {
 	// align elements to the right as well
 	w.Init(s, 1, 1, 1, ' ', tabwriter.StripEscape|tabwriter.AlignRight)
 
-	//TODO(jonlawlor): not sure how to create the vertical seps like:
-	//+---------+---------+---------+
-	// which should go in between each of the sections of heading and body
-	// also, I don't know where the candidate keys should go.  Date
-	// does an underline but they can be overlapping, and I am not sure
-	// that unicode allows arbitrary nesting of underlines?  In any case
-	// it is not possible to arrange arbitrary candidate keys to be
-	// adjacent.
-
 	// create heading information
 	deg := Deg(r)
 

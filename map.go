@@ -50,7 +50,7 @@ func (r *MapExpr) Tuples(t chan<- T) chan<- struct{} {
 					}
 					select {
 					// set the field in the new tuple to the value from the old one
-					case t <- r.fcn(tup1):
+					case res <- r.fcn(tup1):
 					case <-cancel:
 						close(bcancel)
 						return
@@ -63,7 +63,7 @@ func (r *MapExpr) Tuples(t chan<- T) chan<- struct{} {
 			if err := r.source1.Err(); err != nil {
 				r.err = err
 			}
-			close(t)
+			close(res)
 		}(body1, t)
 
 		return cancel
