@@ -140,9 +140,9 @@ C := A.Rename(multElemA{}).Join(B.Rename(multElemB{}), multElemC{}).
 	Map(mapMult, multRes{}, [][]string{[]string{"R", "C", "M"}}).
 	GroupBy(matrixElem{}, valTup{}, groupAdd)
 	
-fmt.Println("%#v",C)
+fmt.Println("\n%#v",C)
 
-// returns:
+// Output:
 // rel.New([]struct {
 //  R int     
 //  C int     
@@ -153,8 +153,6 @@ fmt.Println("%#v",C)
 //  {2, 1, 48,  },
 //  {2, 2, 119, },
 // })
-
-
 ```
 
 Which isn't going to set any records for brevity or efficiency.  It also demonstrates some of the issues with its current state: it results in a lot of type definitions for intermediate tuple representation, which is an area we want to work on.  Behind the scenes there is quite a bit of reflection as well, so it is, sadly, worse than it looks.
