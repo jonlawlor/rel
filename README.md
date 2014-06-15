@@ -41,7 +41,7 @@ TODOs
 
 Errors
 ======
-There are 2 types of errors that can be handled: errors in relational construction, like projecting a relation to a set of tuples that are not a subset of the original relation, and errors during computation, like when a data source unexpectedly disconnects.  There are two types of error handling available to us: either panic (and maybe recover) which is expensive, or having some kind of Error() method of relations, which returns an error.  If no error has been encountered, then Error should return nil, otherwise some kind of formatted string.  Having 2-arg outputs is not conducive to the method chaining that is used.
+There are 2 types of errors that can be handled: errors in relational construction, like projecting a relation to a set of tuples that are not a subset of the original relation, and errors during computation, like when a data source unexpectedly disconnects.  There are two types of error handling available to us: either panic (and maybe recover) which is expensive, or having some kind of Err() method of relations, which returns an error.  If no error has been encountered, then Err should return nil, otherwise some kind of formatted string.  Having 2-arg outputs is not conducive to the method chaining that is used.  The Err() method way of handling errors is also used in the sql package's Scanner.
 
 I think the best course of action is to reserve panic for problems that are not possible for the rel package to handle in advance - like a type error in an AdHoc predicate or grouping function, which rel has no control over.
 
@@ -50,6 +50,10 @@ To that end, rel will go the Error() route, which will be checked in the followi
 1) during derived relational construction, if one of the source relations is an error, then that relation will be returned instead of the compound relation.  In the case that two relations are provided and both are errors, then the first will be returned.
 2) in the tuples method, if the source(s) of tuples are closed, then they are checked for an error.  If it is not nil, then the error is set in the derived relation, and the results channel is closed.
 3) in the tuples method, if the relation already has non-nil error, then the results channel is immediately closed.
+
+Cancellation
+============
+Cancellation is handled in the Tuples method.  If a caller no longer wants any results, they should close the cancel channel, which will then stop tuples from being sent by the Tuples method, which will also relay the cancellation up to any sources of tuples that it is consuming.  It will _not_ close the results channel.
 
 Draft Golang Nuts Announcement
 ==============================
@@ -155,7 +159,7 @@ fmt.Println("\n%#v",C)
 // })
 ```
 
-Which isn't going to set any records for brevity or efficiency.  It also demonstrates some of the issues with its current state: it results in a lot of type definitions for intermediate tuple representation, which is an area we want to work on.  Behind the scenes there is quite a bit of reflection as well, which comes with other downsides, including slower performance and less type safety.
+Which isn't going to set any records for brevity or efficiency.  It also demonstrates some of the issues with the rel package's current state: it results in a lot of type definitions for intermediate tuple representation, which is an area we want to work on.  Behind the scenes there is quite a bit of reflection as well, which comes with other downsides, including slower performance and less type safety.  Also, every relational operation (except for no-ops) results in a new pipeline stage getting built, with more channels handing off values. 
 
 On the other hand, thanks to interface's duck typing, users of this package can define their own Relation(s), which we anticipate will be used similarly as LINQ's Type Providers.  The "literal" Relations above can be replaced by Relations that provide values from an SQL database, or a csv.Reader, which are defined in sub packages, or in a user defined source if they roll their own Relation, which can take advantage of the query rewrite rules in the rel package.
 
