@@ -130,7 +130,8 @@ func (r *RenameExpr) CKeys() CandKeys {
 			cKeys2[i][j] = nameMap[key]
 		}
 	}
-
+	// order the keys
+	orderCandidateKeys(cKeys2)
 	return cKeys2
 }
 

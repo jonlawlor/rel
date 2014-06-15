@@ -109,9 +109,58 @@ func (r *UnionExpr) Zero() T {
 
 // CKeys is the set of candidate keys in the relation
 func (r *UnionExpr) CKeys() CandKeys {
-	//TODO(jonlawlor): should this be the intersect between source1 and source2
-	// instead?
-	return r.source1.CKeys()
+	// unions have the intersection of the source candidate keys
+	// the keys are sorted on length and then alphabetically, which helps
+	// reduce the number of comparisons needed.
+	cKeys1 := r.source1.CKeys()
+	cKeys2 := r.source2.CKeys()
+
+	cKeysRes := make([][]Attribute, 0)
+
+	// this can only happen if either relation is dee or dum
+	if len(cKeys1) == 0 || len(cKeys2) == 0 {
+		return cKeysRes
+	}
+
+	j := 0
+Loop1:
+	for _, ck1 := range cKeys1 {
+		if len(ck1) < len(cKeys2[j]) {
+			continue
+		}
+		for len(ck1) > len(cKeys2[j]) {
+			if len(cKeys2) == j {
+				return cKeysRes
+			}
+			j++
+		}
+	Loop2:
+		for len(ck1) == len(cKeys2[j]) {
+			// compare each of the attributes in the candidate keys
+			for k := range ck1 {
+				if ck1[k] < cKeys2[j][k] {
+					continue Loop1
+				} else if ck1[k] > cKeys2[j][k] {
+					j++
+					if j == len(cKeys2) {
+						return cKeysRes
+					} else {
+						continue Loop2
+					}
+				}
+			}
+			cKeysRes = append(cKeysRes, ck1)
+			// We should only get a single match for a given candidate key, so
+			// we can advance j as well.
+			j++
+			if j == len(cKeys2) {
+				return cKeysRes
+			} else {
+				break Loop2
+			}
+		}
+	}
+	return cKeysRes
 }
 
 // GoString returns a text representation of the Relation

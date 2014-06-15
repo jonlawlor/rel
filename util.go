@@ -70,8 +70,29 @@ func (cks CandKeys) Len() int {
 func (cks CandKeys) Swap(i, j int) {
 	cks[i], cks[j] = cks[j], cks[i]
 }
+
+// Less compares two candidate keys
+func less(ck1 []Attribute, ck2 []Attribute) bool {
+	if len(ck1) == len(ck2) {
+		// alphabetical ordering
+		for k := range ck1 {
+			if ck1[k] < ck2[k] {
+				return true
+			} else if ck1[k] > ck2[k] {
+				return false
+			}
+		}
+		return false
+	}
+	if len(ck1) < len(ck2) {
+		return true
+	}
+	return false
+}
+
 func (cks CandKeys) Less(i, j int) bool {
-	return len(cks[i]) < len(cks[j]) // note this is smallest to largest
+	// note this is smallest to largest
+	return less(cks[i], cks[j])
 }
 
 // defaultkey provides the default candidate key for a relation

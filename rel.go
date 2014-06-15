@@ -190,7 +190,7 @@ func Card(r Relation) (i int) {
 	return
 }
 
-// additional derived functions
+// additional derived functions?
 // SemiDiff(r2 Relation) Relation
 // SemiJoin(r2 Relation) Relation
 

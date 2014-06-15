@@ -146,13 +146,31 @@ func (r *JoinExpr) Zero() T {
 
 // CKeys is the set of candidate keys in the relation
 func (r *JoinExpr) CKeys() CandKeys {
-	// TODO(jonlawlor): determine new candidate keys.  This is just a
-	// placeholder
-	return r.source1.CKeys()
-}
+	// the candidate keys of a join are a join of the candidate keys as well
+	cKeys1 := r.source1.CKeys()
+	cKeys2 := r.source2.CKeys()
 
-// text representation
-const joinSymbol = "⋈"
+	cKeysRes := make([][]Attribute, 0)
+
+	for _, ck1 := range cKeys1 {
+		for _, ck2 := range cKeys2 {
+			ck := make([]Attribute, len(ck1))
+			copy(ck, ck1)
+		Loop:
+			for j := range ck2 {
+				for i := range ck {
+					if ck2[j] == ck[i] {
+						continue Loop
+					}
+				}
+				ck = append(ck, ck2[j])
+			}
+			cKeysRes = append(cKeysRes, ck)
+		}
+	}
+	orderCandidateKeys(cKeysRes)
+	return cKeysRes
+}
 
 // GoString returns a text representation of the Relation
 func (r *JoinExpr) GoString() string {
