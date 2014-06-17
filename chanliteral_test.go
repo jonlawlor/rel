@@ -2,6 +2,7 @@ package rel
 
 import (
 	"fmt"
+	"github.com/jonlawlor/rel/att"
 	"reflect"
 	"testing"
 )
@@ -23,9 +24,9 @@ func toChanLiteral(r Relation, isDistinct bool) Relation {
 	// construct a channel using reflection
 	z := r.Zero()
 	ch := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, reflect.TypeOf(z)), 0)
-	t := make(chan T)
+	t := make(chan interface{})
 	_ = r.Tuples(t)
-	go func(b <-chan T) {
+	go func(b <-chan interface{}) {
 		for tup := range b {
 			ch.Send(reflect.ValueOf(tup))
 		}
@@ -63,7 +64,7 @@ func TestChanLiteral(t *testing.T) {
 	type valTup struct {
 		Qty int
 	}
-	groupFcn := func(val <-chan T) T {
+	groupFcn := func(val <-chan interface{}) interface{} {
 		res := valTup{}
 		for vi := range val {
 			v := vi.(valTup)
@@ -77,7 +78,7 @@ func TestChanLiteral(t *testing.T) {
 		Qty1 int
 		Qty2 int
 	}
-	mapFcn := func(tup1 T) T {
+	mapFcn := func(tup1 interface{}) interface{} {
 		if v, ok := tup1.(orderTup); ok {
 			return mapRes{v.PNO, v.SNO, v.Qty, v.Qty * 2}
 		} else {
@@ -94,7 +95,7 @@ func TestChanLiteral(t *testing.T) {
 		expectCard   int
 	}{
 		{toChanLiteral(orders(), true), "Relation(PNO, SNO, Qty)", 3, 12},
-		{toChanLiteral(orders(), true).Restrict(Not(Attribute("PNO").EQ(1))), "σ{!(PNO == 1)}(Relation(PNO, SNO, Qty))", 3, 6},
+		{toChanLiteral(orders(), true).Restrict(att.Not(att.Attribute("PNO").EQ(1))), "σ{!(PNO == 1)}(Relation(PNO, SNO, Qty))", 3, 6},
 		{toChanLiteral(orders(), true).Project(distinctTup{}), "π{PNO, SNO}(Relation(PNO, SNO, Qty))", 2, 12},
 		{toChanLiteral(orders(), true).Project(nonDistinctTup{}), "π{PNO, Qty}(Relation(PNO, SNO, Qty))", 2, 10},
 		{toChanLiteral(orders(), true).Rename(titleCaseTup{}), "ρ{Pno, Sno, Qty}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty))", 3, 12},
@@ -120,7 +121,7 @@ func TestChanLiteral(t *testing.T) {
 
 	// test cancellation
 	r := toChanLiteral(orders(), true)
-	res := make(chan T)
+	res := make(chan interface{})
 	cancel := r.Tuples(res)
 	close(cancel)
 	select {
@@ -132,7 +133,7 @@ func TestChanLiteral(t *testing.T) {
 
 	// test non distinct & cancellation
 	r = toChanLiteral(orders(), false)
-	res = make(chan T)
+	res = make(chan interface{})
 	cancel = r.Tuples(res)
 	close(cancel)
 	select {
@@ -150,14 +151,14 @@ func TestChanLiteral(t *testing.T) {
 	r2 := new(chanLiteral)
 	r2 = toChanLiteral(orders(), true).(*chanLiteral)
 	r2.err = err
-	res = make(chan T)
+	res = make(chan interface{})
 	_ = r1.Tuples(res)
 	if _, ok := <-res; ok {
 		t.Errorf("%d did not short circuit Tuples")
 	}
 	errTest := []Relation{
 		r1.Project(distinctTup{}),
-		r1.Restrict(Not(Attribute("PNO").EQ(1))),
+		r1.Restrict(att.Not(att.Attribute("PNO").EQ(1))),
 		r1.Rename(titleCaseTup{}),
 		r1.Union(r2),
 		r.Union(r2),

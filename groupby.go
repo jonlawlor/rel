@@ -3,6 +3,7 @@
 package rel
 
 import (
+	"github.com/jonlawlor/rel/att"
 	"reflect"
 	"strings"
 	"sync"
@@ -12,18 +13,18 @@ type GroupByExpr struct {
 	source1 Relation
 
 	// zero is the resulting relation tuple type
-	zero T
+	zero interface{}
 
 	// valZero is the tuple type of the values provided to the grouping
 	// function.  We might want to infer it from the grouping function
 	// instead though, like restrict does?
-	valZero T
+	valZero interface{}
 
 	// gfcn is the function which when given a channel of tuples, returns
 	// the value of the group after the input channel is closed.
 	// We might want to be able to short circuit this evaluation in a few
 	// cases though?
-	gfcn func(<-chan T) T
+	gfcn func(<-chan interface{}) interface{}
 
 	err error
 }
@@ -38,7 +39,7 @@ type GroupByExpr struct {
 // complete their work, and then send a done signal to a channel which
 // can then close the result channel.
 
-func (r *GroupByExpr) Tuples(t chan<- T) chan<- struct{} {
+func (r *GroupByExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 
 	if r.Err() != nil {
@@ -56,13 +57,13 @@ func (r *GroupByExpr) Tuples(t chan<- T) chan<- struct{} {
 	// we might want to have a different codepath for that.
 
 	// create the map for channels to grouping goroutines
-	groupMap := make(map[T]chan T)
+	groupMap := make(map[interface{}]chan interface{})
 
 	// create waitgroup that indicates that the computations are complete
 	var wg sync.WaitGroup
 
 	// create the channel of tuples from source
-	body := make(chan T)
+	body := make(chan interface{})
 	bcancel := r.source1.Tuples(body)
 
 	// for each of the tuples, extract the group values out and set
@@ -74,17 +75,17 @@ func (r *GroupByExpr) Tuples(t chan<- T) chan<- struct{} {
 
 	// figure out where in each of the structs the group and value
 	// attributes are found
-	e2fieldMap := fieldMap(e1, e2)
-	evfieldMap := fieldMap(e1, ev)
+	e2fieldMap := att.FieldMap(e1, e2)
+	evfieldMap := att.FieldMap(e1, ev)
 
 	// map from the values to the group (with zeros in the value fields)
 	// I couldn't figure out a way to assign the values into the group
 	// by modifying it using reflection though so we end up allocating a
 	// new element.
 	// TODO(jonlawlor): figure out how to avoid reallocation
-	vgfieldMap := fieldMap(e2, ev)
+	vgfieldMap := att.FieldMap(e2, ev)
 
-	go func(b1 <-chan T, res chan<- T) {
+	go func(b1 <-chan interface{}, res chan<- interface{}) {
 	Loop:
 		for {
 			select {
@@ -94,14 +95,14 @@ func (r *GroupByExpr) Tuples(t chan<- T) chan<- struct{} {
 				}
 				// this reflection may be a bottleneck, and we may be able to
 				// replace it with a concurrent version.
-				gtupi, vtupi := partialProject(reflect.ValueOf(tup), e2, ev, e2fieldMap, evfieldMap)
+				gtupi, vtupi := att.PartialProject(reflect.ValueOf(tup), e2, ev, e2fieldMap, evfieldMap)
 
 				// the map cannot be accessed concurrently though
 				// a lock needs to be placed here
 				if _, exists := groupMap[gtupi]; !exists {
 					wg.Add(1)
 					// create the channel
-					groupChan := make(chan T)
+					groupChan := make(chan interface{})
 					groupMap[gtupi] = groupChan
 					// remove the lock
 
@@ -109,7 +110,7 @@ func (r *GroupByExpr) Tuples(t chan<- T) chan<- struct{} {
 					// applies the grouping function, and then when all values
 					// are sent, gets the result from the grouping function and
 					// puts it into the result tuple, which it then returns
-					go func(gtupi T, groupChan <-chan T) {
+					go func(gtupi interface{}, groupChan <-chan interface{}) {
 						defer wg.Done()
 						// run the grouping function and turn the result
 						// into the reflect.Value
@@ -117,7 +118,7 @@ func (r *GroupByExpr) Tuples(t chan<- T) chan<- struct{} {
 						// combine the returned values with the group tuple
 						// to create the new complete tuple
 						select {
-						case res <- combineTuples(reflect.ValueOf(gtupi), vtup, e2, vgfieldMap).Interface().(T):
+						case res <- att.CombineTuples(reflect.ValueOf(gtupi), vtup, e2, vgfieldMap).Interface():
 						case <-cancel:
 							// do nothing, everything has already been closed
 						}
@@ -151,12 +152,12 @@ func (r *GroupByExpr) Tuples(t chan<- T) chan<- struct{} {
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *GroupByExpr) Zero() T {
+func (r *GroupByExpr) Zero() interface{} {
 	return r.zero
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *GroupByExpr) CKeys() CandKeys {
+func (r *GroupByExpr) CKeys() att.CandKeys {
 	// determine the new candidate keys, which can be any of the original
 	// candidate keys that are a subset of the group (which would also
 	// mean that every tuple in the original relation is in its own group
@@ -180,21 +181,21 @@ func (r *GroupByExpr) CKeys() CandKeys {
 
 	// figure out where in each of the structs the group and value
 	// attributes are found
-	e2fieldMap := fieldMap(e1, e2)
-	evfieldMap := fieldMap(e1, ev)
+	e2fieldMap := att.FieldMap(e1, e2)
+	evfieldMap := att.FieldMap(e1, ev)
 
-	groupFieldMap := make(map[Attribute]fieldIndex)
+	groupFieldMap := make(map[att.Attribute]att.FieldIndex)
 	for name, v := range e2fieldMap {
 		if _, isValue := evfieldMap[name]; !isValue {
 			groupFieldMap[name] = v
 		}
 	}
-	names := fieldNames(e2)
+	names := att.FieldNames(e2)
 
-	ck2 := subsetCandidateKeys(r.source1.CKeys(), names, groupFieldMap)
+	ck2 := att.SubsetCandidateKeys(r.source1.CKeys(), names, groupFieldMap)
 
 	// determine the new names and types
-	cn := fieldNames(e2)
+	cn := att.FieldNames(e2)
 
 	if len(ck2) == 0 {
 		ck2 = append(ck2, cn)
@@ -210,7 +211,7 @@ func (r *GroupByExpr) GoString() string {
 
 // String returns a text representation of the Relation
 func (r *GroupByExpr) String() string {
-	h := fieldNames(reflect.TypeOf(r.valZero))
+	h := att.FieldNames(reflect.TypeOf(r.valZero))
 	s := make([]string, len(h))
 	for i, v := range h {
 		s[i] = string(v)
@@ -226,14 +227,14 @@ func (r *GroupByExpr) String() string {
 
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
-func (r1 *GroupByExpr) Project(z2 T) Relation {
+func (r1 *GroupByExpr) Project(z2 interface{}) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
 	// TODO(jonlawlor): add query rewrite if projection does not include any
 	// of the attributes in the valZero.  In that situation, no grouping is
 	// needed.
-	att2 := fieldNames(reflect.TypeOf(z2))
+	att2 := att.FieldNames(reflect.TypeOf(z2))
 	if Deg(r1) == len(att2) {
 		// either projection is an error or a no op
 		return r1
@@ -244,7 +245,7 @@ func (r1 *GroupByExpr) Project(z2 T) Relation {
 
 // Restrict creates a new relation with less than or equal cardinality
 // p has to be a func(tup T) bool where tup is a subdomain of the input r.
-func (r1 *GroupByExpr) Restrict(p Predicate) Relation {
+func (r1 *GroupByExpr) Restrict(p att.Predicate) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -255,7 +256,7 @@ func (r1 *GroupByExpr) Restrict(p Predicate) Relation {
 // z2 has to be a struct with the same number of fields as the input relation
 // note: we might want to change this into a projectrename operation?  It will
 // be tricky to represent this in go's type system, I think.
-func (r1 *GroupByExpr) Rename(z2 T) Relation {
+func (r1 *GroupByExpr) Rename(z2 interface{}) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -288,7 +289,7 @@ func (r1 *GroupByExpr) SetDiff(r2 Relation) Relation {
 
 // Join creates a new relation by performing a natural join on the inputs
 //
-func (r1 *GroupByExpr) Join(r2 Relation, zero T) Relation {
+func (r1 *GroupByExpr) Join(r2 Relation, zero interface{}) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -300,7 +301,7 @@ func (r1 *GroupByExpr) Join(r2 Relation, zero T) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *GroupByExpr) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
+func (r1 *GroupByExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -308,7 +309,7 @@ func (r1 *GroupByExpr) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *GroupByExpr) Map(mfcn func(from T) (to T), z2 T, ckeystr [][]string) Relation {
+func (r1 *GroupByExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -320,11 +321,11 @@ func (r1 *GroupByExpr) Map(mfcn func(from T) (to T), z2 T, ckeystr [][]string) R
 	if len(ckeystr) == 0 {
 		// all relations have a candidate key of all of their attributes, or
 		// a non zero subset if the relation is not dee or dum
-		r.cKeys = defaultKeys(z2)
+		r.cKeys = att.DefaultKeys(z2)
 	} else {
 		r.isDistinct = true
 		// convert from [][]string to CandKeys
-		r.cKeys = string2CandKeys(ckeystr)
+		r.cKeys = att.String2CandKeys(ckeystr)
 	}
 	return r
 }

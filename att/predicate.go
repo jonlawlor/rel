@@ -1,6 +1,6 @@
 // predicate defines logical predicates used in relation's restrict
 
-package rel
+package att
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ import (
 type Predicate interface {
 	// EvalFunc returns a function which can evalutes a predicate on an input
 	// tuple
-	EvalFunc(e reflect.Type) func(t T) bool
+	EvalFunc(e reflect.Type) func(t interface{}) bool
 
 	// Domain is the type of input that is required to evalute the predicate
 	// this might have to be a recursive type instead of reflect.Type?
@@ -71,9 +71,9 @@ func (p NotPred) Domain() []Attribute {
 }
 
 // Eval evalutes a predicate on an input tuple
-func (p NotPred) EvalFunc(e reflect.Type) func(t T) bool {
+func (p NotPred) EvalFunc(e reflect.Type) func(t interface{}) bool {
 	f := p.P.EvalFunc(e)
-	return func(t T) bool { return !f(t) }
+	return func(t interface{}) bool { return !f(t) }
 }
 
 // And predicate
@@ -108,10 +108,10 @@ func (p AndPred) Domain() []Attribute {
 }
 
 // Eval evalutes a predicate on an input tuple
-func (p AndPred) EvalFunc(e reflect.Type) func(t T) bool {
+func (p AndPred) EvalFunc(e reflect.Type) func(t interface{}) bool {
 	f1 := p.P1.EvalFunc(e)
 	f2 := p.P2.EvalFunc(e)
-	return func(t T) bool { return f1(t) && f2(t) }
+	return func(t interface{}) bool { return f1(t) && f2(t) }
 }
 
 // And predicate
@@ -146,11 +146,11 @@ func (p OrPred) Domain() []Attribute {
 }
 
 // Eval evalutes a predicate on an input tuple
-func (p OrPred) EvalFunc(e reflect.Type) func(t T) bool {
+func (p OrPred) EvalFunc(e reflect.Type) func(t interface{}) bool {
 
 	f1 := p.P1.EvalFunc(e)
 	f2 := p.P2.EvalFunc(e)
-	return func(t T) bool { return f1(t) || f2(t) }
+	return func(t interface{}) bool { return f1(t) || f2(t) }
 }
 
 // And predicate
@@ -185,10 +185,10 @@ func (p XorPred) Domain() []Attribute {
 }
 
 // Eval evalutes a predicate on an input tuple
-func (p XorPred) EvalFunc(e reflect.Type) func(t T) bool {
+func (p XorPred) EvalFunc(e reflect.Type) func(t interface{}) bool {
 	f1 := p.P1.EvalFunc(e)
 	f2 := p.P2.EvalFunc(e)
-	return func(t T) bool {
+	return func(t interface{}) bool {
 		return f1(t) != f2(t)
 	}
 }
@@ -217,7 +217,7 @@ func (p1 XorPred) Xor(p2 Predicate) XorPred {
 type AdHoc struct {
 	// f is the function which takes a tuple and returns a boolean indicating
 	// that the tuple passes the predicate
-	f interface{}
+	F interface{}
 }
 
 // String representation of AdHoc
@@ -238,26 +238,26 @@ func (p AdHoc) String() string {
 
 // Domain is the type of input that is required to evalute the predicate
 func (p AdHoc) Domain() []Attribute {
-	return fieldNames(reflect.TypeOf(p.f).In(0))
+	return FieldNames(reflect.TypeOf(p.F).In(0))
 }
 
 // Eval evalutes a predicate on an input tuple
-func (p AdHoc) EvalFunc(e1 reflect.Type) func(t T) bool {
+func (p AdHoc) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
 
-	e2 := reflect.TypeOf(p.f).In(0)
+	e2 := reflect.TypeOf(p.F).In(0)
 
 	// figure out which fields stay, and where they are in each of the tuple
 	// types.
 	// TODO(jonlawlor): error if fields in e2 are not in r1's tuples.
-	fMap := fieldMap(e1, e2)
-	pf := reflect.ValueOf(p.f)
+	fMap := FieldMap(e1, e2)
+	pf := reflect.ValueOf(p.F)
 
-	return func(tup1 T) bool {
+	return func(tup1 interface{}) bool {
 		tup2 := reflect.Indirect(reflect.New(e2))
 		rtup1 := reflect.ValueOf(tup1)
 		for _, fm := range fMap {
-			tupf2 := tup2.Field(fm.j)
-			tupf2.Set(rtup1.Field(fm.i))
+			tupf2 := tup2.Field(fm.J)
+			tupf2.Set(rtup1.Field(fm.I))
 		}
 
 		parm := make([]reflect.Value, 1)
@@ -329,20 +329,20 @@ func (p EQPred) Domain() []Attribute {
 }
 
 // Eval evalutes a predicate on an input tuple
-func (p EQPred) EvalFunc(e1 reflect.Type) func(t T) bool {
+func (p EQPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
 
 	// The only method defined on all interfaces is equal & not equal.
 
 	if len(p.att) == 2 {
 		att1 := string(p.att[0])
 		att2 := string(p.att[1])
-		return func(tup1 T) bool {
+		return func(tup1 interface{}) bool {
 			rtup1 := reflect.ValueOf(tup1)
 			return rtup1.FieldByName(att1).Interface() == rtup1.FieldByName(att2).Interface()
 		}
 	} else { // the second element is a literal
 		att1 := string(p.att[0])
-		return func(tup1 T) bool {
+		return func(tup1 interface{}) bool {
 			rtup1 := reflect.ValueOf(tup1)
 			return rtup1.FieldByName(att1).Interface() == p.lit
 		}
@@ -398,7 +398,7 @@ func (p LTPred) Domain() []Attribute {
 }
 
 // Eval evalutes a predicate on an input tuple
-func (p LTPred) EvalFunc(e1 reflect.Type) func(t T) bool {
+func (p LTPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
 	// e1 is currently unused
 
 	// Less than is only defined on numeric and string types
@@ -406,7 +406,7 @@ func (p LTPred) EvalFunc(e1 reflect.Type) func(t T) bool {
 	if len(p.att) == 2 {
 		att1 := string(p.att[0])
 		att2 := string(p.att[1])
-		return func(tup1 T) bool {
+		return func(tup1 interface{}) bool {
 			rtup1 := reflect.ValueOf(tup1)
 			f1 := rtup1.FieldByName(att1).Interface()
 			f2 := rtup1.FieldByName(att2).Interface()
@@ -442,7 +442,7 @@ func (p LTPred) EvalFunc(e1 reflect.Type) func(t T) bool {
 		}
 	} else { // the second element is a literal
 		att1 := string(p.att[0])
-		return func(tup1 T) bool {
+		return func(tup1 interface{}) bool {
 			rtup1 := reflect.ValueOf(tup1)
 			f1 := rtup1.FieldByName(att1).Interface()
 			switch f1.(type) {
@@ -527,7 +527,7 @@ func (p LEPred) Domain() []Attribute {
 }
 
 // Eval evalutes a predicate on an input tuple
-func (p LEPred) EvalFunc(e1 reflect.Type) func(t T) bool {
+func (p LEPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
 	// e1 is currently unused
 
 	// Less than is only defined on numeric and string types
@@ -535,7 +535,7 @@ func (p LEPred) EvalFunc(e1 reflect.Type) func(t T) bool {
 	if len(p.att) == 2 {
 		att1 := string(p.att[0])
 		att2 := string(p.att[1])
-		return func(tup1 T) bool {
+		return func(tup1 interface{}) bool {
 			rtup1 := reflect.ValueOf(tup1)
 			f1 := rtup1.FieldByName(att1).Interface()
 			f2 := rtup1.FieldByName(att2).Interface()
@@ -571,7 +571,7 @@ func (p LEPred) EvalFunc(e1 reflect.Type) func(t T) bool {
 		}
 	} else { // the second element is a literal
 		att1 := string(p.att[0])
-		return func(tup1 T) bool {
+		return func(tup1 interface{}) bool {
 			rtup1 := reflect.ValueOf(tup1)
 			f1 := rtup1.FieldByName(att1).Interface()
 			switch f1.(type) {
@@ -656,7 +656,7 @@ func (p GTPred) Domain() []Attribute {
 }
 
 // Eval evalutes a predicate on an input tuple
-func (p GTPred) EvalFunc(e1 reflect.Type) func(t T) bool {
+func (p GTPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
 	// e1 is currently unused
 
 	// Less than is only defined on numeric and string types
@@ -664,7 +664,7 @@ func (p GTPred) EvalFunc(e1 reflect.Type) func(t T) bool {
 	if len(p.att) == 2 {
 		att1 := string(p.att[0])
 		att2 := string(p.att[1])
-		return func(tup1 T) bool {
+		return func(tup1 interface{}) bool {
 			rtup1 := reflect.ValueOf(tup1)
 			f1 := rtup1.FieldByName(att1).Interface()
 			f2 := rtup1.FieldByName(att2).Interface()
@@ -700,7 +700,7 @@ func (p GTPred) EvalFunc(e1 reflect.Type) func(t T) bool {
 		}
 	} else { // the second element is a literal
 		att1 := string(p.att[0])
-		return func(tup1 T) bool {
+		return func(tup1 interface{}) bool {
 			rtup1 := reflect.ValueOf(tup1)
 			f1 := rtup1.FieldByName(att1).Interface()
 			switch f1.(type) {
@@ -785,7 +785,7 @@ func (p GEPred) Domain() []Attribute {
 }
 
 // Eval evalutes a predicate on an input tuple
-func (p GEPred) EvalFunc(e1 reflect.Type) func(t T) bool {
+func (p GEPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
 	// e1 is currently unused
 
 	// Less than is only defined on numeric and string types
@@ -793,7 +793,7 @@ func (p GEPred) EvalFunc(e1 reflect.Type) func(t T) bool {
 	if len(p.att) == 2 {
 		att1 := string(p.att[0])
 		att2 := string(p.att[1])
-		return func(tup1 T) bool {
+		return func(tup1 interface{}) bool {
 			rtup1 := reflect.ValueOf(tup1)
 			f1 := rtup1.FieldByName(att1).Interface()
 			f2 := rtup1.FieldByName(att2).Interface()
@@ -829,7 +829,7 @@ func (p GEPred) EvalFunc(e1 reflect.Type) func(t T) bool {
 		}
 	} else { // the second element is a literal
 		att1 := string(p.att[0])
-		return func(tup1 T) bool {
+		return func(tup1 interface{}) bool {
 			rtup1 := reflect.ValueOf(tup1)
 			f1 := rtup1.FieldByName(att1).Interface()
 			switch f1.(type) {
@@ -914,20 +914,20 @@ func (p NEPred) Domain() []Attribute {
 }
 
 // Eval evalutes a predicate on an input tuple
-func (p NEPred) EvalFunc(e1 reflect.Type) func(t T) bool {
+func (p NEPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
 
 	// The only method defined on all interfaces is equal & not equal.
 
 	if len(p.att) == 2 {
 		att1 := string(p.att[0])
 		att2 := string(p.att[1])
-		return func(tup1 T) bool {
+		return func(tup1 interface{}) bool {
 			rtup1 := reflect.ValueOf(tup1)
 			return rtup1.FieldByName(att1).Interface() != rtup1.FieldByName(att2).Interface()
 		}
 	} else { // the second element is a literal
 		att1 := string(p.att[0])
-		return func(tup1 T) bool {
+		return func(tup1 interface{}) bool {
 			rtup1 := reflect.ValueOf(tup1)
 			return rtup1.FieldByName(att1).Interface() != p.lit
 		}

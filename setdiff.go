@@ -2,7 +2,10 @@
 
 package rel
 
-import "reflect"
+import (
+	"github.com/jonlawlor/rel/att"
+	"reflect"
+)
 
 // SetDiffExpr implements a set difference in relational algebra
 // This is one of the operations which consumes memory.  In addition, no values
@@ -14,7 +17,7 @@ type SetDiffExpr struct {
 	err error
 }
 
-func (r *SetDiffExpr) Tuples(t chan<- T) chan<- struct{} {
+func (r *SetDiffExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 
 	if r.Err() != nil {
@@ -37,12 +40,12 @@ func (r *SetDiffExpr) Tuples(t chan<- T) chan<- struct{} {
 	// first relation again.  That would require a mutex on mem.
 
 	// get the values out of the source relations
-	body1 := make(chan T)
-	body2 := make(chan T)
+	body1 := make(chan interface{})
+	body2 := make(chan interface{})
 	bcancel1 := r.source1.Tuples(body1)
 	bcancel2 := r.source2.Tuples(body2)
 
-	go func(b1, b2 <-chan T, res chan<- T) {
+	go func(b1, b2 <-chan interface{}, res chan<- interface{}) {
 	Loop2:
 		for {
 			select {
@@ -90,12 +93,12 @@ func (r *SetDiffExpr) Tuples(t chan<- T) chan<- struct{} {
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *SetDiffExpr) Zero() T {
+func (r *SetDiffExpr) Zero() interface{} {
 	return r.source1.Zero()
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *SetDiffExpr) CKeys() CandKeys {
+func (r *SetDiffExpr) CKeys() att.CandKeys {
 	return r.source1.CKeys()
 }
 
@@ -111,11 +114,11 @@ func (r *SetDiffExpr) String() string {
 
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
-func (r1 *SetDiffExpr) Project(z2 T) Relation {
+func (r1 *SetDiffExpr) Project(z2 interface{}) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
-	att2 := fieldNames(reflect.TypeOf(z2))
+	att2 := att.FieldNames(reflect.TypeOf(z2))
 	if Deg(r1) == len(att2) {
 		// either projection is an error or a no op
 		return r1
@@ -125,11 +128,11 @@ func (r1 *SetDiffExpr) Project(z2 T) Relation {
 }
 
 // Restrict creates a new relation with less than or equal cardinality
-// p has to be a func(tup T) bool where tup is a subdomain of the input r.
+// p has to be a func(tup interface{}) bool where tup is a subdomain of the input r.
 // This is a general purpose restrict - we might want to have specific ones for
 // the typical theta comparisons or <= <, =, >, >=, because it will allow much
 // better optimization on the source data side.
-func (r1 *SetDiffExpr) Restrict(p Predicate) Relation {
+func (r1 *SetDiffExpr) Restrict(p att.Predicate) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -140,7 +143,7 @@ func (r1 *SetDiffExpr) Restrict(p Predicate) Relation {
 // z2 has to be a struct with the same number of fields as the input relation
 // note: we might want to change this into a projectrename operation?  It will
 // be tricky to represent this in go's type system, I think.
-func (r1 *SetDiffExpr) Rename(z2 T) Relation {
+func (r1 *SetDiffExpr) Rename(z2 interface{}) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -173,7 +176,7 @@ func (r1 *SetDiffExpr) SetDiff(r2 Relation) Relation {
 
 // Join creates a new relation by performing a natural join on the inputs
 //
-func (r1 *SetDiffExpr) Join(r2 Relation, zero T) Relation {
+func (r1 *SetDiffExpr) Join(r2 Relation, zero interface{}) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -185,7 +188,7 @@ func (r1 *SetDiffExpr) Join(r2 Relation, zero T) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *SetDiffExpr) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
+func (r1 *SetDiffExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -193,7 +196,7 @@ func (r1 *SetDiffExpr) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *SetDiffExpr) Map(mfcn func(from T) (to T), z2 T, ckeystr [][]string) Relation {
+func (r1 *SetDiffExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
 	if r1.Err() != nil {
 		return r1
 	}

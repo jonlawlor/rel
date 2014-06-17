@@ -2,6 +2,7 @@ package rel
 
 import (
 	"fmt"
+	"github.com/jonlawlor/rel/att"
 	"testing"
 )
 
@@ -19,7 +20,7 @@ func TestSetDiff(t *testing.T) {
 	}
 
 	// test the degrees, cardinality, and string representation
-	rel := orders().Restrict(Attribute("Qty").NE(300)).SetDiff(orders().Restrict(Attribute("Qty").EQ(200)))
+	rel := orders().Restrict(att.Attribute("Qty").NE(300)).SetDiff(orders().Restrict(att.Attribute("Qty").EQ(200)))
 	type distinctTup struct {
 		PNO int
 		SNO int
@@ -48,7 +49,7 @@ func TestSetDiff(t *testing.T) {
 	type valTup struct {
 		Qty int
 	}
-	groupFcn := func(val <-chan T) T {
+	groupFcn := func(val <-chan interface{}) interface{} {
 		res := valTup{}
 		for vi := range val {
 			v := vi.(valTup)
@@ -62,7 +63,7 @@ func TestSetDiff(t *testing.T) {
 		Qty1 int
 		Qty2 int
 	}
-	mapFcn := func(tup1 T) T {
+	mapFcn := func(tup1 interface{}) interface{} {
 		if v, ok := tup1.(orderTup); ok {
 			return mapRes{v.PNO, v.SNO, v.Qty, v.Qty * 2}
 		} else {
@@ -79,7 +80,7 @@ func TestSetDiff(t *testing.T) {
 		expectCard   int
 	}{
 		{rel, "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty))", 3, 5},
-		{rel.Restrict(Attribute("PNO").EQ(1)), "σ{Qty != 300}(σ{PNO == 1}(Relation(PNO, SNO, Qty))) − σ{Qty == 200}(σ{PNO == 1}(Relation(PNO, SNO, Qty)))", 3, 3},
+		{rel.Restrict(att.Attribute("PNO").EQ(1)), "σ{Qty != 300}(σ{PNO == 1}(Relation(PNO, SNO, Qty))) − σ{Qty == 200}(σ{PNO == 1}(Relation(PNO, SNO, Qty)))", 3, 3},
 		{rel.Project(distinctTup{}), "π{PNO, SNO}(σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)))", 2, 5},
 		{rel.Project(nonDistinctTup{}), "π{PNO, Qty}(σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)))", 2, 4},
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, Sno, Qty}/{PNO, SNO, Qty}(σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)))", 3, 5},
@@ -103,7 +104,7 @@ func TestSetDiff(t *testing.T) {
 		}
 	}
 	// test cancellation
-	res := make(chan T)
+	res := make(chan interface{})
 	cancel := rel.Tuples(res)
 	close(cancel)
 	select {
@@ -115,18 +116,18 @@ func TestSetDiff(t *testing.T) {
 
 	// test errors
 	err := fmt.Errorf("testing error")
-	rel1 := orders().Restrict(Attribute("Qty").GE(300)).SetDiff(orders().Restrict(Attribute("Qty").NE(200))).(*SetDiffExpr)
+	rel1 := orders().Restrict(att.Attribute("Qty").GE(300)).SetDiff(orders().Restrict(att.Attribute("Qty").NE(200))).(*SetDiffExpr)
 	rel1.err = err
-	rel2 := orders().Restrict(Attribute("Qty").GE(300)).SetDiff(orders().Restrict(Attribute("Qty").NE(200))).(*SetDiffExpr)
+	rel2 := orders().Restrict(att.Attribute("Qty").GE(300)).SetDiff(orders().Restrict(att.Attribute("Qty").NE(200))).(*SetDiffExpr)
 	rel2.err = err
-	res = make(chan T)
+	res = make(chan interface{})
 	_ = rel1.Tuples(res)
 	if _, ok := <-res; ok {
 		t.Errorf("%d did not short circuit Tuples")
 	}
 	errTest := []Relation{
 		rel1.Project(distinctTup{}),
-		rel1.Restrict(Not(Attribute("PNO").EQ(1))),
+		rel1.Restrict(att.Not(att.Attribute("PNO").EQ(1))),
 		rel1.Rename(titleCaseTup{}),
 		rel1.Union(rel2),
 		rel1.Union(rel2),
@@ -151,7 +152,7 @@ func BenchmarkSetDiff(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// each iteration produces 0 tuples (1 dupe each)
-		t := make(chan T)
+		t := make(chan interface{})
 		r1.Tuples(t)
 		for _ = range t {
 		}

@@ -2,6 +2,7 @@ package rel
 
 import (
 	"fmt"
+	"github.com/jonlawlor/rel/att"
 	"testing"
 )
 
@@ -91,7 +92,7 @@ func TestJoin(t *testing.T) {
 		Qty    int
 		Weight float64
 	}
-	groupFcn := func(val <-chan T) T {
+	groupFcn := func(val <-chan interface{}) interface{} {
 		res := valTup{}
 		for vi := range val {
 			v := vi.(valTup)
@@ -104,7 +105,7 @@ func TestJoin(t *testing.T) {
 		PNO     int
 		TotalWt float64
 	}
-	mapFcn := func(tup1 T) T {
+	mapFcn := func(tup1 interface{}) interface{} {
 		if v, ok := tup1.(joinTup1); ok {
 			return mapRes{v.PNO, v.Weight * float64(v.Qty)}
 		} else {
@@ -122,12 +123,12 @@ func TestJoin(t *testing.T) {
 		expectCard   int
 	}{
 		{rel, "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty)", 6, 12},
-		{rel.Restrict(Attribute("PNO").EQ(1)), "σ{PNO == 1}(Relation(PNO, PName, Color, Weight, City)) ⋈ σ{PNO == 1}(Relation(PNO, SNO, Qty))", 6, 6},
+		{rel.Restrict(att.Attribute("PNO").EQ(1)), "σ{PNO == 1}(Relation(PNO, PName, Color, Weight, City)) ⋈ σ{PNO == 1}(Relation(PNO, SNO, Qty))", 6, 6},
 		{rel.Project(distinctTup{}), "π{PNO, PName}(Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty))", 2, 4},
 		{rel.Project(nonDistinctTup{}), "π{PName, City}(Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty))", 2, 4},
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, PName, Weight, City, Sno, Qty}/{PNO, PName, Weight, City, SNO, Qty}(Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty))", 6, 12},
-		{rel.SetDiff(rel.Restrict(Attribute("Weight").LT(15.0))), "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty) − σ{Weight < 15}(Relation(PNO, PName, Color, Weight, City)) ⋈ Relation(PNO, SNO, Qty)", 6, 3},
-		{rel.Union(rel.Restrict(Attribute("Weight").LE(12.0))), "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty) ∪ σ{Weight <= 12}(Relation(PNO, PName, Color, Weight, City)) ⋈ Relation(PNO, SNO, Qty)", 6, 12},
+		{rel.SetDiff(rel.Restrict(att.Attribute("Weight").LT(15.0))), "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty) − σ{Weight < 15}(Relation(PNO, PName, Color, Weight, City)) ⋈ Relation(PNO, SNO, Qty)", 6, 3},
+		{rel.Union(rel.Restrict(att.Attribute("Weight").LE(12.0))), "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty) ∪ σ{Weight <= 12}(Relation(PNO, PName, Color, Weight, City)) ⋈ Relation(PNO, SNO, Qty)", 6, 12},
 		{rel.Join(suppliers(), joinTup2{}), "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty) ⋈ Relation(SNO, SName, Status, City)", 8, 4},
 		{rel.GroupBy(groupByTup{}, valTup{}, groupFcn), "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty).GroupBy({City, Weight}, {Qty, Weight})", 2, 3},
 		{rel.Map(mapFcn, mapRes{}, mapKeys), "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty).Map({PNO, PName, Weight, City, SNO, Qty}->{PNO, TotalWt})", 2, 12}, // this is not actually distinct
@@ -146,7 +147,7 @@ func TestJoin(t *testing.T) {
 		}
 	}
 	// test cancellation
-	res := make(chan T)
+	res := make(chan interface{})
 	cancel := rel.Tuples(res)
 	close(cancel)
 	select {
@@ -161,14 +162,14 @@ func TestJoin(t *testing.T) {
 	rel1.err = err
 	rel2 := parts().Join(orders(), joinTup1{}).(*JoinExpr)
 	rel2.err = err
-	res = make(chan T)
+	res = make(chan interface{})
 	_ = rel1.Tuples(res)
 	if _, ok := <-res; ok {
 		t.Errorf("%d did not short circuit Tuples")
 	}
 	errTest := []Relation{
 		rel1.Project(distinctTup{}),
-		rel1.Restrict(Not(Attribute("PNO").EQ(1))),
+		rel1.Restrict(att.Not(att.Attribute("PNO").EQ(1))),
 		rel1.Rename(titleCaseTup{}),
 		rel1.Union(rel2),
 		rel.Union(rel2),
@@ -201,7 +202,7 @@ func BenchmarkJoin(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// each iteration produces 12 tuples
-		t := make(chan T)
+		t := make(chan interface{})
 		r1.Tuples(t)
 		for _ = range t {
 		}

@@ -2,6 +2,7 @@ package rel
 
 import (
 	"fmt"
+	"github.com/jonlawlor/rel/att"
 	"testing"
 )
 
@@ -14,9 +15,9 @@ func TestRestrict(t *testing.T) {
 		in  Relation
 		out int
 	}{
-		{exRel.Restrict(AdHoc{func(i struct{}) bool { return true }}), 10},
-		{exRel.Restrict(AdHoc{func(i struct{}) bool { return false }}), 0},
-		{exRel.Restrict(AdHoc{func(i struct{ Foo int }) bool { return i.Foo > 5 }}), 4},
+		{exRel.Restrict(att.AdHoc{func(i struct{}) bool { return true }}), 10},
+		{exRel.Restrict(att.AdHoc{func(i struct{}) bool { return false }}), 0},
+		{exRel.Restrict(att.AdHoc{func(i struct{ Foo int }) bool { return i.Foo > 5 }}), 4},
 	}
 	for _, tt := range restrictTests {
 		c := Card(tt.in)
@@ -26,7 +27,7 @@ func TestRestrict(t *testing.T) {
 	}
 
 	// test the degrees, cardinality, and string representation
-	rel := orders().Restrict(Attribute("Qty").GT(100))
+	rel := orders().Restrict(att.Attribute("Qty").GT(100))
 	type distinctTup struct {
 		PNO int
 		SNO int
@@ -55,7 +56,7 @@ func TestRestrict(t *testing.T) {
 	type valTup struct {
 		Qty int
 	}
-	groupFcn := func(val <-chan T) T {
+	groupFcn := func(val <-chan interface{}) interface{} {
 		res := valTup{}
 		for vi := range val {
 			v := vi.(valTup)
@@ -69,7 +70,7 @@ func TestRestrict(t *testing.T) {
 		Qty1 int
 		Qty2 int
 	}
-	mapFcn := func(tup1 T) T {
+	mapFcn := func(tup1 interface{}) interface{} {
 		if v, ok := tup1.(orderTup); ok {
 			return mapRes{v.PNO, v.SNO, v.Qty, v.Qty * 2}
 		} else {
@@ -87,7 +88,7 @@ func TestRestrict(t *testing.T) {
 		expectCard   int
 	}{
 		{rel, "σ{Qty > 100}(Relation(PNO, SNO, Qty))", 3, 10},
-		{rel.Restrict(Attribute("PNO").EQ(1).And(Attribute("Qty").GT(200))), "σ{Qty > 100}(σ{(PNO == 1) && (Qty > 200)}(Relation(PNO, SNO, Qty)))", 3, 2},
+		{rel.Restrict(att.Attribute("PNO").EQ(1).And(att.Attribute("Qty").GT(200))), "σ{Qty > 100}(σ{(PNO == 1) && (Qty > 200)}(Relation(PNO, SNO, Qty)))", 3, 2},
 		{rel.Project(distinctTup{}), "π{PNO, SNO}(σ{Qty > 100}(Relation(PNO, SNO, Qty)))", 2, 10},
 		{rel.Project(nonDistinctTup{}), "σ{Qty > 100}(π{PNO, Qty}(Relation(PNO, SNO, Qty)))", 2, 9},
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, Sno, Qty}/{PNO, SNO, Qty}(σ{Qty > 100}(Relation(PNO, SNO, Qty)))", 3, 10},
@@ -111,7 +112,7 @@ func TestRestrict(t *testing.T) {
 		}
 	}
 	// test cancellation
-	res := make(chan T)
+	res := make(chan interface{})
 	cancel := rel.Tuples(res)
 	close(cancel)
 	select {
@@ -123,18 +124,18 @@ func TestRestrict(t *testing.T) {
 
 	// test errors
 	err := fmt.Errorf("testing error")
-	r1 := orders().Restrict(Attribute("Qty").GT(100)).(*RestrictExpr)
+	r1 := orders().Restrict(att.Attribute("Qty").GT(100)).(*RestrictExpr)
 	r1.err = err
-	r2 := orders().Restrict(Attribute("Qty").GT(100)).(*RestrictExpr)
+	r2 := orders().Restrict(att.Attribute("Qty").GT(100)).(*RestrictExpr)
 	r2.err = err
-	res = make(chan T)
+	res = make(chan interface{})
 	_ = r1.Tuples(res)
 	if _, ok := <-res; ok {
 		t.Errorf("%d did not short circuit Tuples")
 	}
 	errTest := []Relation{
 		r1.Project(distinctTup{}),
-		r1.Restrict(Not(Attribute("PNO").EQ(1))),
+		r1.Restrict(att.Not(att.Attribute("PNO").EQ(1))),
 		r1.Rename(titleCaseTup{}),
 		r1.Union(r2),
 		rel.Union(r2),
@@ -156,14 +157,14 @@ func BenchmarkRestrictIdent(b *testing.B) {
 	// test the time it takes to pull all of the tuples after passing in an
 	// identity predicate (always true)
 	exRel := New(exampleRelSlice2(10), [][]string{[]string{"Foo"}})
-	pred := AdHoc{func(i struct{}) bool {
+	pred := att.AdHoc{func(i struct{}) bool {
 		return true
 	}}
 	r1 := exRel.Restrict(pred)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		t := make(chan T)
+		t := make(chan interface{})
 		r1.Tuples(t)
 		for _ = range t {
 		}
@@ -174,14 +175,14 @@ func BenchmarkRestrictZero(b *testing.B) {
 	// test the time it takes to pull all of the tuples after passing in an
 	// zero predicate (always false)
 	exRel := New(exampleRelSlice2(10), [][]string{[]string{"Foo"}})
-	pred := AdHoc{func(i struct{}) bool {
+	pred := att.AdHoc{func(i struct{}) bool {
 		return false
 	}}
 	r1 := exRel.Restrict(pred)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		t := make(chan T)
+		t := make(chan interface{})
 		r1.Tuples(t)
 		for _ = range t {
 		}

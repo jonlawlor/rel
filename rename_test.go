@@ -2,6 +2,7 @@ package rel
 
 import (
 	"fmt"
+	"github.com/jonlawlor/rel/att"
 	"testing"
 )
 
@@ -84,7 +85,7 @@ func TestRename(t *testing.T) {
 	type valTup struct {
 		QTY int
 	}
-	groupFcn := func(val <-chan T) T {
+	groupFcn := func(val <-chan interface{}) interface{} {
 		res := valTup{}
 		for vi := range val {
 			v := vi.(valTup)
@@ -99,7 +100,7 @@ func TestRename(t *testing.T) {
 		Qty1 int
 		Qty2 int
 	}
-	mapFcn := func(tup1 T) T {
+	mapFcn := func(tup1 interface{}) interface{} {
 		if v, ok := tup1.(upperCaseTup); ok {
 			return mapRes{v.PNO, v.SNO, v.QTY, v.QTY * 2}
 		} else {
@@ -116,7 +117,7 @@ func TestRename(t *testing.T) {
 		expectCard   int
 	}{
 		{rel, "ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty))", 3, 12},
-		{rel.Restrict(Attribute("PNO").EQ(1)), "σ{PNO == 1}(ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)))", 3, 6},
+		{rel.Restrict(att.Attribute("PNO").EQ(1)), "σ{PNO == 1}(ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)))", 3, 6},
 		{rel.Project(distinctTup{}), "π{PNO, SNO}(ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)))", 2, 12},
 		{rel.Project(nonDistinctTup{}), "π{PNO, QTY}(ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)))", 2, 10},
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, Sno, Qty}/{PNO, SNO, QTY}(ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)))", 3, 12},
@@ -140,7 +141,7 @@ func TestRename(t *testing.T) {
 		}
 	}
 	// test cancellation
-	res := make(chan T)
+	res := make(chan interface{})
 	cancel := rel.Tuples(res)
 	close(cancel)
 	select {
@@ -156,14 +157,14 @@ func TestRename(t *testing.T) {
 	rel1.err = err
 	rel2 := orders().Rename(upperCaseTup{}).(*RenameExpr)
 	rel2.err = err
-	res = make(chan T)
+	res = make(chan interface{})
 	_ = rel1.Tuples(res)
 	if _, ok := <-res; ok {
 		t.Errorf("did not short circuit Tuples")
 	}
 	errTest := []Relation{
 		rel1.Project(distinctTup{}),
-		rel1.Restrict(Not(Attribute("PNO").EQ(1))),
+		rel1.Restrict(att.Not(att.Attribute("PNO").EQ(1))),
 		rel1.Rename(titleCaseTup{}),
 		rel1.Union(rel2),
 		rel.Union(rel2),
@@ -196,7 +197,7 @@ func BenchmarkRename(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// each iteration produces 12 tuples
-		t := make(chan T)
+		t := make(chan interface{})
 		r1.Tuples(t)
 		for _ = range t {
 		}

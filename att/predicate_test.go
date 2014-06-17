@@ -1,4 +1,4 @@
-package rel
+package att
 
 import (
 	"fmt"
@@ -7,6 +7,12 @@ import (
 )
 
 // tests & benchmarks for Predicates
+
+// type of the example tuples
+type exTup2 struct {
+	Foo int
+	Bar string
+}
 
 func exTup2Func(ex exTup2) bool {
 	return true

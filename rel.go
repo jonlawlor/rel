@@ -26,55 +26,46 @@ package rel
 
 import (
 	"fmt" // we might want to replace this with the errors package?
+	"github.com/jonlawlor/rel/att"
 	"reflect"
 	"strings"
 )
 
-// T is represents tuples, and it should always be a struct
-type T interface{}
-
-// Attribute represents a particular attribute's name in a relation
-type Attribute string
-
-// CandKeys is a set of candidate keys
-// they should be unique and sorted
-type CandKeys [][]Attribute
-
 // Relation has similar meaning to tables in SQL
 type Relation interface {
 	// Zero is the zero value for the tuple
-	Zero() T
+	Zero() interface{}
 
 	// CKeys is the set of candidate keys for the Relation
-	CKeys() CandKeys
+	CKeys() att.CandKeys
 
 	// Tuples takes a channel of interface and keeps sending
 	// the tuples in the relation over the channel.
 	// It returns a "cancel" channel that can be used to halt computations
 	// early
-	Tuples(chan<- T) (cancel chan<- struct{})
+	Tuples(chan<- interface{}) (cancel chan<- struct{})
 
 	// the following methods are a part of relational algebra
 
-	Project(z2 T) Relation
+	Project(z2 interface{}) Relation
 
-	Restrict(p Predicate) Relation
+	Restrict(p att.Predicate) Relation
 
-	Rename(z2 T) Relation
+	Rename(z2 interface{}) Relation
 
 	Union(r2 Relation) Relation
 
 	SetDiff(r2 Relation) Relation
 
-	Join(r2 Relation, zero T) Relation
+	Join(r2 Relation, zero interface{}) Relation
 
-	Map(mfcn func(from T) (to T), z2 T, ckeystr [][]string) Relation
+	Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation
 
 	// non relational but still useful
 
-	GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation
+	GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation
 
-	// not necessary but still very useful
+	// not necessary but still very useful!
 
 	String() string
 
@@ -103,47 +94,47 @@ func New(v interface{}, ckeystr [][]string) Relation {
 
 			// all relations have a candidate key of all of their attributes, or
 			// a non zero subset if the relation is not dee or dum
-			r.cKeys = defaultKeys(z)
+			r.cKeys = att.DefaultKeys(z)
 		} else {
 			// convert from [][]string to CandKeys
-			r.cKeys = string2CandKeys(ckeystr)
+			r.cKeys = att.String2CandKeys(ckeystr)
 		}
 		r.zero = z
 		// we might want to check the candidate keys for validity here?
-		orderCandidateKeys(r.cKeys)
+		att.OrderCandidateKeys(r.cKeys)
 		return r
 
 	case reflect.Chan:
 		r := new(chanLiteral)
 		r.rbody = rbody // TODO(jonlawlor): check direction
 		if len(ckeystr) == 0 {
-			r.cKeys = defaultKeys(z)
+			r.cKeys = att.DefaultKeys(z)
 			// note that even zero degree relations need to be distinct
 		} else {
-			r.cKeys = string2CandKeys(ckeystr)
+			r.cKeys = att.String2CandKeys(ckeystr)
 			r.sourceDistinct = true
 		}
 
 		r.zero = z
 		// we might want to check the candidate keys for validity here?
-		orderCandidateKeys(r.cKeys)
+		att.OrderCandidateKeys(r.cKeys)
 		return r
 
 	case reflect.Slice:
 		r := new(sliceLiteral)
 		r.rbody = rbody
 		if len(ckeystr) == 0 {
-			r.cKeys = defaultKeys(z)
+			r.cKeys = att.DefaultKeys(z)
 			// note that even zero degree relations need to be distinct
 		} else {
-			r.cKeys = string2CandKeys(ckeystr)
+			r.cKeys = att.String2CandKeys(ckeystr)
 			r.sourceDistinct = true
 		}
 
 		r.zero = z
 
 		// we might want to check the candidate keys for validity here?
-		orderCandidateKeys(r.cKeys)
+		att.OrderCandidateKeys(r.cKeys)
 		return r
 	default:
 		panic(fmt.Sprintf("unrecognized relation kind: %v", rbody.Kind()))
@@ -151,8 +142,8 @@ func New(v interface{}, ckeystr [][]string) Relation {
 }
 
 // Heading is a slice of column names
-func Heading(r Relation) []Attribute {
-	return fieldNames(reflect.TypeOf(r.Zero()))
+func Heading(r Relation) []att.Attribute {
+	return att.FieldNames(reflect.TypeOf(r.Zero()))
 }
 
 // HeadingString is a string representation of the attributes of a relation
@@ -182,7 +173,7 @@ func Deg(r Relation) int {
 // also implements its own Card someplace else, and just leave this
 // implementation as default.
 func Card(r Relation) (i int) {
-	body := make(chan T)
+	body := make(chan interface{})
 	_ = r.Tuples(body)
 	for _ = range body {
 		i++

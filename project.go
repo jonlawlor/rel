@@ -3,6 +3,7 @@
 package rel
 
 import (
+	"github.com/jonlawlor/rel/att"
 	"reflect"
 )
 
@@ -12,7 +13,7 @@ type ProjectExpr struct {
 	source1 Relation
 
 	// the new tuple type
-	zero T
+	zero interface{}
 
 	err error
 }
@@ -20,7 +21,7 @@ type ProjectExpr struct {
 // Tuples sends each tuple in the relation to a channel
 // note: this consumes the values of the relation, and when it is finished it
 // closes the input channel.
-func (r *ProjectExpr) Tuples(t chan<- T) chan<- struct{} {
+func (r *ProjectExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 
 	if r.Err() != nil {
@@ -36,12 +37,12 @@ func (r *ProjectExpr) Tuples(t chan<- T) chan<- struct{} {
 	e1 := reflect.TypeOf(z1)
 	e2 := reflect.TypeOf(r.zero)
 
-	body1 := make(chan T)
+	body1 := make(chan interface{})
 	bcancel := r.source1.Tuples(body1)
 
 	if e1.AssignableTo(e2) {
 		// nothing to do.
-		go func(body <-chan T, res chan<- T) {
+		go func(body <-chan interface{}, res chan<- interface{}) {
 		Loop:
 			for {
 				select {
@@ -72,14 +73,14 @@ func (r *ProjectExpr) Tuples(t chan<- T) chan<- struct{} {
 	// figure out which fields stay, and where they are in each of the tuple
 	// types.
 	// TODO(jonlawlor): error if fields in e2 are not in r1's tuples.
-	fMap := fieldMap(e1, e2)
+	fMap := att.FieldMap(e1, e2)
 
 	// figure out if we need to distinct the results because there are no
 	// candidate keys left
 	// TODO(jonlawlor): refactor with the code in the CKeys() method
-	cKeys := subsetCandidateKeys(r.source1.CKeys(), Heading(r.source1), fMap)
+	cKeys := att.SubsetCandidateKeys(r.source1.CKeys(), Heading(r.source1), fMap)
 	if len(cKeys) == 0 {
-		go func(body <-chan T, res chan<- T) {
+		go func(body <-chan interface{}, res chan<- interface{}) {
 			m := map[interface{}]struct{}{}
 		Loop:
 			for {
@@ -91,8 +92,8 @@ func (r *ProjectExpr) Tuples(t chan<- T) chan<- struct{} {
 					tup2 := reflect.Indirect(reflect.New(e2))
 					rtup1 := reflect.ValueOf(tup1)
 					for _, fm := range fMap {
-						tupf2 := tup2.Field(fm.j)
-						tupf2.Set(rtup1.Field(fm.i))
+						tupf2 := tup2.Field(fm.J)
+						tupf2.Set(rtup1.Field(fm.I))
 					}
 					// set the field in the new tuple to the value from the old one
 					if _, isdup := m[tup2.Interface()]; !isdup {
@@ -119,7 +120,7 @@ func (r *ProjectExpr) Tuples(t chan<- T) chan<- struct{} {
 
 	// assign fields from the old relation to fields in the new
 	// TODO(jonlawlor) add parallelism here
-	go func(body <-chan T, res chan<- T) {
+	go func(body <-chan interface{}, res chan<- interface{}) {
 	Loop:
 		for {
 			select {
@@ -130,8 +131,8 @@ func (r *ProjectExpr) Tuples(t chan<- T) chan<- struct{} {
 				tup2 := reflect.Indirect(reflect.New(e2))
 				rtup1 := reflect.ValueOf(tup1)
 				for _, fm := range fMap {
-					tupf2 := tup2.Field(fm.j)
-					tupf2.Set(rtup1.Field(fm.i))
+					tupf2 := tup2.Field(fm.J)
+					tupf2.Set(rtup1.Field(fm.I))
 				}
 				select {
 				// set the field in the new tuple to the value from the old one
@@ -155,12 +156,12 @@ func (r *ProjectExpr) Tuples(t chan<- T) chan<- struct{} {
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *ProjectExpr) Zero() T {
+func (r *ProjectExpr) Zero() interface{} {
 	return r.zero
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *ProjectExpr) CKeys() CandKeys {
+func (r *ProjectExpr) CKeys() att.CandKeys {
 	z1 := r.source1.Zero()
 
 	cKeys := r.source1.CKeys()
@@ -177,12 +178,12 @@ func (r *ProjectExpr) CKeys() CandKeys {
 	}
 
 	// otherwise we have to subset the candidate keys.
-	fMap := fieldMap(e1, e2)
-	cKeys = subsetCandidateKeys(cKeys, Heading(r.source1), fMap)
+	fMap := att.FieldMap(e1, e2)
+	cKeys = att.SubsetCandidateKeys(cKeys, Heading(r.source1), fMap)
 
 	// every relation except dee and dum have at least one candidate key
 	if len(cKeys) == 0 {
-		cKeys = defaultKeys(r.zero)
+		cKeys = att.DefaultKeys(r.zero)
 	}
 
 	return cKeys
@@ -202,7 +203,7 @@ func (r *ProjectExpr) String() string {
 
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
-func (r1 *ProjectExpr) Project(z2 T) Relation {
+func (r1 *ProjectExpr) Project(z2 interface{}) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -213,7 +214,7 @@ func (r1 *ProjectExpr) Project(z2 T) Relation {
 
 // Restrict creates a new relation with less than or equal cardinality
 // p has to be a func(tup T) bool where tup is a subdomain of the input r.
-func (r1 *ProjectExpr) Restrict(p Predicate) Relation {
+func (r1 *ProjectExpr) Restrict(p att.Predicate) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -224,7 +225,7 @@ func (r1 *ProjectExpr) Restrict(p Predicate) Relation {
 // z2 has to be a struct with the same number of fields as the input relation
 // note: we might want to change this into a projectrename operation?  It will
 // be tricky to represent this in go's type system, I think.
-func (r1 *ProjectExpr) Rename(z2 T) Relation {
+func (r1 *ProjectExpr) Rename(z2 interface{}) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -257,7 +258,7 @@ func (r1 *ProjectExpr) SetDiff(r2 Relation) Relation {
 
 // Join creates a new relation by performing a natural join on the inputs
 //
-func (r1 *ProjectExpr) Join(r2 Relation, zero T) Relation {
+func (r1 *ProjectExpr) Join(r2 Relation, zero interface{}) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -269,7 +270,7 @@ func (r1 *ProjectExpr) Join(r2 Relation, zero T) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *ProjectExpr) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
+func (r1 *ProjectExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -277,7 +278,7 @@ func (r1 *ProjectExpr) GroupBy(t2, vt T, gfcn func(<-chan T) T) Relation {
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *ProjectExpr) Map(mfcn func(from T) (to T), z2 T, ckeystr [][]string) Relation {
+func (r1 *ProjectExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
@@ -289,11 +290,11 @@ func (r1 *ProjectExpr) Map(mfcn func(from T) (to T), z2 T, ckeystr [][]string) R
 	if len(ckeystr) == 0 {
 		// all relations have a candidate key of all of their attributes, or
 		// a non zero subset if the relation is not dee or dum
-		r.cKeys = defaultKeys(z2)
+		r.cKeys = att.DefaultKeys(z2)
 	} else {
 		r.isDistinct = true
 		// convert from [][]string to CandKeys
-		r.cKeys = string2CandKeys(ckeystr)
+		r.cKeys = att.String2CandKeys(ckeystr)
 	}
 	return r
 }

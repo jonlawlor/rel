@@ -5,6 +5,7 @@ package rel
 import (
 	"bytes"
 	"fmt"
+	"github.com/jonlawlor/rel/att"
 	"reflect"
 	"strings"
 	"text/tabwriter"
@@ -22,7 +23,7 @@ func goStringTabTable(r Relation) string {
 	// create struct slice type information
 	// TODO(jonlawlor): include tags?
 	cn := Heading(r)
-	ct := fieldTypes(reflect.TypeOf(r.Zero()))
+	ct := att.FieldTypes(reflect.TypeOf(r.Zero()))
 	for i := range cn {
 		fmt.Fprintf(w, "\t\xff%s\xff\t\xff%v\xff\t\n", cn[i], ct[i])
 	}
@@ -30,7 +31,7 @@ func goStringTabTable(r Relation) string {
 	s.WriteString("}{\n")
 
 	// write the body
-	tups := make(chan T)
+	tups := make(chan interface{})
 	r.Tuples(tups)
 
 	deg := Deg(r)
@@ -91,7 +92,7 @@ func stringTabTable(r Relation) string {
 	fmt.Fprintf(w, "\t|\n")
 
 	// write the body
-	tups := make(chan T)
+	tups := make(chan interface{})
 	r.Tuples(tups)
 
 	for tup := range tups {

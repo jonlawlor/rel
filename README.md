@@ -100,7 +100,7 @@ type multRes struct {
 	M int
 	V float64
 }
-mapMult := func (tup rel.T) rel.T {
+mapMult := func (tup interface{}) interface{} {
 	if v, ok := tup.(multElemC); ok {
 		return multRes{v.R, v.C, v.M, v.VA * v.VB}
 	} else {
@@ -110,7 +110,7 @@ mapMult := func (tup rel.T) rel.T {
 type valTup struct {
 	V float64
 }
-groupAdd := func(val <-chan rel.T) rel.T {
+groupAdd := func(val <-chan interface{}) interface{} {
 	res := valTup{}
 	for vi := range val {
 		v := vi.(valTup)

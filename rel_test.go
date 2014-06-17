@@ -7,7 +7,7 @@ import (
 // test creation of relations, including tests to determine the cost of
 // representing slices of structs as relations instead of native.
 
-// type of the example relations
+// type of the example tuples in relations
 type exTup2 struct {
 	Foo int
 	Bar string
@@ -43,7 +43,7 @@ func TestMatrixExample(t *testing.T) {
 		M int
 		V float64
 	}
-	mapMult := func(tup T) T {
+	mapMult := func(tup interface{}) interface{} {
 		if v, ok := tup.(multElemC); ok {
 			return multRes{v.R, v.C, v.M, v.VA * v.VB}
 		} else {
@@ -53,7 +53,7 @@ func TestMatrixExample(t *testing.T) {
 	type valTup struct {
 		V float64
 	}
-	groupAdd := func(val <-chan T) T {
+	groupAdd := func(val <-chan interface{}) interface{} {
 		res := valTup{}
 		for vi := range val {
 			v := vi.(valTup)

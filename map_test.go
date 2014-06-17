@@ -2,6 +2,7 @@ package rel
 
 import (
 	"fmt"
+	"github.com/jonlawlor/rel/att"
 	"testing"
 )
 
@@ -9,7 +10,7 @@ import (
 func TestMap(t *testing.T) {
 
 	// test the degrees, cardinality, and string representation
-	doubleQty := func(tup1 T) T {
+	doubleQty := func(tup1 interface{}) interface{} {
 		if v, ok := tup1.(orderTup); ok {
 			return orderTup{v.PNO, v.SNO, v.Qty * 2}
 		} else {
@@ -49,7 +50,7 @@ func TestMap(t *testing.T) {
 	type valTup struct {
 		Qty int
 	}
-	groupFcn := func(val <-chan T) T {
+	groupFcn := func(val <-chan interface{}) interface{} {
 		res := valTup{}
 		for vi := range val {
 			v := vi.(valTup)
@@ -63,7 +64,7 @@ func TestMap(t *testing.T) {
 		Qty1 int
 		Qty2 int
 	}
-	mapFcn := func(tup1 T) T {
+	mapFcn := func(tup1 interface{}) interface{} {
 		if v, ok := tup1.(orderTup); ok {
 			return mapRes{v.PNO, v.SNO, v.Qty, v.Qty * 2}
 		} else {
@@ -78,7 +79,7 @@ func TestMap(t *testing.T) {
 		expectCard   int
 	}{
 		{rel, "Relation(PNO, SNO, Qty).Map({PNO, SNO, Qty}->{PNO, SNO, Qty})", 3, 12},
-		{rel.Restrict(Attribute("PNO").EQ(1)), "σ{PNO == 1}(Relation(PNO, SNO, Qty).Map({PNO, SNO, Qty}->{PNO, SNO, Qty}))", 3, 6},
+		{rel.Restrict(att.Attribute("PNO").EQ(1)), "σ{PNO == 1}(Relation(PNO, SNO, Qty).Map({PNO, SNO, Qty}->{PNO, SNO, Qty}))", 3, 6},
 		{rel.Project(distinctTup{}), "π{PNO, SNO}(Relation(PNO, SNO, Qty).Map({PNO, SNO, Qty}->{PNO, SNO, Qty}))", 2, 12},
 		{rel.Project(nonDistinctTup{}), "π{PNO, Qty}(Relation(PNO, SNO, Qty).Map({PNO, SNO, Qty}->{PNO, SNO, Qty}))", 2, 10},
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, Sno, Qty}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty).Map({PNO, SNO, Qty}->{PNO, SNO, Qty}))", 3, 12},
@@ -102,7 +103,7 @@ func TestMap(t *testing.T) {
 		}
 	}
 	// test cancellation
-	res := make(chan T)
+	res := make(chan interface{})
 	cancel := rel.Tuples(res)
 	close(cancel)
 	select {
@@ -117,14 +118,14 @@ func TestMap(t *testing.T) {
 	r1.err = err
 	r2 := orders().Map(doubleQty, orderTup{}, mapKeys).(*MapExpr)
 	r2.err = err
-	res = make(chan T)
+	res = make(chan interface{})
 	_ = r1.Tuples(res)
 	if _, ok := <-res; ok {
 		t.Errorf("%d did not short circuit Tuples")
 	}
 	errTest := []Relation{
 		r1.Project(distinctTup{}),
-		r1.Restrict(Not(Attribute("PNO").EQ(1))),
+		r1.Restrict(att.Not(att.Attribute("PNO").EQ(1))),
 		r1.Rename(titleCaseTup{}),
 		r1.Union(r2),
 		rel.Union(r2),

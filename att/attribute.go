@@ -1,19 +1,28 @@
-package rel
+// Package att represents attributes, and the candidate keys and predicates
+// constructed from attributes.  It also contains the definitions of tuples.
+package att
 
 import (
 	"reflect"
 	"sort"
 )
 
-// fieldIndex is used to map between attributes in different relations
+// Attribute represents a particular attribute's name in a relation
+type Attribute string
+
+// CandKeys is a set of candidate keys
+// they should be unique and sorted
+type CandKeys [][]Attribute
+
+// FieldIndex is used to map between attributes in different relations
 // that have the same name
-type fieldIndex struct {
-	i int
-	j int
+type FieldIndex struct {
+	I int
+	J int
 }
 
-// fieldNames takes a reflect.Type of a struct and returns field names in order
-func fieldNames(e reflect.Type) []Attribute {
+// FieldNames takes a reflect.Type of a struct and returns field names in order
+func FieldNames(e reflect.Type) []Attribute {
 	n := e.NumField()
 	names := make([]Attribute, n)
 	for i := 0; i < n; i++ {
@@ -24,7 +33,7 @@ func fieldNames(e reflect.Type) []Attribute {
 }
 
 // fieldTypes takes a reflect.Type of a struct and returns field types in order
-func fieldTypes(e reflect.Type) []reflect.Type {
+func FieldTypes(e reflect.Type) []reflect.Type {
 	n := e.NumField()
 	types := make([]reflect.Type, n)
 	for i := 0; i < n; i++ {
@@ -34,7 +43,7 @@ func fieldTypes(e reflect.Type) []reflect.Type {
 	return types
 }
 
-func orderCandidateKeys(ckeys CandKeys) {
+func OrderCandidateKeys(ckeys CandKeys) {
 	// first go through each set of keys and alphabetize
 	// this is used to compare sets of candidate keys
 	for _, ck := range ckeys {
@@ -52,7 +61,7 @@ func orderCandidateKeys(ckeys CandKeys) {
 	sort.Sort(ckeys)
 }
 
-func string2CandKeys(ckeystrs [][]string) CandKeys {
+func String2CandKeys(ckeystrs [][]string) CandKeys {
 	cks := make([][]Attribute, len(ckeystrs))
 	for i, ckstr := range ckeystrs {
 		cks[i] = make([]Attribute, len(ckstr))
@@ -98,14 +107,14 @@ func (cks CandKeys) Less(i, j int) bool {
 // defaultkey provides the default candidate key for a relation
 // This is used when no candidate keys are provided.
 // note that this will not be sorted correctly
-func defaultKeys(z interface{}) CandKeys {
+func DefaultKeys(z interface{}) CandKeys {
 	// get the names of the fields out of the interface
 	e := reflect.TypeOf(z)
-	return CandKeys{fieldNames(e)}
+	return CandKeys{FieldNames(e)}
 }
 
 // subsetCandidateKeys subsets candidate keys so they only include given fields
-func subsetCandidateKeys(cKeys1 [][]Attribute, names1 []Attribute, fMap map[Attribute]fieldIndex) [][]Attribute {
+func SubsetCandidateKeys(cKeys1 [][]Attribute, names1 []Attribute, fMap map[Attribute]FieldIndex) [][]Attribute {
 
 	remNames := make(map[Attribute]struct{})
 	for _, n1 := range names1 {
@@ -133,23 +142,23 @@ KeyLoop:
 // the returned map's values have two fields i,j , which indicate the location of
 // the field name in the input types
 // if the field is absent from either of the inputs, it is not returned.
-func fieldMap(e1, e2 reflect.Type) map[Attribute]fieldIndex {
+func FieldMap(e1, e2 reflect.Type) map[Attribute]FieldIndex {
 	// TODO(jonlawlor): we might want to exclude unexported fields?
-	fn1 := fieldNames(e1)
-	fn2 := fieldNames(e2)
-	return attributeMap(fn1, fn2)
+	fn1 := FieldNames(e1)
+	fn2 := FieldNames(e2)
+	return AttributeMap(fn1, fn2)
 }
 
 // fieldMap creates a map from fields of one struct type to the fields of another
 // the returned map's values have two fields i,j , which indicate the location of
 // the field name in the input types
 // if the field is absent from either of the inputs, it is not returned.
-func attributeMap(fn1, fn2 []Attribute) map[Attribute]fieldIndex {
-	m := make(map[Attribute]fieldIndex)
+func AttributeMap(fn1, fn2 []Attribute) map[Attribute]FieldIndex {
+	m := make(map[Attribute]FieldIndex)
 	for i, n1 := range fn1 {
 		for j, n2 := range fn2 {
 			if n1 == n2 {
-				m[n1] = fieldIndex{i, j}
+				m[n1] = FieldIndex{i, j}
 				break
 			}
 		}
@@ -159,7 +168,7 @@ func attributeMap(fn1, fn2 []Attribute) map[Attribute]fieldIndex {
 
 // isSubDomain returns true if the attributes in sub are all members of dom, otherwise false
 // this would be faster if []Attributes were always ordered
-func isSubDomain(sub, dom []Attribute) bool {
+func IsSubDomain(sub, dom []Attribute) bool {
 SubLoop:
 	for _, n1 := range sub {
 		for _, n2 := range dom {
@@ -178,7 +187,7 @@ SubLoop:
 // rtup, put only values which are in rtyp.
 // The reason we have to put zero values is that we can't make derived types.
 // returns the results as an interface instead of as reflect.Value's
-func partialProject(tup reflect.Value, ltyp, rtyp reflect.Type, lFieldMap, rFieldMap map[Attribute]fieldIndex) (ltupi interface{}, rtupi interface{}) {
+func PartialProject(tup reflect.Value, ltyp, rtyp reflect.Type, lFieldMap, rFieldMap map[Attribute]FieldIndex) (ltupi interface{}, rtupi interface{}) {
 
 	// we could avoid passing in th lFieldMap and
 
@@ -193,11 +202,11 @@ func partialProject(tup reflect.Value, ltyp, rtyp reflect.Type, lFieldMap, rFiel
 		// if it is in the right tuple, assign it to the right tuple, otherwise
 		// assign it to the left tuple
 		if rfm, exists := rFieldMap[lname]; exists {
-			tupf := rtup.Field(rfm.j)
-			tupf.Set(tup.Field(rfm.i))
+			tupf := rtup.Field(rfm.J)
+			tupf.Set(tup.Field(rfm.I))
 		} else {
-			tupf := ltup.Field(lfm.j)
-			tupf.Set(tup.Field(lfm.i))
+			tupf := ltup.Field(lfm.J)
+			tupf.Set(tup.Field(lfm.I))
 		}
 	}
 	ltupi = ltup.Interface()
@@ -205,20 +214,20 @@ func partialProject(tup reflect.Value, ltyp, rtyp reflect.Type, lFieldMap, rFiel
 	return
 }
 
-// combineTuples takes the values in rtup and assigns them to the fields
+// CombineTuples takes the values in rtup and assigns them to the fields
 // in ltup with the same names
-func combineTuples(ltup, rtup reflect.Value, ltyp reflect.Type, fMap map[Attribute]fieldIndex) reflect.Value {
+func CombineTuples(ltup, rtup reflect.Value, ltyp reflect.Type, fMap map[Attribute]FieldIndex) reflect.Value {
 	// for some reason I can't get reflect to work on a pointer to an interface
 	// so this will use a new ltup and then assign values to it from either the
 	// ltup or rtup inputs
 	// TODO(jonlawlor): avoid this new allocation somehow
 	tup2 := reflect.Indirect(reflect.New(ltyp))
-	leftNames := fieldNames(ltyp)
+	leftNames := FieldNames(ltyp)
 	for i, leftName := range leftNames {
 		lf := tup2.Field(i)
 		if fm, isRight := fMap[leftName]; isRight {
 			// take the values from the right
-			lf.Set(rtup.Field(fm.j))
+			lf.Set(rtup.Field(fm.J))
 		} else {
 			lf.Set(ltup.Field(i))
 		}
@@ -226,21 +235,24 @@ func combineTuples(ltup, rtup reflect.Value, ltyp reflect.Type, fMap map[Attribu
 	return tup2
 }
 
-func combineTuples2(to *reflect.Value, from reflect.Value, fMap map[Attribute]fieldIndex) {
+// CombineTuples
+// TODO(jonlawlor): figure out how to combine with CombineTuples, or rename
+// this func.
+func CombineTuples2(to *reflect.Value, from reflect.Value, fMap map[Attribute]FieldIndex) {
 	// for some reason I can't get reflect to work on a pointer to an interface
 	// so this will use a new ltup and then assign values to it from either the
 	// ltup or rtup inputs
 	// TODO(jonlawlor): avoid this new allocation somehow
 	for _, fm := range fMap {
-		tof := to.Field(fm.i)
-		tof.Set(from.Field(fm.j))
+		tof := to.Field(fm.I)
+		tof.Set(from.Field(fm.J))
 	}
 	return
 }
 
-func partialEquals(tup1 reflect.Value, tup2 reflect.Value, fmap map[Attribute]fieldIndex) bool {
+func PartialEquals(tup1 reflect.Value, tup2 reflect.Value, fmap map[Attribute]FieldIndex) bool {
 	for _, fm := range fmap {
-		if tup1.Field(fm.i).Interface() != tup2.Field(fm.j).Interface() {
+		if tup1.Field(fm.I).Interface() != tup2.Field(fm.J).Interface() {
 			return false
 		}
 	}

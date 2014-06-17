@@ -2,6 +2,7 @@ package rel
 
 import (
 	"fmt"
+	"github.com/jonlawlor/rel/att"
 	"testing"
 )
 
@@ -18,7 +19,7 @@ func TestGroupBy(t *testing.T) {
 	}
 
 	// a simple summation
-	groupFcn := func(val <-chan T) T {
+	groupFcn := func(val <-chan interface{}) interface{} {
 		res := valtup{}
 		for vi := range val {
 			v := vi.(valtup)
@@ -49,7 +50,7 @@ func TestGroupBy(t *testing.T) {
 	type valTup struct {
 		Weight float64
 	}
-	weightSum := func(val <-chan T) T {
+	weightSum := func(val <-chan interface{}) interface{} {
 		res := valTup{}
 		for vi := range val {
 			v := vi.(valTup)
@@ -92,7 +93,7 @@ func TestGroupBy(t *testing.T) {
 		PName   string
 		Weight2 float64
 	}
-	mapFcn := func(tup1 T) T {
+	mapFcn := func(tup1 interface{}) interface{} {
 		if v, ok := tup1.(groupByTup1); ok {
 			return mapRes{v.PNO, v.PName, v.Weight / 2}
 		} else {
@@ -110,12 +111,12 @@ func TestGroupBy(t *testing.T) {
 		expectCard   int
 	}{
 		{rel, "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight})", 4, 6},
-		{rel.Restrict(Attribute("PNO").EQ(1)), "σ{PNO == 1}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}))", 4, 1},
+		{rel.Restrict(att.Attribute("PNO").EQ(1)), "σ{PNO == 1}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}))", 4, 1},
 		{rel.Project(distinctTup{}), "π{PNO, PName}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}))", 2, 6},
 		{rel.Project(nonDistinctTup{}), "π{PName, City}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}))", 2, 6},
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, PName, Weight, City}/{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}))", 4, 6},
-		{rel.SetDiff(rel.Restrict(Attribute("Weight").LT(15.0))), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}) − σ{Weight < 15}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}))", 4, 3},
-		{rel.Union(rel.Restrict(Attribute("Weight").LE(12.0))), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}) ∪ σ{Weight <= 12}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}))", 4, 6},
+		{rel.SetDiff(rel.Restrict(att.Attribute("Weight").LT(15.0))), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}) − σ{Weight < 15}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}))", 4, 3},
+		{rel.Union(rel.Restrict(att.Attribute("Weight").LE(12.0))), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}) ∪ σ{Weight <= 12}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}))", 4, 6},
 		{rel.Join(suppliers(), joinTup{}), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}) ⋈ Relation(SNO, SName, Status, City)", 6, 10},
 		{rel.GroupBy(groupByTup2{}, valTup{}, weightSum), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}).GroupBy({City, Weight}, {Weight})", 2, 3},
 		{rel.Map(mapFcn, mapRes{}, mapKeys), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}, {Weight}).Map({PNO, PName, Weight, City}->{PNO, PName, Weight2})", 3, 6},
@@ -134,7 +135,7 @@ func TestGroupBy(t *testing.T) {
 		}
 	}
 	// test cancellation
-	res := make(chan T)
+	res := make(chan interface{})
 	cancel := rel.Tuples(res)
 	close(cancel)
 	select {
@@ -150,14 +151,14 @@ func TestGroupBy(t *testing.T) {
 	rel1.err = err
 	rel2 := parts().GroupBy(groupByTup1{}, valTup{}, weightSum).(*GroupByExpr)
 	rel2.err = err
-	res = make(chan T)
+	res = make(chan interface{})
 	_ = rel1.Tuples(res)
 	if _, ok := <-res; ok {
 		t.Errorf("%d did not short circuit Tuples")
 	}
 	errTest := []Relation{
 		rel1.Project(distinctTup{}),
-		rel1.Restrict(Not(Attribute("PNO").EQ(1))),
+		rel1.Restrict(att.Not(att.Attribute("PNO").EQ(1))),
 		rel1.Rename(titleCaseTup{}),
 		rel1.Union(rel2),
 		rel.Union(rel2),
@@ -185,7 +186,7 @@ func BenchmarkGroupBy(b *testing.B) {
 	}
 
 	// a simple summation
-	groupFcn := func(val <-chan T) T {
+	groupFcn := func(val <-chan interface{}) interface{} {
 		res := valtup{}
 		for vi := range val {
 			v := vi.(valtup)
@@ -198,7 +199,7 @@ func BenchmarkGroupBy(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// each iteration produces 4 tuples
 
-		t := make(chan T)
+		t := make(chan interface{})
 		r1.Tuples(t)
 		for _ = range t {
 		}
