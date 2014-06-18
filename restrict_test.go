@@ -124,9 +124,9 @@ func TestRestrict(t *testing.T) {
 
 	// test errors
 	err := fmt.Errorf("testing error")
-	r1 := orders().Restrict(att.Attribute("Qty").GT(100)).(*RestrictExpr)
+	r1 := orders().Restrict(att.Attribute("Qty").GT(100)).(*restrictExpr)
 	r1.err = err
-	r2 := orders().Restrict(att.Attribute("Qty").GT(100)).(*RestrictExpr)
+	r2 := orders().Restrict(att.Attribute("Qty").GT(100)).(*restrictExpr)
 	r2.err = err
 	res = make(chan interface{})
 	_ = r1.Tuples(res)
@@ -135,7 +135,6 @@ func TestRestrict(t *testing.T) {
 	}
 	errTest := []Relation{
 		r1.Project(distinctTup{}),
-		r1.Restrict(att.Not(att.Attribute("PNO").EQ(1))),
 		r1.Rename(titleCaseTup{}),
 		r1.Union(r2),
 		rel.Union(r2),

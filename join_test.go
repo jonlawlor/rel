@@ -158,9 +158,9 @@ func TestJoin(t *testing.T) {
 	}
 	// test errors
 	err := fmt.Errorf("testing error")
-	rel1 := parts().Join(orders(), joinTup1{}).(*JoinExpr)
+	rel1 := parts().Join(orders(), joinTup1{}).(*joinExpr)
 	rel1.err = err
-	rel2 := parts().Join(orders(), joinTup1{}).(*JoinExpr)
+	rel2 := parts().Join(orders(), joinTup1{}).(*joinExpr)
 	rel2.err = err
 	res = make(chan interface{})
 	_ = rel1.Tuples(res)
@@ -169,7 +169,6 @@ func TestJoin(t *testing.T) {
 	}
 	errTest := []Relation{
 		rel1.Project(distinctTup{}),
-		rel1.Restrict(att.Not(att.Attribute("PNO").EQ(1))),
 		rel1.Rename(titleCaseTup{}),
 		rel1.Union(rel2),
 		rel.Union(rel2),

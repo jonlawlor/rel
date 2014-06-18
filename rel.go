@@ -75,6 +75,8 @@ type Relation interface {
 }
 
 // New creates a new Relation from a []struct, map[struct] or chan struct.
+// TODO(jonlawlor): decide if NewSlice, NewMap, NewChan would be more
+//appropriate.
 func New(v interface{}, ckeystr [][]string) Relation {
 
 	// depending on the type of the input, we represent a relation in different
@@ -181,11 +183,119 @@ func Card(r Relation) (i int) {
 	return
 }
 
-// additional derived functions?
-// SemiDiff(r2 Relation) Relation
-// SemiJoin(r2 Relation) Relation
+// NewProject creates a new relation expression with less than or equal degree
+// t2 has to be a new type which is a subdomain of r.
+func NewProject(r1 Relation, z2 interface{}) Relation {
+	if r1.Err() != nil {
+		// don't bother building the relation and just return the original
+		return r1
+	}
+	att2 := att.FieldNames(reflect.TypeOf(z2))
+	//TODO(jonlawlor): test that z2 is a subset of r1's zero
+	if Deg(r1) == len(att2) {
+		// either projection is an error or a no op
+		return r1
+	} else {
+		return &projectExpr{r1, z2, nil}
+	}
+}
 
-// probably want to add non-Relational functions like
-// Update
-// Insert
-// some kind of ordering?
+// NewRestrict creates a new relation expression with less than or equal cardinality
+// p has to be a func(tup T) bool where tup is a subdomain of the input r.
+// This is a general purpose restrict - we might want to have specific ones for
+// the typical theta comparisons or <= <, =, >, >=, because it will allow much
+// better optimization on the source data side.
+func NewRestrict(r1 Relation, p att.Predicate) Relation {
+	if r1.Err() != nil {
+		// don't bother building the relation and just return the original
+		return r1
+	}
+	return &restrictExpr{r1, p, nil}
+}
+
+// NewRename creates a new relation with new column names
+// z2 has to be a struct with the same number of fields as the input relation
+// note: we might want to change this into a projectrename operation?  It will
+// be tricky to represent this in go's type system, I think.
+func NewRename(r1 Relation, z2 interface{}) Relation {
+	if r1.Err() != nil {
+		// don't bother building the relation and just return the original
+		return r1
+	}
+	return &renameExpr{r1, z2, nil}
+}
+
+// NewUnion creates a new relation by unioning the bodies of both inputs
+//
+func NewUnion(r1, r2 Relation) Relation {
+	if r1.Err() != nil {
+		// don't bother building the relation and just return the original
+		return r1
+	}
+	if r2.Err() != nil {
+		// don't bother building the relation and just return the original
+		return r2
+	}
+	return &unionExpr{r1, r2, nil}
+}
+
+// NewSetDiff creates a new relation by set minusing the two inputs
+//
+func NewSetDiff(r1, r2 Relation) Relation {
+	if r1.Err() != nil {
+		// don't bother building the relation and just return the original
+		return r1
+	}
+	if r2.Err() != nil {
+		// don't bother building the relation and just return the original
+		return r2
+	}
+	return &setDiffExpr{r1, r2, nil}
+}
+
+// NewJoin creates a new relation by performing a natural join on the inputs
+//
+func NewJoin(r1, r2 Relation, zero interface{}) Relation {
+	if r1.Err() != nil {
+		// don't bother building the relation and just return the original
+		return r1
+	}
+	if r2.Err() != nil {
+		// don't bother building the relation and just return the original
+		return r2
+	}
+	return &joinExpr{r1, r2, zero, nil}
+}
+
+// NewGroupBy creates a new relation by grouping and applying a user defined func
+//
+func NewGroupBy(r1 Relation, t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
+	if r1.Err() != nil {
+		// don't bother building the relation and just return the original
+		return r1
+	}
+	return &groupByExpr{r1, t2, vt, gfcn, nil}
+}
+
+// NewMap creates a new relation by applying a function to tuples in the source
+func NewMap(r1 Relation, mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
+	if r1.Err() != nil {
+		// don't bother building the relation and just return the original
+		return r1
+	}
+	// determine the type of the returned tuples
+	r := new(mapExpr)
+	r.source1 = r1
+	r.zero = z2
+	r.fcn = mfcn
+	if len(ckeystr) == 0 {
+		// all relations have a candidate key of all of their attributes, or
+		// a non zero subset if the relation is not dee or dum
+		r.cKeys = att.DefaultKeys(z2)
+	} else {
+		r.isDistinct = true
+		// convert from [][]string to CandKeys
+		r.cKeys = att.String2CandKeys(ckeystr)
+	}
+	return r
+}

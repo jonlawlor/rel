@@ -9,7 +9,7 @@ import (
 	"sync"
 )
 
-type GroupByExpr struct {
+type groupByExpr struct {
 	source1 Relation
 
 	// zero is the resulting relation tuple type
@@ -39,7 +39,7 @@ type GroupByExpr struct {
 // complete their work, and then send a done signal to a channel which
 // can then close the result channel.
 
-func (r *GroupByExpr) Tuples(t chan<- interface{}) chan<- struct{} {
+func (r *groupByExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 
 	if r.Err() != nil {
@@ -152,12 +152,12 @@ func (r *GroupByExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *GroupByExpr) Zero() interface{} {
+func (r *groupByExpr) Zero() interface{} {
 	return r.zero
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *GroupByExpr) CKeys() att.CandKeys {
+func (r *groupByExpr) CKeys() att.CandKeys {
 	// determine the new candidate keys, which can be any of the original
 	// candidate keys that are a subset of the group (which would also
 	// mean that every tuple in the original relation is in its own group
@@ -205,12 +205,12 @@ func (r *GroupByExpr) CKeys() att.CandKeys {
 }
 
 // GoString returns a text representation of the Relation
-func (r *GroupByExpr) GoString() string {
+func (r *groupByExpr) GoString() string {
 	return goStringTabTable(r)
 }
 
 // String returns a text representation of the Relation
-func (r *GroupByExpr) String() string {
+func (r *groupByExpr) String() string {
 	h := att.FieldNames(reflect.TypeOf(r.valZero))
 	s := make([]string, len(h))
 	for i, v := range h {
@@ -222,115 +222,65 @@ func (r *GroupByExpr) String() string {
 
 }
 
-// rewrite is more difficult in groupby, because it is not a part of
-// relational algebra.  The current implementation only avoids no ops.
-
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
-func (r1 *GroupByExpr) Project(z2 interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	// TODO(jonlawlor): add query rewrite if projection does not include any
-	// of the attributes in the valZero.  In that situation, no grouping is
-	// needed.
-	att2 := att.FieldNames(reflect.TypeOf(z2))
-	if Deg(r1) == len(att2) {
-		// either projection is an error or a no op
-		return r1
-	} else {
-		return &ProjectExpr{r1, z2, nil}
-	}
+func (r1 *groupByExpr) Project(z2 interface{}) Relation {
+	return NewProject(r1, z2)
 }
 
 // Restrict creates a new relation with less than or equal cardinality
 // p has to be a func(tup T) bool where tup is a subdomain of the input r.
-func (r1 *GroupByExpr) Restrict(p att.Predicate) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	return &RestrictExpr{r1, p, nil}
+// This is a general purpose restrict - we might want to have specific ones for
+// the typical theta comparisons or <= <, =, >, >=, because it will allow much
+// better optimization on the source data side.
+func (r1 *groupByExpr) Restrict(p att.Predicate) Relation {
+	// TODO(jonlawlor): this can be passed through if the predicate only
+	// depends upon the attributes that are not in valZero
+	return NewRestrict(r1, p)
 }
 
 // Rename creates a new relation with new column names
 // z2 has to be a struct with the same number of fields as the input relation
 // note: we might want to change this into a projectrename operation?  It will
 // be tricky to represent this in go's type system, I think.
-func (r1 *GroupByExpr) Rename(z2 interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	return &RenameExpr{r1, z2, nil}
+func (r1 *groupByExpr) Rename(z2 interface{}) Relation {
+	return NewRename(r1, z2)
 }
 
 // Union creates a new relation by unioning the bodies of both inputs
 //
-func (r1 *GroupByExpr) Union(r2 Relation) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	if r2.Err() != nil {
-		return r2
-	}
-	return &UnionExpr{r1, r2, nil}
+func (r1 *groupByExpr) Union(r2 Relation) Relation {
+	// TODO(jonlawlor): this can be rewritten if there are candidate keys
+	// in the groupby are a superset of some candidate keys in the union?
+	return NewUnion(r1, r2)
 }
 
 // SetDiff creates a new relation by set minusing the two inputs
 //
-func (r1 *GroupByExpr) SetDiff(r2 Relation) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	if r2.Err() != nil {
-		return r2
-	}
-	return &SetDiffExpr{r1, r2, nil}
+func (r1 *groupByExpr) SetDiff(r2 Relation) Relation {
+	// TODO(jonlawlor): this can be rewritten if there are candidate keys
+	// in the groupby are a superset of some candidate keys in the union?
+	return NewSetDiff(r1, r2)
 }
 
 // Join creates a new relation by performing a natural join on the inputs
 //
-func (r1 *GroupByExpr) Join(r2 Relation, zero interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	if r2.Err() != nil {
-		return r2
-	}
-	return &JoinExpr{r1, r2, zero, nil}
+func (r1 *groupByExpr) Join(r2 Relation, zero interface{}) Relation {
+	return NewJoin(r1, r2, zero)
 }
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *GroupByExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	return &GroupByExpr{r1, t2, vt, gfcn, nil}
+func (r1 *groupByExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
+	return NewGroupBy(r1, t2, vt, gfcn)
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *GroupByExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	// determine the type of the returned tuples
-	r := new(MapExpr)
-	r.source1 = r1
-	r.zero = z2
-	r.fcn = mfcn
-	if len(ckeystr) == 0 {
-		// all relations have a candidate key of all of their attributes, or
-		// a non zero subset if the relation is not dee or dum
-		r.cKeys = att.DefaultKeys(z2)
-	} else {
-		r.isDistinct = true
-		// convert from [][]string to CandKeys
-		r.cKeys = att.String2CandKeys(ckeystr)
-	}
-	return r
+func (r1 *groupByExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
+	return NewMap(r1, mfcn, z2, ckeystr)
 }
 
 // Error returns an error encountered during construction or computation
-func (r1 *GroupByExpr) Err() error {
+func (r1 *groupByExpr) Err() error {
 	return r1.err
 }

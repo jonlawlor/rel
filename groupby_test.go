@@ -147,9 +147,9 @@ func TestGroupBy(t *testing.T) {
 
 	// test errors
 	err := fmt.Errorf("testing error")
-	rel1 := parts().GroupBy(groupByTup1{}, valTup{}, weightSum).(*GroupByExpr)
+	rel1 := parts().GroupBy(groupByTup1{}, valTup{}, weightSum).(*groupByExpr)
 	rel1.err = err
-	rel2 := parts().GroupBy(groupByTup1{}, valTup{}, weightSum).(*GroupByExpr)
+	rel2 := parts().GroupBy(groupByTup1{}, valTup{}, weightSum).(*groupByExpr)
 	rel2.err = err
 	res = make(chan interface{})
 	_ = rel1.Tuples(res)

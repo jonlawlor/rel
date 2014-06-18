@@ -125,16 +125,7 @@ func (r *chanLiteral) String() string {
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
 func (r1 *chanLiteral) Project(z2 interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	att2 := att.FieldNames(reflect.TypeOf(z2))
-	if Deg(r1) == len(att2) {
-		// either projection is an error or a no op
-		return r1
-	} else {
-		return &ProjectExpr{r1, z2, nil}
-	}
+	return NewProject(r1, z2)
 }
 
 // Restrict creates a new relation with less than or equal cardinality
@@ -143,10 +134,7 @@ func (r1 *chanLiteral) Project(z2 interface{}) Relation {
 // the typical theta comparisons or <= <, =, >, >=, because it will allow much
 // better optimization on the source data side.
 func (r1 *chanLiteral) Restrict(p att.Predicate) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	return &RestrictExpr{r1, p, nil}
+	return NewRestrict(r1, p)
 }
 
 // Rename creates a new relation with new column names
@@ -154,77 +142,36 @@ func (r1 *chanLiteral) Restrict(p att.Predicate) Relation {
 // note: we might want to change this into a projectrename operation?  It will
 // be tricky to represent this in go's type system, I think.
 func (r1 *chanLiteral) Rename(z2 interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	return &RenameExpr{r1, z2, nil}
+	return NewRename(r1, z2)
 }
 
 // Union creates a new relation by unioning the bodies of both inputs
 //
 func (r1 *chanLiteral) Union(r2 Relation) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	if r2.Err() != nil {
-		return r2
-	}
-	return &UnionExpr{r1, r2, nil}
+	return NewUnion(r1, r2)
 }
 
 // SetDiff creates a new relation by set minusing the two inputs
 //
 func (r1 *chanLiteral) SetDiff(r2 Relation) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	if r2.Err() != nil {
-		return r2
-	}
-	return &SetDiffExpr{r1, r2, nil}
+	return NewSetDiff(r1, r2)
 }
 
 // Join creates a new relation by performing a natural join on the inputs
 //
 func (r1 *chanLiteral) Join(r2 Relation, zero interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	if r2.Err() != nil {
-		return r2
-	}
-	return &JoinExpr{r1, r2, zero, nil}
+	return NewJoin(r1, r2, zero)
 }
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
 func (r1 *chanLiteral) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	return &GroupByExpr{r1, t2, vt, gfcn, nil}
+	return NewGroupBy(r1, t2, vt, gfcn)
 }
 
 // Map creates a new relation by applying a function to tuples in the source
 func (r1 *chanLiteral) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	// determine the type of the returned tuples
-	r := new(MapExpr)
-	r.source1 = r1
-	r.zero = z2
-	r.fcn = mfcn
-	if len(ckeystr) == 0 {
-		// all relations have a candidate key of all of their attributes, or
-		// a non zero subset if the relation is not dee or dum
-		r.cKeys = att.DefaultKeys(z2)
-	} else {
-		r.isDistinct = true
-		// convert from [][]string to CandKeys
-		r.cKeys = att.String2CandKeys(ckeystr)
-	}
-	return r
+	return NewMap(r1, mfcn, z2, ckeystr)
 }
 
 // Error returns an error encountered during construction or computation

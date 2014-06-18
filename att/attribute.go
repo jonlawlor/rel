@@ -168,6 +168,7 @@ func AttributeMap(fn1, fn2 []Attribute) map[Attribute]FieldIndex {
 
 // isSubDomain returns true if the attributes in sub are all members of dom, otherwise false
 // this would be faster if []Attributes were always ordered
+// TODO(jonlawlor): make this a method of []Attribute?
 func IsSubDomain(sub, dom []Attribute) bool {
 SubLoop:
 	for _, n1 := range sub {

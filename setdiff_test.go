@@ -83,13 +83,13 @@ func TestSetDiff(t *testing.T) {
 		{rel.Restrict(att.Attribute("PNO").EQ(1)), "σ{Qty != 300}(σ{PNO == 1}(Relation(PNO, SNO, Qty))) − σ{Qty == 200}(σ{PNO == 1}(Relation(PNO, SNO, Qty)))", 3, 3},
 		{rel.Project(distinctTup{}), "π{PNO, SNO}(σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)))", 2, 5},
 		{rel.Project(nonDistinctTup{}), "π{PNO, Qty}(σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)))", 2, 4},
-		{rel.Rename(titleCaseTup{}), "ρ{Pno, Sno, Qty}/{PNO, SNO, Qty}(σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)))", 3, 5},
+		{rel.Rename(titleCaseTup{}), "ρ{Pno, Sno, Qty}/{PNO, SNO, Qty}(σ{Qty != 300}(Relation(PNO, SNO, Qty))) − ρ{Pno, Sno, Qty}/{PNO, SNO, Qty}(σ{Qty == 200}(Relation(PNO, SNO, Qty)))", 3, 5},
 		{rel.SetDiff(orders()), "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)) − Relation(PNO, SNO, Qty)", 3, 0},
 		{rel.Union(orders()), "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)) ∪ Relation(PNO, SNO, Qty)", 3, 12},
 		{rel.Join(suppliers(), joinTup{}), "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)) ⋈ Relation(SNO, SName, Status, City)", 6, 4},
 		{rel.GroupBy(groupByTup{}, valTup{}, groupFcn), "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)).GroupBy({PNO, Qty}, {Qty})", 2, 3},
-		{rel.Map(mapFcn, mapRes{}, mapKeys), "σ{Qty != 300}(Relation(PNO, SNO, Qty)).Map({PNO, SNO, Qty}->{PNO, SNO, Qty1, Qty2}) − σ{Qty == 200}(Relation(PNO, SNO, Qty)).Map({PNO, SNO, Qty}->{PNO, SNO, Qty1, Qty2})", 4, 5},
-		{rel.Map(mapFcn, mapRes{}, [][]string{}), "σ{Qty != 300}(Relation(PNO, SNO, Qty)).Map({PNO, SNO, Qty}->{PNO, SNO, Qty1, Qty2}) − σ{Qty == 200}(Relation(PNO, SNO, Qty)).Map({PNO, SNO, Qty}->{PNO, SNO, Qty1, Qty2})", 4, 5},
+		{rel.Map(mapFcn, mapRes{}, mapKeys), "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)).Map({PNO, SNO, Qty}->{PNO, SNO, Qty1, Qty2})", 4, 5},
+		{rel.Map(mapFcn, mapRes{}, [][]string{}), "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)).Map({PNO, SNO, Qty}->{PNO, SNO, Qty1, Qty2})", 4, 5},
 	}
 
 	for i, tt := range relTest {
@@ -116,9 +116,9 @@ func TestSetDiff(t *testing.T) {
 
 	// test errors
 	err := fmt.Errorf("testing error")
-	rel1 := orders().Restrict(att.Attribute("Qty").GE(300)).SetDiff(orders().Restrict(att.Attribute("Qty").NE(200))).(*SetDiffExpr)
+	rel1 := orders().Restrict(att.Attribute("Qty").GE(300)).SetDiff(orders().Restrict(att.Attribute("Qty").NE(200))).(*setDiffExpr)
 	rel1.err = err
-	rel2 := orders().Restrict(att.Attribute("Qty").GE(300)).SetDiff(orders().Restrict(att.Attribute("Qty").NE(200))).(*SetDiffExpr)
+	rel2 := orders().Restrict(att.Attribute("Qty").GE(300)).SetDiff(orders().Restrict(att.Attribute("Qty").NE(200))).(*setDiffExpr)
 	rel2.err = err
 	res = make(chan interface{})
 	_ = rel1.Tuples(res)
@@ -127,8 +127,6 @@ func TestSetDiff(t *testing.T) {
 	}
 	errTest := []Relation{
 		rel1.Project(distinctTup{}),
-		rel1.Restrict(att.Not(att.Attribute("PNO").EQ(1))),
-		rel1.Rename(titleCaseTup{}),
 		rel1.Union(rel2),
 		rel1.Union(rel2),
 		rel1.SetDiff(rel2),

@@ -114,9 +114,9 @@ func TestMap(t *testing.T) {
 	}
 	// test errors
 	err := fmt.Errorf("testing error")
-	r1 := orders().Map(doubleQty, orderTup{}, mapKeys).(*MapExpr)
+	r1 := orders().Map(doubleQty, orderTup{}, mapKeys).(*mapExpr)
 	r1.err = err
-	r2 := orders().Map(doubleQty, orderTup{}, mapKeys).(*MapExpr)
+	r2 := orders().Map(doubleQty, orderTup{}, mapKeys).(*mapExpr)
 	r2.err = err
 	res = make(chan interface{})
 	_ = r1.Tuples(res)

@@ -9,7 +9,7 @@ import (
 	"sync"
 )
 
-type JoinExpr struct {
+type joinExpr struct {
 	source1 Relation
 	source2 Relation
 	zero    interface{}
@@ -17,7 +17,7 @@ type JoinExpr struct {
 	err error
 }
 
-func (r *JoinExpr) Tuples(t chan<- interface{}) chan<- struct{} {
+func (r *joinExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 
 	if r.Err() != nil {
@@ -141,12 +141,12 @@ func (r *JoinExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *JoinExpr) Zero() interface{} {
+func (r *joinExpr) Zero() interface{} {
 	return r.zero
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *JoinExpr) CKeys() att.CandKeys {
+func (r *joinExpr) CKeys() att.CandKeys {
 	// the candidate keys of a join are a join of the candidate keys as well
 	cKeys1 := r.source1.CKeys()
 	cKeys2 := r.source2.CKeys()
@@ -174,40 +174,30 @@ func (r *JoinExpr) CKeys() att.CandKeys {
 }
 
 // GoString returns a text representation of the Relation
-func (r *JoinExpr) GoString() string {
+func (r *joinExpr) GoString() string {
 	return r.source1.GoString() + ".Join(" + r.source2.GoString() + ")"
 }
 
 // String returns a text representation of the Relation
-func (r *JoinExpr) String() string {
+func (r *joinExpr) String() string {
 	return r.source1.String() + " ⋈ " + r.source2.String()
 }
 
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
-func (r1 *JoinExpr) Project(z2 interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
+func (r1 *joinExpr) Project(z2 interface{}) Relation {
 	// TODO(jonlawlor): this can be sped up if we compare the candidate keys
 	// used in the relation to the new domain, along with the source relations
 	// domains.
-	att2 := att.FieldNames(reflect.TypeOf(z2))
-	if Deg(r1) == len(att2) {
-		// either projection is an error or a no op
-		return r1
-	} else {
-		return &ProjectExpr{r1, z2, nil}
-	}
+	return NewProject(r1, z2)
 }
 
 // Restrict creates a new relation with less than or equal cardinality
 // p has to be a func(tup T) bool where tup is a subdomain of the input r.
-func (r1 *JoinExpr) Restrict(p att.Predicate) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-
+// This is a general purpose restrict - we might want to have specific ones for
+// the typical theta comparisons or <= <, =, >, >=, because it will allow much
+// better optimization on the source data side.
+func (r1 *joinExpr) Restrict(p att.Predicate) Relation {
 	// decompose compound predicates
 	if andPred, ok := p.(att.AndPred); ok {
 		// this covers some theta joins
@@ -219,14 +209,14 @@ func (r1 *JoinExpr) Restrict(p att.Predicate) Relation {
 	h2 := Heading(r1.source2)
 	if att.IsSubDomain(dom, h1) {
 		if att.IsSubDomain(dom, h2) {
-			return &JoinExpr{r1.source1.Restrict(p), r1.source2.Restrict(p), r1.zero, nil}
+			return r1.source1.Restrict(p).Join(r1.source2.Restrict(p), r1.zero)
 		} else {
-			return &JoinExpr{r1.source1.Restrict(p), r1.source2, r1.zero, nil}
+			return r1.source1.Restrict(p).Join(r1.source2, r1.zero)
 		}
 	} else if att.IsSubDomain(dom, h2) {
-		return &JoinExpr{r1.source1, r1.source2.Restrict(p), r1.zero, nil}
+		return r1.source1.Join(r1.source2.Restrict(p), r1.zero)
 	} else {
-		return &RestrictExpr{r1, p, nil}
+		return NewRestrict(r1, p)
 	}
 }
 
@@ -234,81 +224,40 @@ func (r1 *JoinExpr) Restrict(p att.Predicate) Relation {
 // z2 has to be a struct with the same number of fields as the input relation
 // note: we might want to change this into a projectrename operation?  It will
 // be tricky to represent this in go's type system, I think.
-func (r1 *JoinExpr) Rename(z2 interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	return &RenameExpr{r1, z2, nil}
+func (r1 *joinExpr) Rename(z2 interface{}) Relation {
+	return NewRename(r1, z2)
 }
 
 // Union creates a new relation by unioning the bodies of both inputs
 //
-func (r1 *JoinExpr) Union(r2 Relation) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	if r2.Err() != nil {
-		return r2
-	}
-	return &UnionExpr{r1, r2, nil}
+func (r1 *joinExpr) Union(r2 Relation) Relation {
+	return NewUnion(r1, r2)
 }
 
 // SetDiff creates a new relation by set minusing the two inputs
 //
-func (r1 *JoinExpr) SetDiff(r2 Relation) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	if r2.Err() != nil {
-		return r2
-	}
-	return &SetDiffExpr{r1, r2, nil}
+func (r1 *joinExpr) SetDiff(r2 Relation) Relation {
+	return NewSetDiff(r1, r2)
 }
 
 // Join creates a new relation by performing a natural join on the inputs
 //
-func (r1 *JoinExpr) Join(r2 Relation, zero interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	if r2.Err() != nil {
-		return r2
-	}
-	return &JoinExpr{r1, r2, zero, nil}
+func (r1 *joinExpr) Join(r2 Relation, zero interface{}) Relation {
+	return NewJoin(r1, r2, zero)
 }
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *JoinExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	return &GroupByExpr{r1, t2, vt, gfcn, nil}
+func (r1 *joinExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
+	return NewGroupBy(r1, t2, vt, gfcn)
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *JoinExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	// determine the type of the returned tuples
-	r := new(MapExpr)
-	r.source1 = r1
-	r.zero = z2
-	r.fcn = mfcn
-	if len(ckeystr) == 0 {
-		// all relations have a candidate key of all of their attributes, or
-		// a non zero subset if the relation is not dee or dum
-		r.cKeys = att.DefaultKeys(z2)
-	} else {
-		r.isDistinct = true
-		// convert from [][]string to CandKeys
-		r.cKeys = att.String2CandKeys(ckeystr)
-	}
-	return r
+func (r1 *joinExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
+	return NewMap(r1, mfcn, z2, ckeystr)
 }
 
 // Error returns an error encountered during construction or computation
-func (r1 *JoinExpr) Err() error {
+func (r1 *joinExpr) Err() error {
 	return r1.err
 }

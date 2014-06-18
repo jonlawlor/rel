@@ -157,9 +157,9 @@ func TestProject(t *testing.T) {
 
 	// test errors
 	err := fmt.Errorf("testing error")
-	rel1 := parts().Project(partTup{}).(*ProjectExpr)
+	rel1 := parts().Project(partTup{}).(*projectExpr)
 	rel1.err = err
-	rel2 := parts().Project(partTup{}).(*ProjectExpr)
+	rel2 := parts().Project(partTup{}).(*projectExpr)
 	rel2.err = err
 	res = make(chan interface{})
 	_ = rel1.Tuples(res)
@@ -167,8 +167,6 @@ func TestProject(t *testing.T) {
 		t.Errorf("did not short circuit Tuples")
 	}
 	errTest := []Relation{
-		rel1.Project(distinctTup{}),
-		rel1.Restrict(att.Not(att.Attribute("PNO").EQ(1))),
 		rel1.Rename(titleCaseTup{}),
 		rel1.Union(rel2),
 		rel.Union(rel2),

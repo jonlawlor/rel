@@ -8,7 +8,7 @@ import (
 )
 
 // projection is a type that represents a project operation
-type ProjectExpr struct {
+type projectExpr struct {
 	// the input relation
 	source1 Relation
 
@@ -21,7 +21,7 @@ type ProjectExpr struct {
 // Tuples sends each tuple in the relation to a channel
 // note: this consumes the values of the relation, and when it is finished it
 // closes the input channel.
-func (r *ProjectExpr) Tuples(t chan<- interface{}) chan<- struct{} {
+func (r *projectExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 
 	if r.Err() != nil {
@@ -156,12 +156,12 @@ func (r *ProjectExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *ProjectExpr) Zero() interface{} {
+func (r *projectExpr) Zero() interface{} {
 	return r.zero
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *ProjectExpr) CKeys() att.CandKeys {
+func (r *projectExpr) CKeys() att.CandKeys {
 	z1 := r.source1.Zero()
 
 	cKeys := r.source1.CKeys()
@@ -192,114 +192,68 @@ func (r *ProjectExpr) CKeys() att.CandKeys {
 // text representation
 
 // GoString returns a text representation of the Relation
-func (r *ProjectExpr) GoString() string {
+func (r *projectExpr) GoString() string {
 	return r.source1.GoString() + ".Project(" + HeadingString(r) + ")"
 }
 
 // String returns a text representation of the Relation
-func (r *ProjectExpr) String() string {
+func (r *projectExpr) String() string {
 	return "π{" + HeadingString(r) + "}(" + r.source1.String() + ")"
 }
 
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
-func (r1 *ProjectExpr) Project(z2 interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	// the second project will always override the first
-	return &ProjectExpr{r1.source1, z2, nil}
-
+func (r1 *projectExpr) Project(z2 interface{}) Relation {
+	return NewProject(r1.source1, z2)
 }
 
 // Restrict creates a new relation with less than or equal cardinality
 // p has to be a func(tup T) bool where tup is a subdomain of the input r.
-func (r1 *ProjectExpr) Restrict(p att.Predicate) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	return &ProjectExpr{r1.source1.Restrict(p), r1.zero, nil}
+// This is a general purpose restrict - we might want to have specific ones for
+// the typical theta comparisons or <= <, =, >, >=, because it will allow much
+// better optimization on the source data side.
+func (r1 *projectExpr) Restrict(p att.Predicate) Relation {
+	return NewProject(r1.source1.Restrict(p), r1.zero)
 }
 
 // Rename creates a new relation with new column names
 // z2 has to be a struct with the same number of fields as the input relation
 // note: we might want to change this into a projectrename operation?  It will
 // be tricky to represent this in go's type system, I think.
-func (r1 *ProjectExpr) Rename(z2 interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	return &RenameExpr{r1, z2, nil}
+func (r1 *projectExpr) Rename(z2 interface{}) Relation {
+	return NewRename(r1, z2)
 }
 
 // Union creates a new relation by unioning the bodies of both inputs
 //
-func (r1 *ProjectExpr) Union(r2 Relation) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	if r2.Err() != nil {
-		return r2
-	}
-	return &UnionExpr{r1, r2, nil}
+func (r1 *projectExpr) Union(r2 Relation) Relation {
+	return NewUnion(r1, r2)
 }
 
 // SetDiff creates a new relation by set minusing the two inputs
 //
-func (r1 *ProjectExpr) SetDiff(r2 Relation) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	if r2.Err() != nil {
-		return r2
-	}
-	return &SetDiffExpr{r1, r2, nil}
+func (r1 *projectExpr) SetDiff(r2 Relation) Relation {
+	return NewSetDiff(r1, r2)
 }
 
 // Join creates a new relation by performing a natural join on the inputs
 //
-func (r1 *ProjectExpr) Join(r2 Relation, zero interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	if r2.Err() != nil {
-		return r2
-	}
-	return &JoinExpr{r1, r2, zero, nil}
+func (r1 *projectExpr) Join(r2 Relation, zero interface{}) Relation {
+	return NewJoin(r1, r2, zero)
 }
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *ProjectExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	return &GroupByExpr{r1, t2, vt, gfcn, nil}
+func (r1 *projectExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
+	return NewGroupBy(r1, t2, vt, gfcn)
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *ProjectExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	// determine the type of the returned tuples
-	r := new(MapExpr)
-	r.source1 = r1
-	r.zero = z2
-	r.fcn = mfcn
-	if len(ckeystr) == 0 {
-		// all relations have a candidate key of all of their attributes, or
-		// a non zero subset if the relation is not dee or dum
-		r.cKeys = att.DefaultKeys(z2)
-	} else {
-		r.isDistinct = true
-		// convert from [][]string to CandKeys
-		r.cKeys = att.String2CandKeys(ckeystr)
-	}
-	return r
+func (r1 *projectExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
+	return NewMap(r1, mfcn, z2, ckeystr)
 }
 
 // Error returns an error encountered during construction or computation
-func (r1 *ProjectExpr) Err() error {
+func (r1 *projectExpr) Err() error {
 	return r1.err
 }

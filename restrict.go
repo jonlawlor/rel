@@ -12,7 +12,7 @@ import (
 // Restrict applies a predicate to a relation and returns a new relation
 // Predicate is a func which accepts an interface{} of the same dynamic
 // type as the tuples of the relation, and returns a boolean.
-type RestrictExpr struct {
+type restrictExpr struct {
 	// the input relation
 	source1 Relation
 
@@ -22,7 +22,7 @@ type RestrictExpr struct {
 	err error
 }
 
-func (r *RestrictExpr) Tuples(t chan<- interface{}) chan<- struct{} {
+func (r *restrictExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 
 	if r.Err() != nil {
@@ -86,136 +86,85 @@ func (r *RestrictExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *RestrictExpr) Zero() interface{} {
+func (r *restrictExpr) Zero() interface{} {
 	return r.source1.Zero()
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *RestrictExpr) CKeys() att.CandKeys {
+func (r *restrictExpr) CKeys() att.CandKeys {
 	return r.source1.CKeys()
 }
 
 // GoString returns a text representation of the Relation
-func (r *RestrictExpr) GoString() string {
+func (r *restrictExpr) GoString() string {
 	return r.source1.GoString() + ".Restrict(" + r.p.String() + ")"
 }
 
 // String returns a text representation of the Relation
-func (r *RestrictExpr) String() string {
+func (r *restrictExpr) String() string {
 	return "σ{" + r.p.String() + "}(" + r.source1.String() + ")"
 }
 
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
-func (r1 *RestrictExpr) Project(z2 interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
+func (r1 *restrictExpr) Project(z2 interface{}) Relation {
 	att2 := att.FieldNames(reflect.TypeOf(z2))
-	if Deg(r1) == len(att2) {
-		// either projection is an error or a no op
-		return r1
-	}
 	if att.IsSubDomain(r1.p.Domain(), att2) { // the predicate's attributes exist after project
-		return &RestrictExpr{r1.source1.Project(z2), r1.p, nil}
+		return NewRestrict(r1.source1.Project(z2), r1.p)
 	} else {
-		return &ProjectExpr{r1, z2, nil}
+		return NewProject(r1, z2)
 	}
 }
 
 // Restrict creates a new relation with less than or equal cardinality
 // p has to be a func(tup T) bool where tup is a subdomain of the input r.
-func (r1 *RestrictExpr) Restrict(p att.Predicate) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	// TODO(jonlawlor): implement predicate combination
-
-	// by reversing the order, this provides a way for AndPreds to pass through
-	return &RestrictExpr{r1.source1.Restrict(p), r1.p, nil}
+// This is a general purpose restrict - we might want to have specific ones for
+// the typical theta comparisons or <= <, =, >, >=, because it will allow much
+// better optimization on the source data side.
+func (r1 *restrictExpr) Restrict(p att.Predicate) Relation {
+	// try reversing the order, which may allow some lower degree restrictions
+	// to pass through
+	return NewRestrict(r1.source1.Restrict(p), r1.p)
 }
 
 // Rename creates a new relation with new column names
 // z2 has to be a struct with the same number of fields as the input relation
 // note: we might want to change this into a projectrename operation?  It will
 // be tricky to represent this in go's type system, I think.
-func (r1 *RestrictExpr) Rename(z2 interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	return &RenameExpr{r1, z2, nil}
+func (r1 *restrictExpr) Rename(z2 interface{}) Relation {
+	return NewRename(r1, z2)
 }
 
 // Union creates a new relation by unioning the bodies of both inputs
 //
-func (r1 *RestrictExpr) Union(r2 Relation) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	if r2.Err() != nil {
-		return r2
-	}
-	return &UnionExpr{r1, r2, nil}
+func (r1 *restrictExpr) Union(r2 Relation) Relation {
+	return NewUnion(r1, r2)
 }
 
 // SetDiff creates a new relation by set minusing the two inputs
 //
-func (r1 *RestrictExpr) SetDiff(r2 Relation) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	if r2.Err() != nil {
-		return r2
-	}
-	return &SetDiffExpr{r1, r2, nil}
+func (r1 *restrictExpr) SetDiff(r2 Relation) Relation {
+	return NewSetDiff(r1, r2)
 }
 
 // Join creates a new relation by performing a natural join on the inputs
 //
-func (r1 *RestrictExpr) Join(r2 Relation, zero interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	if r2.Err() != nil {
-		return r2
-	}
-	// TODO(jonlawlor): test to see if the restrict op can also be applied to
-	// r2.
-	return &JoinExpr{r1, r2, zero, nil}
+func (r1 *restrictExpr) Join(r2 Relation, zero interface{}) Relation {
+	return NewJoin(r1, r2, zero)
 }
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *RestrictExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	return &GroupByExpr{r1, t2, vt, gfcn, nil}
+func (r1 *restrictExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
+	return NewGroupBy(r1, t2, vt, gfcn)
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *RestrictExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	// determine the type of the returned tuples
-	r := new(MapExpr)
-	r.source1 = r1
-	r.zero = z2
-	r.fcn = mfcn
-	if len(ckeystr) == 0 {
-		// all relations have a candidate key of all of their attributes, or
-		// a non zero subset if the relation is not dee or dum
-		r.cKeys = att.DefaultKeys(z2)
-	} else {
-		r.isDistinct = true
-		// convert from [][]string to CandKeys
-		r.cKeys = att.String2CandKeys(ckeystr)
-	}
-	return r
+func (r1 *restrictExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
+	return NewMap(r1, mfcn, z2, ckeystr)
 }
 
 // Error returns an error encountered during construction or computation
-func (r1 *RestrictExpr) Err() error {
+func (r1 *restrictExpr) Err() error {
 	return r1.err
 }

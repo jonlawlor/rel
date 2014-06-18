@@ -9,7 +9,7 @@ import (
 	"reflect"
 )
 
-type RenameExpr struct {
+type renameExpr struct {
 	// the input relation
 	source1 Relation
 
@@ -22,7 +22,7 @@ type RenameExpr struct {
 // Tuples sends each tuple in the relation to a channel
 // note: this consumes the values of the relation, and when it is finished it
 // closes the input channel.
-func (r *RenameExpr) Tuples(t chan<- interface{}) chan<- struct{} {
+func (r *renameExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 
 	if r.Err() != nil {
@@ -105,12 +105,12 @@ func (r *RenameExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *RenameExpr) Zero() interface{} {
+func (r *renameExpr) Zero() interface{} {
 	return r.zero
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *RenameExpr) CKeys() att.CandKeys {
+func (r *renameExpr) CKeys() att.CandKeys {
 	z2 := reflect.TypeOf(r.zero)
 
 	// figure out the new names
@@ -139,22 +139,23 @@ func (r *RenameExpr) CKeys() att.CandKeys {
 }
 
 // GoString returns a text representation of the Relation
-func (r *RenameExpr) GoString() string {
+func (r *renameExpr) GoString() string {
 	return r.source1.GoString() + ".Rename(" + HeadingString(r) + ")"
 }
 
 // String returns a text representation of the Relation
-func (r *RenameExpr) String() string {
+func (r *renameExpr) String() string {
 	return "ρ{" + HeadingString(r) + "}/{" + HeadingString(r.source1) + "}(" + r.source1.String() + ")"
 }
 
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
-func (r1 *RenameExpr) Project(z2 interface{}) Relation {
+func (r1 *renameExpr) Project(z2 interface{}) Relation {
 	if r1.Err() != nil {
 		return r1
 	}
-	return &ProjectExpr{r1, z2, nil}
+	// special case: we can't do a rewrite because the order could be different
+	return &projectExpr{r1, z2, nil}
 }
 
 // Restrict creates a new relation with less than or equal cardinality
@@ -162,92 +163,48 @@ func (r1 *RenameExpr) Project(z2 interface{}) Relation {
 // This is a general purpose restrict - we might want to have specific ones for
 // the typical theta comparisons or <= <, =, >, >=, because it will allow much
 // better optimization on the source data side.
-func (r1 *RenameExpr) Restrict(p att.Predicate) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	return &RestrictExpr{r1, p, nil}
+func (r1 *renameExpr) Restrict(p att.Predicate) Relation {
+	return NewRestrict(r1, p)
 }
 
 // Rename creates a new relation with new column names
 // z2 has to be a struct with the same number of fields as the input relation
 // note: we might want to change this into a projectrename operation?  It will
 // be tricky to represent this in go's type system, I think.
-func (r1 *RenameExpr) Rename(z2 interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	return &RenameExpr{r1, z2, nil}
+func (r1 *renameExpr) Rename(z2 interface{}) Relation {
+	return NewRename(r1.source1, z2)
 }
 
 // Union creates a new relation by unioning the bodies of both inputs
 //
-func (r1 *RenameExpr) Union(r2 Relation) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	if r2.Err() != nil {
-		return r2
-	}
-	return &UnionExpr{r1, r2, nil}
+func (r1 *renameExpr) Union(r2 Relation) Relation {
+	return NewUnion(r1, r2)
 }
 
 // SetDiff creates a new relation by set minusing the two inputs
 //
-func (r1 *RenameExpr) SetDiff(r2 Relation) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	if r2.Err() != nil {
-		return r2
-	}
-	return &SetDiffExpr{r1, r2, nil}
+func (r1 *renameExpr) SetDiff(r2 Relation) Relation {
+	return NewSetDiff(r1, r2)
 }
 
 // Join creates a new relation by performing a natural join on the inputs
 //
-func (r1 *RenameExpr) Join(r2 Relation, zero interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	if r2.Err() != nil {
-		return r2
-	}
-	return &JoinExpr{r1, r2, zero, nil}
+func (r1 *renameExpr) Join(r2 Relation, zero interface{}) Relation {
+	return NewJoin(r1, r2, zero)
 }
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *RenameExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	return &GroupByExpr{r1, t2, vt, gfcn, nil}
+func (r1 *renameExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
+	return NewGroupBy(r1, t2, vt, gfcn)
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *RenameExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	// determine the type of the returned tuples
-	r := new(MapExpr)
-	r.source1 = r1
-	r.zero = z2
-	r.fcn = mfcn
-	if len(ckeystr) == 0 {
-		// all relations have a candidate key of all of their attributes, or
-		// a non zero subset if the relation is not dee or dum
-		r.cKeys = att.DefaultKeys(z2)
-	} else {
-		r.isDistinct = true
-		// convert from [][]string to CandKeys
-		r.cKeys = att.String2CandKeys(ckeystr)
-	}
-	return r
+func (r1 *renameExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
+	return NewMap(r1, mfcn, z2, ckeystr)
 }
 
 // Error returns an error encountered during construction or computation
-func (r1 *RenameExpr) Err() error {
+func (r1 *renameExpr) Err() error {
 	return r1.err
 }

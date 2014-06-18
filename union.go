@@ -4,21 +4,20 @@ package rel
 
 import (
 	"github.com/jonlawlor/rel/att"
-	"reflect"
 	"runtime"
 	"sync"
 )
 
-// UnionExpr represents a union expression in relational algebra.
+// unionExpr represents a union expression in relational algebra.
 // This is one of the relational operations which consumes memory.
-type UnionExpr struct {
+type unionExpr struct {
 	source1 Relation
 	source2 Relation
 
 	err error
 }
 
-func (r *UnionExpr) Tuples(t chan<- interface{}) chan<- struct{} {
+func (r *unionExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 
 	if r.Err() != nil {
@@ -104,12 +103,12 @@ func (r *UnionExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *UnionExpr) Zero() interface{} {
+func (r *unionExpr) Zero() interface{} {
 	return r.source1.Zero()
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *UnionExpr) CKeys() att.CandKeys {
+func (r *unionExpr) CKeys() att.CandKeys {
 	// unions have the intersection of the source candidate keys
 	// the keys are sorted on length and then alphabetically, which helps
 	// reduce the number of comparisons needed.
@@ -165,28 +164,19 @@ Loop1:
 }
 
 // GoString returns a text representation of the Relation
-func (r *UnionExpr) GoString() string {
+func (r *unionExpr) GoString() string {
 	return r.source1.GoString() + ".Union(" + r.source2.GoString() + ")"
 }
 
 // String returns a text representation of the Relation
-func (r *UnionExpr) String() string {
+func (r *unionExpr) String() string {
 	return r.source1.String() + " ∪ " + r.source2.String()
 }
 
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
-func (r1 *UnionExpr) Project(z2 interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	att2 := att.FieldNames(reflect.TypeOf(z2))
-	if Deg(r1) == len(att2) {
-		// either projection is an error or a no op
-		return r1
-	} else {
-		return &UnionExpr{r1.source1.Project(z2), r1.source2.Project(z2), nil}
-	}
+func (r1 *unionExpr) Project(z2 interface{}) Relation {
+	return NewUnion(r1.source1.Project(z2), r1.source2.Project(z2))
 }
 
 // Restrict creates a new relation with less than or equal cardinality
@@ -194,81 +184,50 @@ func (r1 *UnionExpr) Project(z2 interface{}) Relation {
 // This is a general purpose restrict - we might want to have specific ones for
 // the typical theta comparisons or <= <, =, >, >=, because it will allow much
 // better optimization on the source data side.
-func (r1 *UnionExpr) Restrict(p att.Predicate) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	return &UnionExpr{r1.source1.Restrict(p), r1.source2.Restrict(p), nil}
+func (r1 *unionExpr) Restrict(p att.Predicate) Relation {
+	return NewUnion(r1.source1.Restrict(p), r1.source2.Restrict(p))
 }
 
 // Rename creates a new relation with new column names
 // z2 has to be a struct with the same number of fields as the input relation
 // note: we might want to change this into a projectrename operation?  It will
 // be tricky to represent this in go's type system, I think.
-func (r1 *UnionExpr) Rename(z2 interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	return &RenameExpr{r1, z2, nil}
+func (r1 *unionExpr) Rename(z2 interface{}) Relation {
+	return NewUnion(r1.source1.Rename(z2), r1.source2.Rename(z2))
 }
 
 // Union creates a new relation by unioning the bodies of both inputs
 //
-func (r1 *UnionExpr) Union(r2 Relation) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	if r2.Err() != nil {
-		return r2
-	}
+func (r1 *unionExpr) Union(r2 Relation) Relation {
 	// It might be useful to define a multiple union?  There would be a memory
 	// benefit in some cases.
-	return &UnionExpr{r1, r2, nil}
+	return NewUnion(r1, r2)
 }
 
 // SetDiff creates a new relation by set minusing the two inputs
 //
-func (r1 *UnionExpr) SetDiff(r2 Relation) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	if r2.Err() != nil {
-		return r2
-	}
-	return &SetDiffExpr{r1, r2, nil}
+func (r1 *unionExpr) SetDiff(r2 Relation) Relation {
+	return NewSetDiff(r1, r2)
 }
 
 // Join creates a new relation by performing a natural join on the inputs
 //
-func (r1 *UnionExpr) Join(r2 Relation, zero interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	if r2.Err() != nil {
-		return r2
-	}
-	return &JoinExpr{r1, r2, zero, nil}
+func (r1 *unionExpr) Join(r2 Relation, zero interface{}) Relation {
+	return NewJoin(r1, r2, zero)
 }
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *UnionExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	return &GroupByExpr{r1, t2, vt, gfcn, nil}
+func (r1 *unionExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
+	return NewGroupBy(r1, t2, vt, gfcn)
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *UnionExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
-	if r1.Err() != nil {
-		return r1
-	}
-	// map is distributable over union
-	return &UnionExpr{r1.source1.Map(mfcn, z2, ckeystr), r1.source2.Map(mfcn, z2, ckeystr), nil}
+func (r1 *unionExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
+	return NewMap(r1, mfcn, z2, ckeystr)
 }
 
 // Error returns an error encountered during construction or computation
-func (r1 *UnionExpr) Err() error {
+func (r1 *unionExpr) Err() error {
 	return r1.err
 }
