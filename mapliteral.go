@@ -42,7 +42,7 @@ func (r *mapLiteral) Tuples(t chan<- interface{}) chan<- struct{} {
 			select {
 			case t <- rtup.Interface().(interface{}):
 			case <-cancel:
-				break
+				return
 			}
 		}
 		close(t)
