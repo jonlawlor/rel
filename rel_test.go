@@ -86,19 +86,15 @@ func TestMatrixExample(t *testing.T) {
 		Map(mapMult, multRes{}, [][]string{[]string{"R", "C", "M"}}).
 		GroupBy(matrixElem{}, valTup{}, groupAdd)
 
-	expectStr := `rel.New([]struct {
- R int     
- C int     
- V float64 
-}{
- {1, 1, 22,  },
- {1, 2, 51,  },
- {2, 1, 48,  },
- {2, 2, 119, },
-})`
+	expectRes := New([]matrixElem{
+		{1, 1, 22},
+		{1, 2, 51},
+		{2, 1, 48},
+		{2, 2, 119},
+	}, [][]string{})
 
-	if cStr := C.GoString(); cStr != expectStr {
-		t.Errorf("matrix multiply has string representation => %v, want %v", cStr, expectStr)
+	if Card(C.SetDiff(expectRes)) != 0 || Card(expectRes.SetDiff(C)) != 0 {
+		t.Errorf("matrix multiply has result => %v, want (ignore order) %v", C.GoString(), expectRes.GoString())
 	}
 
 }

@@ -27,18 +27,15 @@ func TestGroupBy(t *testing.T) {
 		}
 		return res
 	}
-	wantString := `rel.New([]struct {
- PNO int 
- Qty int 
-}{
- {4, 900,  },
- {1, 1300, },
- {2, 700,  },
- {3, 200,  },
-})`
+	wantRes := New([]r1tup{
+		{4, 900},
+		{1, 1300},
+		{2, 700},
+		{3, 200},
+	}, [][]string{})
 	r1 := orders().GroupBy(r1tup{}, valtup{}, groupFcn)
-	if r1.GoString() != wantString {
-		t.Errorf("orders.Groupby = \"%s\", want \"%s\"", r1.GoString(), wantString)
+	if Card(r1.SetDiff(wantRes)) != 0 || Card(wantRes.SetDiff(r1)) != 0 {
+		t.Errorf("orders.Groupby = \"%s\", want (ignore order) \"%s\"", r1.GoString(), wantRes.GoString())
 	}
 
 	type groupByTup1 struct {
