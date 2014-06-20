@@ -1,11 +1,13 @@
 rel
 ========
 
-Relational Algebra in Go.  Most Go doesn't need relational algebra, but most relational algebra needs Go.  The inherent parallelism in relational operations is buried by RDBMS's, and is much less extensible in function.  The cleanness of expression is missing in most ORMs, which prevents most query optimization.  Go provides the tools which can take advantage of both that parallelism and query optimization.  It is my hope that this package will prove that is true.
+Relational Algebra in Go.  Go's concurrency mechanisms allow for fine control of the inherent parallelism in relational operations.  Go's interfaces & duck typing are used to provide an extensible ORM that is capable of query rewrite. It is my hope that this package will produce some interesting approaches to implement relational expressions.
 
-This implements most of the traditional elements of relational algebra, including project, restrict, join, setdiff, and union.  It also implements some of the common non-relational operations, including groupby, map, and order.  To learn more about relational algebra, C. J. Date's Database in Depth is a great place to start, and is used as the source of terminology in the rel package.
+This implements most of the traditional elements of relational algebra, including project, restrict, join, setdiff, and union.  It also implements some of the common non-relational operations, including groupby, and map.  To learn more about relational algebra, C. J. Date's Database in Depth is a great place to start, and is used as the source of terminology in the rel package.
 
-The semantics of this package are very similar to Microsoft's LINQ, although the syntax is somewhat different.  This isn't LINQ though - it is a library, and it is not integrated with the language, which means rel has a significant performance cost relative to normal go code that doesn't use reflection.  Unlike LINQ, you can see how it does everything, and have more control over how queries are executed.
+Please note that relational algebra is not SQL.  In particular, NULL is not a part of relational algebra, and all relations must be distinct.
+
+The semantics of this package are very similar to Microsoft's LINQ, although the syntax is somewhat different.  This isn't LINQ though - it is a library, and it is not integrated with the language, which means rel has a significant performance cost relative to normal go code that doesn't use reflection.
 
 Interfaces
 ==========
@@ -26,7 +28,6 @@ Predicates are used in the restrict operation.
 
 TODOs
 =====
-+ TONE THE ANNOUNCEMENT DOWN JESUS
 + Add errors to indicate when relations are constructed from invalid operations
 + Reach 100% test coverage (currently 85%)
 + Implement sub packages for other data sources, such as generic sql tables, json, or gob.
@@ -58,17 +59,16 @@ Draft Golang Nuts Announcement
 ==============================
 [ANN] Relational Algebra
 
-rel is a relational algebra package for Go, available at https://github.com/jonlawlor/rel.  It provides an extensible ORM which can perform query rewrite.  Relations are implemented as pipelines of tuples that are transformed and composed to produce results through a channel.  The package is currently experimental, interfaces are subject to change, and you should not use it for anything requiring high performance.
+rel is a relational algebra package for Go, available at https://github.com/jonlawlor/rel.  It provides an extensible ORM which can perform query rewrite.  Relations are implemented as pipelines of tuples that are transformed and composed to produce results through a channel.  The package is currently experimental, interfaces are subject to change, and you should not use it for anything requiring even medium performance.
 
+quote:
 Relational queries are ideally suited to parallel execution; they consist of uniform operations applied to uniform streams of data. Each operator produces a new relation, so the operators can be composed into highly parallel dataflow graphs. By streaming the output of one operator into the input of another operator, the two operators can work in series giving pipelined parallelism. By partitioning the input data among multiple processors and memories, an operator can often be split into many independent operators each working on a part of the data. This partitioned data and execution gives partitioned parallelism. [1]
 
-Go's concurrency is great at expressing that pipelined parallelism.  Most relational databases & ORMs completely hide those details.
-
-Go's interfaces are great at providing succinct extensibility.  Most relational databases do not allow much in the way of extensibility; many do not allow arbitrary types of attributes, and very few allow new relational expressions to be defined.
+Go's concurrency mechanisms allow for fine control of the inherent parallelism in relational operations.  Go's interfaces & duck typing are used to provide an extensible ORM that is capable of query rewrite. It is my hope that this package will produce some interesting approaches to implement relational expressions.
 
 We believe that the combination of relations, concurrency, and extensibility allows for something unique and interesting.  This package is made to explore that idea.
 
-Here's an example of sparse matrix multiplication using rel:
+Here's an example of sparse matrix multiplication using rel (relational meets linear):
 
 ```go
 type matrixElem struct {
@@ -160,7 +160,9 @@ fmt.Println("\n%#v",C)
 
 Which isn't going to set any records for brevity or efficiency.  It also demonstrates some of the issues with the rel package's current state: it results in a lot of type definitions for intermediate tuple representation, which is an area we want to work on.  Behind the scenes there is quite a bit of reflection as well, which comes with other downsides, including slower performance and less type safety.  Also, every relational operation (except for no-ops) results in a new pipeline stage getting built, with more channels handing off values. 
 
-On the other hand, thanks to interface's duck typing, users of this package can define their own Relation(s), which we anticipate will be used similarly as LINQ's Type Providers.  The "literal" Relations above can be replaced by Relations that provide values from an SQL database, or a csv.Reader, which are defined in sub packages, or in a user defined source if they roll their own Relation, which can take advantage of the query rewrite rules in the rel package.
+On the other hand, thanks to interface's duck typing, users of this package can define their own Relation(s), which could be used in a similar manner to LINQ's Type Providers.  The "literal" Relations above can be replaced by Relations that provide values from an SQL database, or a csv.Reader (https://github.com/jonlawlor/csv), or in a user defined source if they roll their own Relation, which can take advantage of the query rewrite rules in the rel package.
+
+I am sure many people will find the package hideous.  Personally I vacillate between excitement over how interesting I find it, and despair over how unidiomatic it is.  It violates practically every piece of general advice I've seen on Go, but at the same time, I have a sense that it is coming together.  I hope you find it interesting as well.
 
 [1] Parallel Database Systems: The Future of Database Processing or a Passing Fad?
 
