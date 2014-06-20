@@ -10,13 +10,17 @@ package rel
 
 // suppliers relation, with candidate keys {SNO}
 // the {SName} key is also possible to use
+
+// I'm not sure if anonymous structs would be better or worse.
+type supplierTup struct {
+	SNO    int
+	SName  string
+	Status int
+	City   string
+}
+
 func suppliers() Relation {
-	return New([]struct {
-		SNO    int
-		SName  string
-		Status int
-		City   string
-	}{
+	return New([]supplierTup{
 		{1, "Smith", 20, "London"},
 		{2, "Jones", 10, "Paris"},
 		{3, "Blake", 30, "Paris"},
@@ -31,18 +35,13 @@ func suppliers() Relation {
 type partTup struct {
 	PNO    int
 	PName  string
+	Color  string
 	Weight float64
 	City   string
 }
 
 func parts() Relation {
-	return New([]struct {
-		PNO    int
-		PName  string
-		Color  string
-		Weight float64
-		City   string
-	}{
+	return New([]partTup{
 		{1, "Nut", "Red", 12.0, "London"},
 		{2, "Bolt", "Green", 17.0, "Paris"},
 		{3, "Screw", "Blue", 17.0, "Oslo"},

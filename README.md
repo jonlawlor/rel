@@ -26,12 +26,12 @@ Predicates are used in the restrict operation.
 
 TODOs
 =====
++ TONE THE ANNOUNCEMENT DOWN JESUS
 + Add errors to indicate when relations are constructed from invalid operations
 + finish coverage on error short circuit
-+ Use the go race detector & clear up any issues.  (this requires a 64bit arch)
 + Reach 100% test coverage (currently 85%)
-+ Implement tests with deterministic output of relational operations.  Currently tests for things like GoString, join, and groupby are dependent on the (arbitrary) order of output tuples.  They should go through an orderby operation first, or just compare against a known good relation through setdiff.
-+ Implement sub packages for other data sources, such as csv readers, generic sql tables, json, or gob.
++ *Implement tests with deterministic output of relational operations.  Currently tests for things like GoString, join, and groupby are dependent on the (arbitrary) order of output tuples.  They should go through an orderby operation first, or just compare against a known good relation through setdiff.*
++ Implement sub packages for other data sources, such as generic sql tables, json, or gob.
 + Implement non relational operations like order.
 + Write better docs
 + Write single godoc file (possible examples include matrix algebra & creating a new relation type)

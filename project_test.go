@@ -59,7 +59,13 @@ func TestProject(t *testing.T) {
 	}
 
 	// test the degrees, cardinality, and string representation
-	rel := parts().Project(partTup{})
+	type pTup struct {
+		PNO    int
+		PName  string
+		Weight float64
+		City   string
+	}
+	rel := parts().Project(pTup{})
 	type distinctTup struct {
 		PNO   int
 		PName string
@@ -104,7 +110,7 @@ func TestProject(t *testing.T) {
 		Weight2 float64
 	}
 	mapFcn := func(tup1 interface{}) interface{} {
-		if v, ok := tup1.(partTup); ok {
+		if v, ok := tup1.(pTup); ok {
 			return mapRes{v.PNO, v.PName, v.Weight / 2}
 		} else {
 			return mapRes{}
@@ -157,9 +163,9 @@ func TestProject(t *testing.T) {
 
 	// test errors
 	err := fmt.Errorf("testing error")
-	rel1 := parts().Project(partTup{}).(*projectExpr)
+	rel1 := parts().Project(pTup{}).(*projectExpr)
 	rel1.err = err
-	rel2 := parts().Project(partTup{}).(*projectExpr)
+	rel2 := parts().Project(pTup{}).(*projectExpr)
 	rel2.err = err
 	res = make(chan interface{})
 	_ = rel1.Tuples(res)
