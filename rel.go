@@ -1,37 +1,15 @@
-// Package rel implements relational algebra.
-// The relational algebra here follows in the footsteps of "Database in Depth"
-// by C. J. Date.  Therefore all terminology should be the same as used in that
-// book.  There are some notable differences from SQL.
+// relational interface definition, and methods defined on that interface.
+
 package rel
 
-// variable naming conventions
-//
-// r, r1, r2, r3, ... all represent relations.  If there is an operation which
-// has an output relation, the output relation will have the highest number
-// after the r.
-//
-// body, body1, body2, b, b1, b2, ... all represent channels of tuples.
-//
-// zero, z, z1, z2, ... all represent a tuple's zero value, with defaults in
-// all of the fields.
-//
-// e, e1, e2, ... all represent the reflect.ValueOf(z) with the appropriate
-// identification.
-//
-// tup, tup1, tup2, ... all represent actual tuples going through some
-// relational transformation.
-//
-// rtup, rtup1, rtup2, ... all represent the reflect.ValueOf(tup) with the
-// appropriate identification.
-
 import (
-	"fmt" // we might want to replace this with the errors package?
+	"fmt"
 	"github.com/jonlawlor/rel/att"
 	"reflect"
 	"strings"
 )
 
-// Relation has similar meaning to tables in SQL
+// A relation is a set of tuples.
 type Relation interface {
 	// Zero is the zero value for the tuple
 	Zero() interface{}
