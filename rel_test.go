@@ -43,21 +43,16 @@ func TestMatrixExample(t *testing.T) {
 		M int
 		V float64
 	}
-	mapMult := func(tup interface{}) interface{} {
-		if v, ok := tup.(multElemC); ok {
-			return multRes{v.R, v.C, v.M, v.VA * v.VB}
-		} else {
-			return multRes{}
-		}
+	mapMult := func(tup multElemC) multRes {
+		return multRes{tup.R, tup.C, tup.M, tup.VA * tup.VB}
 	}
 	type valTup struct {
 		V float64
 	}
-	groupAdd := func(val <-chan interface{}) interface{} {
+	groupAdd := func(val <-chan valTup) valTup {
 		res := valTup{}
 		for vi := range val {
-			v := vi.(valTup)
-			res.V += v.V
+			res.V += vi.V
 		}
 		return res
 	}
@@ -83,8 +78,8 @@ func TestMatrixExample(t *testing.T) {
 	}, [][]string{[]string{"R", "C"}})
 
 	C := A.Rename(multElemA{}).Join(B.Rename(multElemB{}), multElemC{}).
-		Map(mapMult, multRes{}, [][]string{[]string{"R", "C", "M"}}).
-		GroupBy(matrixElem{}, valTup{}, groupAdd)
+		Map(mapMult, [][]string{[]string{"R", "C", "M"}}).
+		GroupBy(matrixElem{}, groupAdd)
 
 	expectRes := New([]matrixElem{
 		{1, 1, 22},
@@ -171,7 +166,6 @@ func TestNewNonDistinctMap(t *testing.T) {
 	if c := Card(r); c != 1 {
 		t.Errorf("rel.New has Card() => %v, want %v", c, 1)
 	}
-
 }
 
 // test of rel.New using a non distinct chan of tuples

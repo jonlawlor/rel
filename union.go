@@ -4,6 +4,7 @@ package rel
 
 import (
 	"github.com/jonlawlor/rel/att"
+	"reflect"
 	"runtime"
 	"sync"
 )
@@ -17,11 +18,17 @@ type unionExpr struct {
 	err error
 }
 
-func (r *unionExpr) Tuples(t chan<- interface{}) chan<- struct{} {
+func (r *unionExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
-
-	if r.Err() != nil {
-		close(t)
+	// reflect on the channel
+	chv := reflect.ValueOf(t)
+	err := ensureChan(chv.Type(), r.Zero())
+	if err != nil {
+		r.err = err
+		return cancel
+	}
+	if r.err != nil {
+		chv.Close()
 		return cancel
 	}
 
@@ -30,14 +37,19 @@ func (r *unionExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 	var mu sync.Mutex
 	mem := make(map[interface{}]struct{})
 
-	body1 := make(chan interface{})
-	body2 := make(chan interface{})
-	bcancel1 := r.source1.Tuples(body1)
-	bcancel2 := r.source2.Tuples(body2)
+	// tuples in both sides should have the same type, checked during
+	// construction
+	e := reflect.TypeOf(r.source1.Zero())
+
+	// create channels over the body of the source relations
+	body1 := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e), 0)
+	bcancel1 := r.source1.TupleChan(body1.Interface())
+	body2 := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e), 0)
+	bcancel2 := r.source2.TupleChan(body2.Interface())
 
 	var wg sync.WaitGroup
 	wg.Add(mc)
-	go func(res chan<- interface{}) {
+	go func(res reflect.Value) {
 		wg.Wait()
 		select {
 		case <-cancel:
@@ -49,55 +61,52 @@ func (r *unionExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 			} else if err := r.source2.Err(); err != nil {
 				r.err = err
 			}
-			close(res)
+			res.Close()
 		}
-	}(t)
+	}(chv)
 
 	for i := 0; i < mc; i++ {
-		go func(b1, b2 <-chan interface{}, res chan<- interface{}) {
-		Loop:
-			for b1 != nil || b2 != nil {
-				select {
-				case tup1, ok := <-b1:
-					if !ok {
-						b1 = nil
+		go func(b1, b2, res reflect.Value) {
+			// input channels
+			source1Sel := reflect.SelectCase{reflect.SelectRecv, b1, reflect.Value{}}
+			source2Sel := reflect.SelectCase{reflect.SelectRecv, b2, reflect.Value{}}
+			canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+			neverRecv := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(make(chan struct{})), reflect.Value{}}
+			inCases := []reflect.SelectCase{canSel, source1Sel, source2Sel}
+
+			// output channels
+			resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
+
+			openSources := 2
+			for openSources > 0 {
+				chosen, tup, ok := reflect.Select(inCases)
+				if chosen == 0 {
+					// cancel channel was closed
+					break
+				}
+				if chosen > 0 && !ok {
+					// one of the bodies completed
+					inCases[chosen] = neverRecv
+					openSources--
+					continue
+				}
+
+				// otherwise we've received a new value from one of the sources
+				mu.Lock()
+				if _, dup := mem[tup.Interface()]; !dup {
+					mem[tup.Interface()] = struct{}{}
+					mu.Unlock()
+					resSel.Send = tup
+					chosen, _, ok = reflect.Select([]reflect.SelectCase{canSel, resSel})
+					if chosen == 0 {
 						break
 					}
-					mu.Lock()
-					if _, dup := mem[tup1]; !dup {
-						mem[tup1] = struct{}{}
-						mu.Unlock()
-						select {
-						case res <- tup1:
-						case <-cancel:
-							break Loop
-						}
-					} else {
-						mu.Unlock()
-					}
-				case tup2, ok := <-b2:
-					if !ok {
-						b2 = nil
-						break
-					}
-					mu.Lock()
-					if _, dup := mem[tup2]; !dup {
-						mem[tup2] = struct{}{}
-						mu.Unlock()
-						select {
-						case res <- tup2:
-						case <-cancel:
-							break Loop
-						}
-					} else {
-						mu.Unlock()
-					}
-				case <-cancel:
-					break Loop
+				} else {
+					mu.Unlock()
 				}
 			}
 			wg.Done()
-		}(body1, body2, t)
+		}(body1, body2, chv)
 	}
 	return cancel
 }
@@ -218,13 +227,13 @@ func (r1 *unionExpr) Join(r2 Relation, zero interface{}) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *unionExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
-	return NewGroupBy(r1, t2, vt, gfcn)
+func (r1 *unionExpr) GroupBy(t2, gfcn interface{}) Relation {
+	return NewGroupBy(r1, t2, gfcn)
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *unionExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
-	return NewMap(r1, mfcn, z2, ckeystr)
+func (r1 *unionExpr) Map(mfcn interface{}, ckeystr [][]string) Relation {
+	return NewMap(r1, mfcn, ckeystr)
 }
 
 // Error returns an error encountered during construction or computation

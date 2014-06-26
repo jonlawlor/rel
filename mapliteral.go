@@ -28,25 +28,35 @@ type mapLiteral struct {
 	err error
 }
 
-// Tuples sends each tuple in the relation to a channel
-func (r *mapLiteral) Tuples(t chan<- interface{}) chan<- struct{} {
+func (r *mapLiteral) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
-
-	if r.Err() != nil {
-		close(t)
+	// reflect on the channel
+	chv := reflect.ValueOf(t)
+	err := ensureChan(chv.Type(), r.zero)
+	if err != nil {
+		r.err = err
+		return cancel
+	}
+	if r.err != nil {
+		chv.Close()
 		return cancel
 	}
 
-	go func() {
-		for _, rtup := range r.rbody.MapKeys() {
-			select {
-			case t <- rtup.Interface().(interface{}):
-			case <-cancel:
+	go func(res reflect.Value) {
+		// output channel
+		resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
+		canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+
+		for _, tup := range r.rbody.MapKeys() {
+			resSel.Send = tup
+			chosen, _, _ := reflect.Select([]reflect.SelectCase{canSel, resSel})
+			if chosen == 0 {
+				// cancel has been closed, so close the results
 				return
 			}
 		}
-		close(t)
-	}()
+		chv.Close()
+	}(chv)
 	return cancel
 }
 
@@ -113,13 +123,13 @@ func (r1 *mapLiteral) Join(r2 Relation, zero interface{}) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *mapLiteral) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
-	return NewGroupBy(r1, t2, vt, gfcn)
+func (r1 *mapLiteral) GroupBy(t2, gfcn interface{}) Relation {
+	return NewGroupBy(r1, t2, gfcn)
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *mapLiteral) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
-	return NewMap(r1, mfcn, z2, ckeystr)
+func (r1 *mapLiteral) Map(mfcn interface{}, ckeystr [][]string) Relation {
+	return NewMap(r1, mfcn, ckeystr)
 }
 
 // Error returns an error encountered during construction or computation

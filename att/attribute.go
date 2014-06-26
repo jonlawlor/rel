@@ -188,7 +188,7 @@ SubLoop:
 // rtup, put only values which are in rtyp.
 // The reason we have to put zero values is that we can't make derived types.
 // returns the results as an interface instead of as reflect.Value's
-func PartialProject(tup reflect.Value, ltyp, rtyp reflect.Type, lFieldMap, rFieldMap map[Attribute]FieldIndex) (ltupi interface{}, rtupi interface{}) {
+func PartialProject(tup reflect.Value, ltyp, rtyp reflect.Type, lFieldMap, rFieldMap map[Attribute]FieldIndex) (reflect.Value, reflect.Value) {
 
 	// we could avoid passing in th lFieldMap and
 
@@ -210,9 +210,7 @@ func PartialProject(tup reflect.Value, ltyp, rtyp reflect.Type, lFieldMap, rFiel
 			tupf.Set(tup.Field(lfm.I))
 		}
 	}
-	ltupi = ltup.Interface()
-	rtupi = rtup.Interface()
-	return
+	return ltup, rtup
 }
 
 // CombineTuples takes the values in rtup and assigns them to the fields

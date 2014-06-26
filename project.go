@@ -18,14 +18,17 @@ type projectExpr struct {
 	err error
 }
 
-// Tuples sends each tuple in the relation to a channel
-// note: this consumes the values of the relation, and when it is finished it
-// closes the input channel.
-func (r *projectExpr) Tuples(t chan<- interface{}) chan<- struct{} {
+func (r *projectExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
-
-	if r.Err() != nil {
-		close(t)
+	// reflect on the channel
+	chv := reflect.ValueOf(t)
+	err := ensureChan(chv.Type(), r.zero)
+	if err != nil {
+		r.err = err
+		return cancel
+	}
+	if r.err != nil {
+		chv.Close()
 		return cancel
 	}
 
@@ -37,38 +40,10 @@ func (r *projectExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 	e1 := reflect.TypeOf(z1)
 	e2 := reflect.TypeOf(r.zero)
 
-	body1 := make(chan interface{})
-	bcancel := r.source1.Tuples(body1)
-
-	if e1.AssignableTo(e2) {
-		// nothing to do.
-		go func(body <-chan interface{}, res chan<- interface{}) {
-		Loop:
-			for {
-				select {
-				case tup1, ok := <-body:
-					if !ok {
-						break Loop
-					}
-					select {
-					case res <- tup1:
-					case <-cancel:
-						close(bcancel)
-						return
-					}
-
-				case <-cancel:
-					close(bcancel)
-					return
-				}
-			}
-			if err := r.source1.Err(); err != nil {
-				r.err = err
-			}
-			close(res)
-		}(body1, t)
-		return cancel
-	}
+	// create the channel of tuples from source
+	// TODO(jonlawlor): restrict the channel direction
+	body := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e1), 0)
+	bcancel := r.source1.TupleChan(body.Interface())
 
 	// figure out which fields stay, and where they are in each of the tuple
 	// types.
@@ -77,71 +52,88 @@ func (r *projectExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 
 	// figure out if we need to distinct the results because there are no
 	// candidate keys left
-	// TODO(jonlawlor): refactor with the code in the CKeys() method
+	// TODO(jonlawlor): refactor with the code in the CKeys() method, or
+	// include in an isDistinct field?
 	cKeys := att.SubsetCandidateKeys(r.source1.CKeys(), Heading(r.source1), fMap)
 	if len(cKeys) == 0 {
-		go func(body <-chan interface{}, res chan<- interface{}) {
+		go func(body, res reflect.Value) {
 			m := map[interface{}]struct{}{}
-		Loop:
+
+			// input channels
+			sourceSel := reflect.SelectCase{reflect.SelectRecv, body, reflect.Value{}}
+			canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+			inCases := []reflect.SelectCase{canSel, sourceSel}
+
+			// output channels
+			resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
+
 			for {
-				select {
-				case tup1, ok := <-body:
-					if !ok {
-						break Loop
-					}
-					tup2 := reflect.Indirect(reflect.New(e2))
-					rtup1 := reflect.ValueOf(tup1)
-					for _, fm := range fMap {
-						tupf2 := tup2.Field(fm.J)
-						tupf2.Set(rtup1.Field(fm.I))
-					}
-					// set the field in the new tuple to the value from the old one
-					if _, isdup := m[tup2.Interface()]; !isdup {
-						m[tup2.Interface()] = struct{}{}
-						select {
-						case res <- tup2.Interface():
-						case <-cancel:
-							close(bcancel)
-							return
-						}
-					}
-				case <-cancel:
+				chosen, tup, ok := reflect.Select(inCases)
+				// cancel has been closed, so close the results
+				if chosen == 0 {
 					close(bcancel)
 					return
+				}
+				if !ok {
+					// source channel was closed
+					break
+				}
+				tup2 := reflect.Indirect(reflect.New(e2))
+				for _, fm := range fMap {
+					tupf2 := tup2.Field(fm.J)
+					tupf2.Set(tup.Field(fm.I))
+				}
+				// set the field in the new tuple to the value from the old one
+				if _, isdup := m[tup2.Interface()]; !isdup {
+					m[tup2.Interface()] = struct{}{}
+					resSel.Send = tup2
+					chosen, _, ok = reflect.Select([]reflect.SelectCase{canSel, resSel})
+					if chosen == 0 {
+						close(bcancel)
+						return
+					}
 				}
 			}
 			if err := r.source1.Err(); err != nil {
 				r.err = err
 			}
-			close(res)
-		}(body1, t)
+			res.Close()
+		}(body, chv)
 		return cancel
 	}
 
 	// assign fields from the old relation to fields in the new
 	// TODO(jonlawlor) add parallelism here
-	go func(body <-chan interface{}, res chan<- interface{}) {
-	Loop:
+	go func(body, res reflect.Value) {
+
+		// input channels
+		sourceSel := reflect.SelectCase{reflect.SelectRecv, body, reflect.Value{}}
+		canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+		inCases := []reflect.SelectCase{canSel, sourceSel}
+
+		// output channels
+		resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
+
 		for {
-			select {
-			case tup1, ok := <-body:
-				if !ok {
-					break Loop
-				}
-				tup2 := reflect.Indirect(reflect.New(e2))
-				rtup1 := reflect.ValueOf(tup1)
-				for _, fm := range fMap {
-					tupf2 := tup2.Field(fm.J)
-					tupf2.Set(rtup1.Field(fm.I))
-				}
-				select {
-				// set the field in the new tuple to the value from the old one
-				case res <- tup2.Interface():
-				case <-cancel:
-					close(bcancel)
-					return
-				}
-			case <-cancel:
+			chosen, tup, ok := reflect.Select(inCases)
+			// cancel has been closed, so close the results
+			if chosen == 0 {
+				close(bcancel)
+				return
+			}
+			if !ok {
+				// source channel was closed
+				break
+			}
+			tup2 := reflect.Indirect(reflect.New(e2))
+			for _, fm := range fMap {
+				tupf2 := tup2.Field(fm.J)
+				tupf2.Set(tup.Field(fm.I))
+			}
+
+			resSel.Send = tup2
+			chosen, _, ok = reflect.Select([]reflect.SelectCase{canSel, resSel})
+			if chosen == 0 {
 				close(bcancel)
 				return
 			}
@@ -149,8 +141,8 @@ func (r *projectExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 		if err := r.source1.Err(); err != nil {
 			r.err = err
 		}
-		close(res)
-	}(body1, t)
+		res.Close()
+	}(body, chv)
 
 	return cancel
 }
@@ -244,13 +236,13 @@ func (r1 *projectExpr) Join(r2 Relation, zero interface{}) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *projectExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
-	return NewGroupBy(r1, t2, vt, gfcn)
+func (r1 *projectExpr) GroupBy(t2, gfcn interface{}) Relation {
+	return NewGroupBy(r1, t2, gfcn)
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *projectExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
-	return NewMap(r1, mfcn, z2, ckeystr)
+func (r1 *projectExpr) Map(mfcn interface{}, ckeystr [][]string) Relation {
+	return NewMap(r1, mfcn, ckeystr)
 }
 
 // Error returns an error encountered during construction or computation

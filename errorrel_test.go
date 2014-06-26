@@ -3,6 +3,7 @@ package rel
 import (
 	"fmt"
 	"github.com/jonlawlor/rel/att"
+	"reflect"
 )
 
 // type for error testing only.  It produces an error if tuples is called, and
@@ -16,18 +17,32 @@ type errorRel struct {
 	err error
 }
 
-// Tuples sends each tuple in the relation to a channel
+// TupleChan sends each tuple in the relation to a channel
 // note: this consumes the values of the relation, and when it is finished it
 // closes the input channel.
-func (r *errorRel) Tuples(t chan<- interface{}) chan<- struct{} {
-	go func(res chan<- interface{}) {
+func (r *errorRel) TupleChan(t interface{}) chan<- struct{} {
+	cancel := make(chan struct{})
+	// reflect on the channel
+	chv := reflect.ValueOf(t)
+	err := ensureChan(chv.Type(), r.zero)
+	if err != nil {
+		r.err = err
+		return cancel
+	}
+	if r.err != nil {
+		chv.Close()
+		return cancel
+	}
+
+	go func(res reflect.Value) {
 		for i := 0; i < r.card; i++ {
-			t <- r.zero
+			// note: these won't be distinct.
+			res.Send(reflect.ValueOf(r.zero))
 		}
 		r.err = fmt.Errorf("testing error")
-		close(t)
-	}(t)
-	return make(chan struct{})
+		res.Close()
+	}(chv)
+	return cancel
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
@@ -93,13 +108,13 @@ func (r1 *errorRel) Join(r2 Relation, zero interface{}) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *errorRel) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
-	return NewGroupBy(r1, t2, vt, gfcn)
+func (r1 *errorRel) GroupBy(t2, gfcn interface{}) Relation {
+	return NewGroupBy(r1, t2, gfcn)
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *errorRel) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
-	return NewMap(r1, mfcn, z2, ckeystr)
+func (r1 *errorRel) Map(mfcn interface{}, ckeystr [][]string) Relation {
+	return NewMap(r1, mfcn, ckeystr)
 }
 
 // Error returns an error encountered during construction or computation

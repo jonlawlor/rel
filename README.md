@@ -1,13 +1,13 @@
 rel
 ===
 
-Relational Algebra in Go.  Go's concurrency mechanisms allow for fine control of the inherent parallelism in relational operations.  Go's interfaces & duck typing are used to provide an extensible ORM that is capable of query rewrite. It is my hope that this package will produce some interesting approaches to implement relational expressions.  This package is currently experimental and its interfaces may change.
+Relational Algebra in Go.  Go's interfaces & duck typing are used to provide an extensible ORM that is capable of query rewrite, and perform relational operations both in native go and on source dbms's. Go's concurrency mechanisms allow for fine control of the inherent parallelism in relational operations.  It is my hope that this package will produce some interesting approaches to implement relational expressions.  This package is currently experimental and its interfaces may change.
 
 This implements most of the traditional elements of relational algebra, including project, restrict, join, setdiff, and union.  It also implements some of the common non-relational operations, including groupby, and map.  To learn more about relational algebra, C. J. Date's Database in Depth is a great place to start, and it is used as the source of terminology in the rel package.
 
 Please note that relational algebra *_is not SQL_*.  In particular, NULL is not a part of relational algebra, and all relations must be distinct.
 
-The semantics of this package are very similar to Microsoft's LINQ, although the syntax is somewhat different.  This isn't LINQ though - it is a library, and it is not integrated with the language, which means rel has a significant performance cost relative to normal go code that doesn't use reflection.
+The semantics of this package are very similar to Microsoft's LINQ, although the syntax is somewhat different.  rel provides a uniform interface to many different types of data sources.  This isn't LINQ though - it is a library, and it is not integrated with the language, which means rel has a significant performance cost relative to normal go code that doesn't use reflection.
 
 Interfaces
 ==========
@@ -57,7 +57,7 @@ Draft Golang Nuts Announcement
 ==============================
 [ANN] Relational Algebra
 
-rel is a relational algebra package for Go, available at https://github.com/jonlawlor/rel.  It provides an ORM which can perform extensible query rewrite.  Relations are implemented as pipelines of tuples that are transformed and composed to produce results through a channel.  The package is currently experimental, interfaces are subject to change, and you should not use it for anything requiring even medium performance.
+rel is a relational algebra package for Go, available at https://github.com/jonlawlor/rel.  It provides an ORM which can perform extensible query rewrite.  Relations are implemented as pipelines of tuples that are transformed and composed to produce results through a channel using reflection.  The package is currently experimental, interfaces are subject to change, and you should not use it for anything requiring even medium performance.
 
 quote:
 Relational queries are ideally suited to parallel execution; they consist of uniform operations applied to uniform streams of data. Each operator produces a new relation, so the operators can be composed into highly parallel dataflow graphs. By streaming the output of one operator into the input of another operator, the two operators can work in series giving pipelined parallelism. By partitioning the input data among multiple processors and memories, an operator can often be split into many independent operators each working on a part of the data. This partitioned data and execution gives partitioned parallelism. [1]
@@ -95,26 +95,21 @@ type multRes struct {
 	M int
 	V float64
 }
-mapMult := func (tup interface{}) interface{} {
-	if v, ok := tup.(multElemC); ok {
-		return multRes{v.R, v.C, v.M, v.VA * v.VB}
-	} else {
-		return multRes{}
-	}
+mapMult := func (tup multElemC) multRes {
+	return multRes{v.R, v.C, v.M, v.VA * v.VB}
 }
 type valTup struct {
 	V float64
 }
-groupAdd := func(val <-chan interface{}) interface{} {
+groupAdd := func(val <-chan valTup) valTup {
 	res := valTup{}
 	for vi := range val {
-		v := vi.(valTup)
-		res.V += v.V
+		res.V += vi.V
 	}
 	return res
 }
 
-// representation of a matrix:
+// representation of the matrix:
 //  1.0 2.0
 //  3.0 4.0 
 A := rel.New([]matrixElem{
@@ -124,7 +119,7 @@ A := rel.New([]matrixElem{
 	{2, 2, 4.0},
 },[][]string{[]string{"R", "C"}})
 
-// representation of a matrix:
+// representation of the matrix:
 //  4.0 17.0 
 //  9.0 17.0
 B := New([]matrixElem{
@@ -136,8 +131,8 @@ B := New([]matrixElem{
 
 
 C := A.Rename(multElemA{}).Join(B.Rename(multElemB{}), multElemC{}).
-	Map(mapMult, multRes{}, [][]string{[]string{"R", "C", "M"}}).
-	GroupBy(matrixElem{}, valTup{}, groupAdd)
+	Map(mapMult, [][]string{[]string{"R", "C", "M"}}).
+	GroupBy(matrixElem{}, groupAdd)
 	
 fmt.Println("\n%#v",C)
 
@@ -154,13 +149,13 @@ fmt.Println("\n%#v",C)
 // })
 ```
 
-It isn't going to set any records for brevity or efficiency.  It demonstrates some of the issues with the rel package's current state: it results in a lot of type definitions for intermediate tuple representation, which is an area that requires work.  Behind the scenes there is quite a bit of reflection as well, which comes with other downsides, including slower performance and less type safety.  Also, every relational operation (except for no-ops) results in a new pipeline stage getting built, with more channels handing off values.
+It isn't going to set any records for brevity or efficiency.  It demonstrates some of the issues with the rel package's current state: it results in a lot of type definitions for intermediate tuple representation, which is an area that requires work.  Behind the scenes there is quite a bit of reflection as well, which comes with other downsides, including even slower performance and less type safety.  Also, every relational operation (except for no-ops) results in a new pipeline stage getting built, with more channels handing off values.
 
 On the other hand, thanks to interface's duck typing, users of this package can define their own Relation(s), which could be used in a similar manner to LINQ's Type Providers.  The "literal" Relations above can be replaced by Relations that provide values from an SQL database, or a csv.Reader (https://github.com/jonlawlor/csv), or in a user defined source if they roll their own Relation, which can take advantage of the query rewrite rules in the rel package.
 
-Why care about relational algebra over SQL?  Relational algebra is _so much simpler_ than the SQL standard.  The current SQL standard is hundreds of pages long and defines everything from regular expressions to recursive queries to interaction with Java procedures.  You have to pay thousands of dollars to see the latest SQL standard.  E. F. Codd's original paper is 11 pages long and is available for free.[2]  Unsurprisingly that makes it much easier to reason about.  I figure gophers should find that sentiment familiar - good theory has had "features" added to it until it mutates into something else. [3]
+Why care about relational algebra over SQL?  Relational algebra is _so much simpler_ than the SQL standard.  The current SQL standard is hundreds of pages long and defines everything from regular expressions to recursive queries to interaction with Java procedures.  You have to pay thousands of dollars to see the latest SQL standard.  E. F. Codd's original paper is 11 pages long and is available for free.[2]  Unsurprisingly that makes it much easier to reason about.  I figure gophers should find that sentiment familiar - good theory has had features added to it until it mutates into something else. [3][4]
 
-I am sure many people will find the package hideous.  Personally I vacillate between excitement over how interesting I find it, and despair over how much I've fallen short of the simplicity of relational algebra.  This implementation violates practically every piece of general advice I've seen on Go, but at the same time, I have a sense that it is coming together.  I hope you find it interesting as well, and I would like to hear your ideas about how to do it better.
+I am sure many people will find the package hideous.  Personally I vacillate between excitement over how interesting I find it, and distress over how ugly it gets under the hood.  This implementation violates practically every piece of general advice I've seen on Go, but at the same time, I have a sense that something useful is coming together.  I hope you find it interesting as well, and I would like to hear your ideas about how to do it better.
 
 [1] Parallel Database Systems: The Future of Database Processing or a Passing Fad?
 [2] http://www.seas.upenn.edu/~zives/03f/cis550/codd.pdf

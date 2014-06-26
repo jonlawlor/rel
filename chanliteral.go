@@ -30,75 +30,90 @@ type chanLiteral struct {
 	err error
 }
 
-// Tuples sends each tuple in the relation to a channel
+// TupleChan sends each tuple in the relation to a channel
 // note: this consumes the values of the relation, and when it is finished it
 // closes the input channel.
-func (r *chanLiteral) Tuples(t chan<- interface{}) chan<- struct{} {
+func (r *chanLiteral) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
-
-	if r.Err() != nil {
-		close(t)
+	// reflect on the channel
+	chv := reflect.ValueOf(t)
+	err := ensureChan(chv.Type(), r.zero)
+	if err != nil {
+		r.err = err
 		return cancel
 	}
-
+	if r.err != nil {
+		chv.Close()
+		return cancel
+	}
 	if r.sourceDistinct {
-		go func(rbody reflect.Value, res chan<- interface{}) {
-			resSel := reflect.SelectCase{reflect.SelectRecv, rbody, reflect.Value{}}
+		go func(rbody, res reflect.Value) {
+			// input channel
+			sourceSel := reflect.SelectCase{reflect.SelectRecv, rbody, reflect.Value{}}
 			canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
-			cases := []reflect.SelectCase{resSel, canSel}
+			inCases := []reflect.SelectCase{canSel, sourceSel}
+
+			// output channel
+			resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
+
 			for {
-				chosen, rtup, ok := reflect.Select(cases)
-				if !ok || chosen == 1 {
-					// cancel has been closed, so close the results
-					// TODO(jonlawlor): include a cancel channel in the rel.chanLiteral
-					// struct so that we can continue the cancellation to the data
-					// source.
-					if chosen == 1 {
-						return
-					}
+				chosen, tup, ok := reflect.Select(inCases)
+
+				// cancel has been closed, so close the results
+				if chosen == 0 {
+					return
+				}
+				if !ok {
+					// source channel was closed
 					break
 				}
-				select {
-				case res <- interface{}(rtup.Interface()):
-				case <-cancel:
+				resSel.Send = tup
+				outCases := []reflect.SelectCase{canSel, resSel}
+				chosen, _, _ = reflect.Select(outCases)
+
+				if chosen == 0 {
+					// cancel has been closed, so close the results
 					return
 				}
 			}
-			close(res)
-		}(r.rbody, t)
+			res.Close()
+		}(r.rbody, chv)
 		return cancel
 	}
 	// build up a map where each key is one of the tuples.  This consumes
 	// memory.
 	mem := map[interface{}]struct{}{}
-	go func(rbody reflect.Value, res chan<- interface{}) {
-		resSel := reflect.SelectCase{reflect.SelectRecv, rbody, reflect.Value{}}
+	go func(rbody, res reflect.Value) {
+		sourceSel := reflect.SelectCase{reflect.SelectRecv, rbody, reflect.Value{}}
 		canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
-		cases := []reflect.SelectCase{resSel, canSel}
+		inCases := []reflect.SelectCase{canSel, sourceSel}
+
+		resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
+
 		for {
-			chosen, rtup, ok := reflect.Select(cases)
-			if !ok || chosen == 1 {
-				// cancel has been closed, so close the results
-				// TODO(jonlawlor): include a cancel channel in the rel.chanLiteral
-				// struct so that we can continue the cancellation to the data
-				// source.
-				if chosen == 1 {
-					return
-				}
+			chosen, rtup, ok := reflect.Select(inCases)
+			// cancel has been closed, so close the results
+			if chosen == 0 {
+				return
+			}
+			if !ok {
+				// source channel was closed
 				break
 			}
+
 			tup := interface{}(rtup.Interface())
 			if _, dup := mem[tup]; !dup {
-				select {
-				case res <- tup:
-				case <-cancel:
+				resSel.Send = rtup
+				chosen, _, ok = reflect.Select([]reflect.SelectCase{canSel, resSel})
+				if chosen == 0 {
+					// cancel has been closed, so close the results
 					return
 				}
 				mem[tup] = struct{}{}
 			}
 		}
-		close(res)
-	}(r.rbody, t)
+		res.Close()
+	}(r.rbody, chv)
 	return cancel
 }
 
@@ -165,13 +180,13 @@ func (r1 *chanLiteral) Join(r2 Relation, zero interface{}) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *chanLiteral) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
-	return NewGroupBy(r1, t2, vt, gfcn)
+func (r1 *chanLiteral) GroupBy(t2, gfcn interface{}) Relation {
+	return NewGroupBy(r1, t2, gfcn)
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *chanLiteral) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
-	return NewMap(r1, mfcn, z2, ckeystr)
+func (r1 *chanLiteral) Map(mfcn interface{}, ckeystr [][]string) Relation {
+	return NewMap(r1, mfcn, ckeystr)
 }
 
 // Error returns an error encountered during construction or computation

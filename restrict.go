@@ -22,11 +22,17 @@ type restrictExpr struct {
 	err error
 }
 
-func (r *restrictExpr) Tuples(t chan<- interface{}) chan<- struct{} {
+func (r *restrictExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
-
-	if r.Err() != nil {
-		close(t)
+	// reflect on the channel
+	chv := reflect.ValueOf(t)
+	err := ensureChan(chv.Type(), r.source1.Zero())
+	if err != nil {
+		r.err = err
+		return cancel
+	}
+	if r.err != nil {
+		chv.Close()
 		return cancel
 	}
 
@@ -36,14 +42,16 @@ func (r *restrictExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 	z1 := r.source1.Zero()
 	e1 := reflect.TypeOf(z1)
 
-	predFunc := r.p.EvalFunc(e1)
+	predFunc := reflect.ValueOf(r.p.EvalFunc(e1))
 
-	body1 := make(chan interface{})
-	bcancel := r.source1.Tuples(body1)
+	// create the channel of tuples from source
+	// TODO(jonlawlor): restrict the channel direction
+	body := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e1), 0)
+	bcancel := r.source1.TupleChan(body.Interface())
 
 	var wg sync.WaitGroup
 	wg.Add(mc)
-	go func(res chan<- interface{}) {
+	go func(res reflect.Value) {
 		wg.Wait()
 		// if we've been cancelled, send it up to the source
 		select {
@@ -53,34 +61,41 @@ func (r *restrictExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 			if err := r.source1.Err(); err != nil {
 				r.err = err
 			}
-			close(res)
+			res.Close()
 		}
-	}(t)
+	}(chv)
 
 	for i := 0; i < mc; i++ {
-		go func(body <-chan interface{}, res chan<- interface{}, p att.Predicate) {
-		Loop:
+		go func(body, res reflect.Value, p att.Predicate) {
+			// input channels
+			sourceSel := reflect.SelectCase{reflect.SelectRecv, body, reflect.Value{}}
+			canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+			inCases := []reflect.SelectCase{canSel, sourceSel}
+
+			// output channels
+			resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
 			for {
-				select {
-				case tup1, ok := <-body:
-					if !ok {
-						break Loop
+				chosen, tup, ok := reflect.Select(inCases)
+
+				if chosen == 0 || !ok {
+					// source channel was closed, or we ran out of source
+					break
+				}
+
+				// call the predicate with the new tuple to determine if it should
+				// go into the results
+				tf := predFunc.Call([]reflect.Value{tup})
+
+				if tf[0].Bool() {
+					resSel.Send = tup
+					chosen, _, ok = reflect.Select([]reflect.SelectCase{canSel, resSel})
+					if chosen == 0 {
+						break
 					}
-					// call the predicate with the new tuple to determine if it should
-					// go into the results
-					if predFunc(tup1) {
-						select {
-						case res <- tup1:
-						case <-cancel:
-							break Loop
-						}
-					}
-				case <-cancel:
-					break Loop
 				}
 			}
 			wg.Done()
-		}(body1, t, r.p)
+		}(body, chv, r.p)
 	}
 	return cancel
 }
@@ -155,13 +170,13 @@ func (r1 *restrictExpr) Join(r2 Relation, zero interface{}) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *restrictExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
-	return NewGroupBy(r1, t2, vt, gfcn)
+func (r1 *restrictExpr) GroupBy(t2, gfcn interface{}) Relation {
+	return NewGroupBy(r1, t2, gfcn)
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *restrictExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
-	return NewMap(r1, mfcn, z2, ckeystr)
+func (r1 *restrictExpr) Map(mfcn interface{}, ckeystr [][]string) Relation {
+	return NewMap(r1, mfcn, ckeystr)
 }
 
 // Error returns an error encountered during construction or computation

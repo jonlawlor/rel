@@ -26,47 +26,61 @@ type sliceLiteral struct {
 	err error
 }
 
-// Tuples sends each tuple in the relation to a channel
-// and when it is finished it closes the input channel.
-func (r *sliceLiteral) Tuples(t chan<- interface{}) chan<- struct{} {
+func (r *sliceLiteral) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
-
-	if r.Err() != nil {
-		close(t)
+	// reflect on the channel
+	chv := reflect.ValueOf(t)
+	err := ensureChan(chv.Type(), r.zero)
+	if err != nil {
+		r.err = err
 		return cancel
 	}
-
+	if r.err != nil {
+		chv.Close()
+		return cancel
+	}
 	if r.sourceDistinct {
-		go func(rbody reflect.Value, res chan<- interface{}) {
+		go func(rbody, res reflect.Value) {
+
+			// output channels
+			canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+			resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
 			for i := 0; i < rbody.Len(); i++ {
-				select {
-				case res <- rbody.Index(i).Interface():
-				case <-cancel:
-					break
+				resSel.Send = rbody.Index(i)
+				chosen, _, _ := reflect.Select([]reflect.SelectCase{canSel, resSel})
+				if chosen == 0 {
+					return
 				}
 			}
-			close(res)
-		}(r.rbody, t)
+			res.Close()
+		}(r.rbody, chv)
 		return cancel
 	}
 
 	// build up a map where each key is one of the tuples.  This consumes
 	// memory.
-	mem := map[interface{}]struct{}{}
-	go func(rbody reflect.Value, res chan<- interface{}) {
+	go func(rbody, res reflect.Value) {
+		mem := map[interface{}]struct{}{}
+
+		// output channels
+		resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
+		canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+
 		for i := 0; i < rbody.Len(); i++ {
-			tup := rbody.Index(i).Interface()
-			if _, dup := mem[tup]; !dup {
-				select {
-				case res <- tup:
-				case <-cancel:
-					break
+			rtup := rbody.Index(i)
+
+			if _, dup := mem[rtup.Interface()]; !dup {
+				mem[rtup.Interface()] = struct{}{}
+
+				resSel.Send = rtup
+				chosen, _, _ := reflect.Select([]reflect.SelectCase{canSel, resSel})
+				if chosen == 0 {
+					return
 				}
-				mem[tup] = struct{}{}
 			}
 		}
-		close(res)
-	}(r.rbody, t)
+		res.Close()
+	}(r.rbody, chv)
 	return cancel
 }
 
@@ -133,13 +147,13 @@ func (r1 *sliceLiteral) Join(r2 Relation, zero interface{}) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *sliceLiteral) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
-	return NewGroupBy(r1, t2, vt, gfcn)
+func (r1 *sliceLiteral) GroupBy(t2, gfcn interface{}) Relation {
+	return NewGroupBy(r1, t2, gfcn)
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *sliceLiteral) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
-	return NewMap(r1, mfcn, z2, ckeystr)
+func (r1 *sliceLiteral) Map(mfcn interface{}, ckeystr [][]string) Relation {
+	return NewMap(r1, mfcn, ckeystr)
 }
 
 // Error returns an error encountered during construction or computation

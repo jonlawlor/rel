@@ -21,7 +21,9 @@ type Relation interface {
 	// the tuples in the relation over the channel.
 	// It returns a "cancel" channel that can be used to halt computations
 	// early
-	Tuples(chan<- interface{}) (cancel chan<- struct{})
+	TupleChan(interface{}) (cancel chan<- struct{})
+	//TupleSlice(interface{})
+	//TupleMap(interface{})
 
 	// the following methods are a part of relational algebra
 
@@ -37,11 +39,13 @@ type Relation interface {
 
 	Join(r2 Relation, zero interface{}) Relation
 
-	Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation
+	Map(mfcn interface{}, ckeystr [][]string) Relation
 
 	// non relational but still useful
 
-	GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation
+	// t2 is the resulting tuple type, vt is the subtuple that is going to the
+	// grouping function gfcn.
+	GroupBy(t2, gfcn interface{}) Relation
 
 	// not necessary but still very useful!
 
@@ -60,11 +64,12 @@ func New(v interface{}, ckeystr [][]string) Relation {
 	// depending on the type of the input, we represent a relation in different
 	// types of relation.
 	rbody := reflect.ValueOf(v)
-	e := reflect.TypeOf(v).Elem()
-	z := reflect.Indirect(reflect.New(e)).Interface()
 
 	switch rbody.Kind() {
 	case reflect.Map:
+		e := rbody.Type().Key()
+		z := reflect.Indirect(reflect.New(e)).Interface()
+
 		r := new(mapLiteral)
 		r.rbody = rbody
 		if len(ckeystr) == 0 {
@@ -85,6 +90,9 @@ func New(v interface{}, ckeystr [][]string) Relation {
 		return r
 
 	case reflect.Chan:
+		e := rbody.Type().Elem()
+		z := reflect.Indirect(reflect.New(e)).Interface()
+
 		r := new(chanLiteral)
 		r.rbody = rbody // TODO(jonlawlor): check direction
 		if len(ckeystr) == 0 {
@@ -101,6 +109,9 @@ func New(v interface{}, ckeystr [][]string) Relation {
 		return r
 
 	case reflect.Slice:
+		e := rbody.Type().Elem()
+		z := reflect.Indirect(reflect.New(e)).Interface()
+
 		r := new(sliceLiteral)
 		r.rbody = rbody
 		if len(ckeystr) == 0 {
@@ -153,9 +164,16 @@ func Deg(r Relation) int {
 // also implements its own Card someplace else, and just leave this
 // implementation as default.
 func Card(r Relation) (i int) {
-	body := make(chan interface{})
-	_ = r.Tuples(body)
-	for _ = range body {
+	z := r.Zero()
+	e := reflect.TypeOf(z)
+
+	body := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e), 0)
+	_ = r.TupleChan(body.Interface())
+
+	for {
+		if _, ok := body.Recv(); !ok {
+			break
+		}
 		i++
 	}
 	return
@@ -247,33 +265,37 @@ func NewJoin(r1, r2 Relation, zero interface{}) Relation {
 
 // NewGroupBy creates a new relation by grouping and applying a user defined func
 //
-func NewGroupBy(r1 Relation, t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
+func NewGroupBy(r1 Relation, t2, gfcn interface{}) Relation {
+	// TODO(jonlawlor): add a code path which chooses map if the groupings
+	// are unique.
 	if r1.Err() != nil {
 		// don't bother building the relation and just return the original
 		return r1
 	}
-	return &groupByExpr{r1, t2, vt, gfcn, nil}
+	// gfcn has to be a function with one input, and one output, where the
+	// input is a subdomain of r1, and where the output is a subdomain of t2.
+	rgfcn := reflect.ValueOf(gfcn)
+	err, intup, outtup := ensureGroupFunc(rgfcn.Type(), r1.Zero(), t2)
+	return &groupByExpr{r1, t2, intup, outtup, rgfcn, err}
 }
 
+// TODO(jonlawlor): eliminate z2, because it can be derived from the function itself.
+
 // NewMap creates a new relation by applying a function to tuples in the source
-func NewMap(r1 Relation, mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
+func NewMap(r1 Relation, mfcn interface{}, ckeystr [][]string) Relation {
 	if r1.Err() != nil {
 		// don't bother building the relation and just return the original
 		return r1
 	}
 	// determine the type of the returned tuples
-	r := new(mapExpr)
-	r.source1 = r1
-	r.zero = z2
-	r.fcn = mfcn
+	rmfcn := reflect.ValueOf(mfcn)
+	err, intup, outtup := ensureMapFunc(rmfcn.Type(), r1.Zero())
+	z2 := reflect.Indirect(reflect.New(outtup)).Interface()
+
 	if len(ckeystr) == 0 {
 		// all relations have a candidate key of all of their attributes, or
 		// a non zero subset if the relation is not dee or dum
-		r.cKeys = att.DefaultKeys(z2)
-	} else {
-		r.isDistinct = true
-		// convert from [][]string to CandKeys
-		r.cKeys = att.String2CandKeys(ckeystr)
+		return &mapExpr{r1, z2, intup, outtup, rmfcn, att.DefaultKeys(z2), false, err}
 	}
-	return r
+	return &mapExpr{r1, z2, intup, outtup, rmfcn, att.String2CandKeys(ckeystr), true, err}
 }

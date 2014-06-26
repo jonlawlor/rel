@@ -19,49 +19,60 @@ type renameExpr struct {
 	err error
 }
 
-// Tuples sends each tuple in the relation to a channel
-// note: this consumes the values of the relation, and when it is finished it
-// closes the input channel.
-func (r *renameExpr) Tuples(t chan<- interface{}) chan<- struct{} {
+func (r *renameExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
-
-	if r.Err() != nil {
-		close(t)
+	// reflect on the channel
+	chv := reflect.ValueOf(t)
+	err := ensureChan(chv.Type(), r.zero)
+	if err != nil {
+		r.err = err
 		return cancel
 	}
-
-	// TODO(jonlawlor) add a check that the second interface's type is
-	// the same as the first, except that it has different names for
-	// the same fields.
+	if r.err != nil {
+		chv.Close()
+		return cancel
+	}
 
 	// first figure out if the tuple types of the relation and rename
 	// are equal.  If so, convert the tuples to the (possibly new)
 	// type and then return the new relation.
-	z1 := reflect.TypeOf(r.source1.Zero())
-	z2 := reflect.TypeOf(r.zero)
+	e1 := reflect.TypeOf(r.source1.Zero())
+	e2 := reflect.TypeOf(r.zero)
 
-	body1 := make(chan interface{})
-	bcancel := r.source1.Tuples(body1)
+	// create the channel of tuples from source
+	// TODO(jonlawlor): restrict the channel direction
+	body := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e1), 0)
+	bcancel := r.source1.TupleChan(body.Interface())
+
 	// assign the values of the original to the new names in the same
 	// locations
-	n := z2.NumField()
+	n := e2.NumField()
 
-	go func(body <-chan interface{}, res chan<- interface{}) {
-		if z1.AssignableTo(z2) {
-		Loop1:
+	go func(body, res reflect.Value) {
+		// input channels
+		sourceSel := reflect.SelectCase{reflect.SelectRecv, body, reflect.Value{}}
+		canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+		inCases := []reflect.SelectCase{canSel, sourceSel}
+
+		// output channels
+		resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
+
+		if e1.AssignableTo(e2) {
 			for {
-				select {
-				case tup1, ok := <-body:
-					if !ok {
-						break Loop1
-					}
-					select {
-					case res <- tup1:
-					case <-cancel:
-						close(bcancel)
-						return
-					}
-				case <-cancel:
+				chosen, tup, ok := reflect.Select(inCases)
+				if chosen == 0 {
+					// cancel has been closed, so close the source as well
+					close(bcancel)
+					return
+				}
+				if !ok {
+					// source channel was closed
+					break
+				}
+
+				resSel.Send = tup
+				chosen, _, ok = reflect.Select([]reflect.SelectCase{canSel, resSel})
+				if chosen == 0 {
 					close(bcancel)
 					return
 				}
@@ -69,29 +80,29 @@ func (r *renameExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 			if err := r.source1.Err(); err != nil {
 				r.err = err
 			}
-			close(res)
+			res.Close()
 			return
 		}
-	Loop2:
 		for {
-			select {
-			case tup1, ok := <-body:
-				if !ok {
-					break Loop2
-				}
-				tup2 := reflect.Indirect(reflect.New(z2))
-				rtup1 := reflect.ValueOf(tup1)
-				for i := 0; i < n; i++ {
-					tupf2 := tup2.Field(i)
-					tupf2.Set(rtup1.Field(i))
-				}
-				select {
-				case res <- tup2.Interface():
-				case <-cancel:
-					close(bcancel)
-					return
-				}
-			case <-cancel:
+			chosen, tup, ok := reflect.Select(inCases)
+			if chosen == 0 {
+				// cancel has been closed, so close the source as well
+				close(bcancel)
+				return
+			}
+			if !ok {
+				// source channel was closed
+				break
+			}
+
+			tup2 := reflect.Indirect(reflect.New(e2))
+			for i := 0; i < n; i++ {
+				tupf2 := tup2.Field(i)
+				tupf2.Set(tup.Field(i))
+			}
+			resSel.Send = tup2
+			chosen, _, ok = reflect.Select([]reflect.SelectCase{canSel, resSel})
+			if chosen == 0 {
 				close(bcancel)
 				return
 			}
@@ -99,8 +110,8 @@ func (r *renameExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 		if err := r.source1.Err(); err != nil {
 			r.err = err
 		}
-		close(res)
-	}(body1, t)
+		res.Close()
+	}(body, chv)
 	return cancel
 }
 
@@ -195,13 +206,13 @@ func (r1 *renameExpr) Join(r2 Relation, zero interface{}) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *renameExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
-	return NewGroupBy(r1, t2, vt, gfcn)
+func (r1 *renameExpr) GroupBy(t2, gfcn interface{}) Relation {
+	return NewGroupBy(r1, t2, gfcn)
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *renameExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
-	return NewMap(r1, mfcn, z2, ckeystr)
+func (r1 *renameExpr) Map(mfcn interface{}, ckeystr [][]string) Relation {
+	return NewMap(r1, mfcn, ckeystr)
 }
 
 // Error returns an error encountered during construction or computation

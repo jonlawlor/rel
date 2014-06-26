@@ -17,11 +17,22 @@ type joinExpr struct {
 	err error
 }
 
-func (r *joinExpr) Tuples(t chan<- interface{}) chan<- struct{} {
-	cancel := make(chan struct{})
+// This implementation of join uses a nested loop join, which I suspect is
+// better from a latency standpoint than a merge join.  However, I have
+// absolutely nothing to back that up, and it might just be easier to
+// implement than the merge join.
 
-	if r.Err() != nil {
-		close(t)
+func (r *joinExpr) TupleChan(t interface{}) chan<- struct{} {
+	cancel := make(chan struct{})
+	// reflect on the channel
+	chv := reflect.ValueOf(t)
+	err := ensureChan(chv.Type(), r.zero)
+	if err != nil {
+		r.err = err
+		return cancel
+	}
+	if r.err != nil {
+		chv.Close()
 		return cancel
 	}
 
@@ -37,11 +48,15 @@ func (r *joinExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 	map31 := att.AttributeMap(h3, h1) // used to construct returned values
 	map32 := att.AttributeMap(h3, h2) // used to construct returned values
 
+	// the types of the source tuples
+	e1 := reflect.TypeOf(r.source1.Zero())
+	e2 := reflect.TypeOf(r.source2.Zero())
+
 	// create channels over the body of the source relations
-	body1 := make(chan interface{})
-	body2 := make(chan interface{})
-	bcancel1 := r.source1.Tuples(body1)
-	bcancel2 := r.source2.Tuples(body2)
+	body1 := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e1), 0)
+	bcancel1 := r.source1.TupleChan(body1.Interface())
+	body2 := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e2), 0)
+	bcancel2 := r.source2.TupleChan(body2.Interface())
 
 	// Create the memory of previously sent tuples so that the joins can
 	// continue to compare against old values.
@@ -53,7 +68,7 @@ func (r *joinExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 	// processing the join operation
 	var wg sync.WaitGroup
 	wg.Add(mc)
-	go func(res chan<- interface{}) {
+	go func(res reflect.Value) {
 		wg.Wait()
 		// if we've been cancelled, send it up to the source
 		select {
@@ -66,75 +81,90 @@ func (r *joinExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 			} else if err := r.source2.Err(); err != nil {
 				r.err = err
 			}
-			close(res)
+			res.Close()
 		}
-	}(t)
+	}(chv)
 
 	// create a go routine that generates the join for each of the input tuples
 	for i := 0; i < mc; i++ {
-		go func(b1, b2 <-chan interface{}, res chan<- interface{}) {
-		Loop:
-			for b1 != nil || b2 != nil {
-				select {
-				case tup1, ok := <-b1:
-					if !ok {
-						b1 = nil
-						break
-					}
-					// lock both memories, first to add b1 onto mem1 and then
-					// to make a copy of mem2
-					// TODO(jonlawlor): refactor this code along with the other
-					// case.
-					rtup1 := reflect.ValueOf(tup1)
-					mu.Lock()
-					mem1 = append(mem1, rtup1)
-					m2tups := mem2[:]
-					mu.Unlock()
+		go func(b1, b2, res reflect.Value) {
+			// input channels
+			source1Sel := reflect.SelectCase{reflect.SelectRecv, b1, reflect.Value{}}
+			source2Sel := reflect.SelectCase{reflect.SelectRecv, b2, reflect.Value{}}
+			canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+			neverRecv := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(make(chan struct{})), reflect.Value{}}
+			inCases := []reflect.SelectCase{canSel, source1Sel, source2Sel}
 
-					// Send tuples that match previously retrieved tuples in
-					// the opposite relation.  This is nice because it operates
-					// concurrently.
-					for _, rtup2 := range m2tups {
-						if att.PartialEquals(rtup1, rtup2, map12) {
+			// output channels
+			resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
+
+			mtups := []reflect.Value{}
+
+			openSources := 2
+			for openSources > 0 {
+				chosen, rtup, ok := reflect.Select(inCases)
+				if chosen == 0 {
+					// cancel channel was closed
+					break
+				}
+				if chosen > 0 && !ok {
+					// one of the bodies completed
+					inCases[chosen] = neverRecv
+					openSources--
+					continue
+				}
+
+				// If we've gotten this far, then one of the bodies has
+				// produced a new tuple.
+
+				// lock both memories
+				mu.Lock()
+				// depending on which body sent a value, append the tuple to
+				// that memory
+				if chosen == 1 {
+					mem1 = append(mem1, rtup)
+					mtups = mem2[:]
+				} else {
+					mem2 = append(mem2, rtup)
+					mtups = mem1[:]
+				}
+				mu.Unlock()
+
+				// Send tuples that match previously retrieved tuples in
+				// the opposite relation.
+				if chosen == 1 {
+					for _, rtup2 := range mtups {
+						if att.PartialEquals(rtup, rtup2, map12) {
 							tup3 := reflect.Indirect(reflect.New(e3))
-							att.CombineTuples2(&tup3, rtup1, map31)
+							att.CombineTuples2(&tup3, rtup, map31)
 							att.CombineTuples2(&tup3, rtup2, map32)
-							select {
-							case res <- tup3.Interface():
-							case <-cancel:
-								break Loop
+
+							resSel.Send = tup3
+							chosen, _, ok = reflect.Select([]reflect.SelectCase{canSel, resSel})
+							if chosen == 0 {
+								openSources = 0
+								break
 							}
 						}
 					}
-
-				case tup2, ok := <-b2:
-					if !ok {
-						b2 = nil
-						break
-					}
-					rtup2 := reflect.ValueOf(tup2)
-					mu.Lock()
-					mem2 = append(mem2, rtup2)
-					m1tups := mem1[:]
-					mu.Unlock()
-					for _, rtup1 := range m1tups {
-						if att.PartialEquals(rtup1, rtup2, map12) {
+				} else {
+					for _, rtup1 := range mtups {
+						if att.PartialEquals(rtup1, rtup, map12) {
 							tup3 := reflect.Indirect(reflect.New(e3))
 							att.CombineTuples2(&tup3, rtup1, map31)
-							att.CombineTuples2(&tup3, rtup2, map32)
-							select {
-							case res <- tup3.Interface():
-							case <-cancel:
-								break Loop
+							att.CombineTuples2(&tup3, rtup, map32)
+							resSel.Send = tup3
+							chosen, _, ok = reflect.Select([]reflect.SelectCase{canSel, resSel})
+							if chosen == 0 {
+								openSources = 0
+								break
 							}
 						}
 					}
-				case <-cancel:
-					break Loop
 				}
 			}
 			wg.Done()
-		}(body1, body2, t)
+		}(body1, body2, chv)
 	}
 
 	return cancel
@@ -248,13 +278,13 @@ func (r1 *joinExpr) Join(r2 Relation, zero interface{}) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *joinExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
-	return NewGroupBy(r1, t2, vt, gfcn)
+func (r1 *joinExpr) GroupBy(t2, gfcn interface{}) Relation {
+	return NewGroupBy(r1, t2, gfcn)
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *joinExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
-	return NewMap(r1, mfcn, z2, ckeystr)
+func (r1 *joinExpr) Map(mfcn interface{}, ckeystr [][]string) Relation {
+	return NewMap(r1, mfcn, ckeystr)
 }
 
 // Error returns an error encountered during construction or computation

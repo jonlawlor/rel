@@ -49,11 +49,10 @@ func TestSetDiff(t *testing.T) {
 	type valTup struct {
 		Qty int
 	}
-	groupFcn := func(val <-chan interface{}) interface{} {
+	groupFcn := func(val <-chan valTup) valTup {
 		res := valTup{}
 		for vi := range val {
-			v := vi.(valTup)
-			res.Qty += v.Qty
+			res.Qty += vi.Qty
 		}
 		return res
 	}
@@ -63,12 +62,8 @@ func TestSetDiff(t *testing.T) {
 		Qty1 int
 		Qty2 int
 	}
-	mapFcn := func(tup1 interface{}) interface{} {
-		if v, ok := tup1.(orderTup); ok {
-			return mapRes{v.PNO, v.SNO, v.Qty, v.Qty * 2}
-		} else {
-			return mapRes{}
-		}
+	mapFcn := func(tup1 orderTup) mapRes {
+		return mapRes{tup1.PNO, tup1.SNO, tup1.Qty, tup1.Qty * 2}
 	}
 	mapKeys := [][]string{
 		[]string{"PNO", "SNO"},
@@ -87,12 +82,16 @@ func TestSetDiff(t *testing.T) {
 		{rel.SetDiff(orders()), "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)) − Relation(PNO, SNO, Qty)", 3, 0},
 		{rel.Union(orders()), "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)) ∪ Relation(PNO, SNO, Qty)", 3, 12},
 		{rel.Join(suppliers(), joinTup{}), "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)) ⋈ Relation(SNO, SName, Status, City)", 6, 4},
-		{rel.GroupBy(groupByTup{}, valTup{}, groupFcn), "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)).GroupBy({PNO, Qty}, {Qty})", 2, 3},
-		{rel.Map(mapFcn, mapRes{}, mapKeys), "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)).Map({PNO, SNO, Qty}->{PNO, SNO, Qty1, Qty2})", 4, 5},
-		{rel.Map(mapFcn, mapRes{}, [][]string{}), "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)).Map({PNO, SNO, Qty}->{PNO, SNO, Qty1, Qty2})", 4, 5},
+		{rel.GroupBy(groupByTup{}, groupFcn), "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)).GroupBy({PNO, Qty}->{Qty})", 2, 3},
+		{rel.Map(mapFcn, mapKeys), "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)).Map({PNO, SNO, Qty}->{PNO, SNO, Qty1, Qty2})", 4, 5},
+		{rel.Map(mapFcn, [][]string{}), "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)).Map({PNO, SNO, Qty}->{PNO, SNO, Qty1, Qty2})", 4, 5},
 	}
 
 	for i, tt := range relTest {
+		if err := tt.rel.Err(); err != nil {
+			t.Errorf("%d has Err() => %v", err)
+			continue
+		}
 		if str := tt.rel.String(); str != tt.expectString {
 			t.Errorf("%d has String() => %v, want %v", i, str, tt.expectString)
 		}
@@ -104,8 +103,8 @@ func TestSetDiff(t *testing.T) {
 		}
 	}
 	// test cancellation
-	res := make(chan interface{})
-	cancel := rel.Tuples(res)
+	res := make(chan orderTup)
+	cancel := rel.TupleChan(res)
 	close(cancel)
 	select {
 	case <-res:
@@ -120,10 +119,10 @@ func TestSetDiff(t *testing.T) {
 	rel1.err = err
 	rel2 := orders().Restrict(att.Attribute("Qty").GE(300)).SetDiff(orders().Restrict(att.Attribute("Qty").NE(200))).(*setDiffExpr)
 	rel2.err = err
-	res = make(chan interface{})
-	_ = rel1.Tuples(res)
+	res = make(chan orderTup)
+	_ = rel1.TupleChan(res)
 	if _, ok := <-res; ok {
-		t.Errorf("%d did not short circuit Tuples")
+		t.Errorf("%d did not short circuit TupleChan")
 	}
 	errTest := []Relation{
 		rel1.Project(distinctTup{}),
@@ -133,8 +132,8 @@ func TestSetDiff(t *testing.T) {
 		rel.SetDiff(rel2),
 		rel1.Join(rel2, orderTup{}),
 		rel.Join(rel2, orderTup{}),
-		rel1.GroupBy(groupByTup{}, valTup{}, groupFcn),
-		rel1.Map(mapFcn, mapRes{}, mapKeys),
+		rel1.GroupBy(groupByTup{}, groupFcn),
+		rel1.Map(mapFcn, mapKeys),
 	}
 	for i, errRel := range errTest {
 		if errRel.Err() != err {
@@ -150,8 +149,8 @@ func BenchmarkSetDiff(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// each iteration produces 0 tuples (1 dupe each)
-		t := make(chan interface{})
-		r1.Tuples(t)
+		t := make(chan exTup2)
+		r1.TupleChan(t)
 		for _ = range t {
 		}
 	}

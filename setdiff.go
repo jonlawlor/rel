@@ -4,6 +4,7 @@ package rel
 
 import (
 	"github.com/jonlawlor/rel/att"
+	"reflect"
 )
 
 // setDiffExpr implements a set difference in relational algebra
@@ -16,11 +17,17 @@ type setDiffExpr struct {
 	err error
 }
 
-func (r *setDiffExpr) Tuples(t chan<- interface{}) chan<- struct{} {
+func (r *setDiffExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
-
-	if r.Err() != nil {
-		close(t)
+	// reflect on the channel
+	chv := reflect.ValueOf(t)
+	err := ensureChan(chv.Type(), r.Zero())
+	if err != nil {
+		r.err = err
+		return cancel
+	}
+	if r.err != nil {
+		chv.Close()
 		return cancel
 	}
 
@@ -38,41 +45,51 @@ func (r *setDiffExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 	// go back through previously recieved values after receiving the from the
 	// first relation again.  That would require a mutex on mem.
 
-	// get the values out of the source relations
-	body1 := make(chan interface{})
-	body2 := make(chan interface{})
-	bcancel1 := r.source1.Tuples(body1)
-	bcancel2 := r.source2.Tuples(body2)
+	// tuples in both sides should have the same type, checked during
+	// construction
+	e := reflect.TypeOf(r.source1.Zero())
 
-	go func(b1, b2 <-chan interface{}, res chan<- interface{}) {
-	Loop2:
+	// create channels over the body of the source relations
+	body1 := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e), 0)
+	bcancel1 := r.source1.TupleChan(body1.Interface())
+	body2 := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e), 0)
+	bcancel2 := r.source2.TupleChan(body2.Interface())
+
+	go func(b1, b2, res reflect.Value) {
+		// first pull all of the values from the second relation, because
+		// we need them all before we can produce a single value from the
+		// first
+		// input channels
+		source1Sel := reflect.SelectCase{reflect.SelectRecv, b1, reflect.Value{}}
+		source2Sel := reflect.SelectCase{reflect.SelectRecv, b2, reflect.Value{}}
+		canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+		inCases := []reflect.SelectCase{canSel, source2Sel}
+
+		// output channels
+		resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
+
 		for {
-			select {
-			case tup, ok := <-b2:
-				if !ok {
-					break Loop2
-				}
-				mem[tup] = struct{}{}
-			case <-cancel:
-				break Loop2
+			chosen, tup, ok := reflect.Select(inCases)
+			if chosen == 0 || !ok {
+				// cancel channel was closed
+				break
 			}
+			mem[tup.Interface()] = struct{}{}
 		}
-	Loop1:
+
+		inCases[1] = source1Sel
 		for {
-			select {
-			case tup, ok := <-b1:
-				if !ok {
-					break Loop1
+			chosen, tup, ok := reflect.Select(inCases)
+			if chosen == 0 || !ok {
+				// cancel channel was closed
+				break
+			}
+			if _, rem := mem[tup.Interface()]; !rem {
+				resSel.Send = tup
+				chosen, _, ok = reflect.Select([]reflect.SelectCase{canSel, resSel})
+				if chosen == 0 {
+					break
 				}
-				if _, rem := mem[tup]; !rem {
-					select {
-					case res <- tup:
-					case <-cancel:
-						break Loop1
-					}
-				}
-			case <-cancel:
-				break Loop1
 			}
 		}
 		select {
@@ -85,9 +102,9 @@ func (r *setDiffExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 			} else if err := r.source2.Err(); err != nil {
 				r.err = err
 			}
-			close(res)
+			res.Close()
 		}
-	}(body1, body2, t)
+	}(body1, body2, chv)
 	return cancel
 }
 
@@ -154,13 +171,13 @@ func (r1 *setDiffExpr) Join(r2 Relation, zero interface{}) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *setDiffExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
-	return NewGroupBy(r1, t2, vt, gfcn)
+func (r1 *setDiffExpr) GroupBy(t2, gfcn interface{}) Relation {
+	return NewGroupBy(r1, t2, gfcn)
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *setDiffExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
-	return NewMap(r1, mfcn, z2, ckeystr)
+func (r1 *setDiffExpr) Map(mfcn interface{}, ckeystr [][]string) Relation {
+	return NewMap(r1, mfcn, ckeystr)
 }
 
 // Error returns an error encountered during construction or computation

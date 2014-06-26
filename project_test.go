@@ -96,11 +96,10 @@ func TestProject(t *testing.T) {
 	type valTup struct {
 		Weight float64
 	}
-	groupFcn := func(val <-chan interface{}) interface{} {
+	groupFcn := func(val <-chan valTup) valTup {
 		res := valTup{}
 		for vi := range val {
-			v := vi.(valTup)
-			res.Weight += v.Weight
+			res.Weight += vi.Weight
 		}
 		return res
 	}
@@ -109,12 +108,8 @@ func TestProject(t *testing.T) {
 		PName   string
 		Weight2 float64
 	}
-	mapFcn := func(tup1 interface{}) interface{} {
-		if v, ok := tup1.(pTup); ok {
-			return mapRes{v.PNO, v.PName, v.Weight / 2}
-		} else {
-			return mapRes{}
-		}
+	mapFcn := func(tup1 pTup) mapRes {
+		return mapRes{tup1.PNO, tup1.PName, tup1.Weight * 2}
 	}
 	mapKeys := [][]string{
 		[]string{"PNO"},
@@ -134,12 +129,16 @@ func TestProject(t *testing.T) {
 		{rel.SetDiff(rel.Restrict(att.Attribute("Weight").LT(15.0))), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)) − π{PNO, PName, Weight, City}(σ{Weight < 15}(Relation(PNO, PName, Color, Weight, City)))", 4, 3},
 		{rel.Union(rel.Restrict(att.Attribute("Weight").LE(12.0))), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)) ∪ π{PNO, PName, Weight, City}(σ{Weight <= 12}(Relation(PNO, PName, Color, Weight, City)))", 4, 6},
 		{rel.Join(suppliers(), joinTup{}), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)) ⋈ Relation(SNO, SName, Status, City)", 6, 10},
-		{rel.GroupBy(groupByTup{}, valTup{}, groupFcn), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)).GroupBy({City, Weight}, {Weight})", 2, 3},
-		{rel.Map(mapFcn, mapRes{}, mapKeys), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)).Map({PNO, PName, Weight, City}->{PNO, PName, Weight2})", 3, 6},
-		{rel.Map(mapFcn, mapRes{}, [][]string{}), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)).Map({PNO, PName, Weight, City}->{PNO, PName, Weight2})", 3, 6},
+		{rel.GroupBy(groupByTup{}, groupFcn), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)).GroupBy({City, Weight}->{Weight})", 2, 3},
+		{rel.Map(mapFcn, mapKeys), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)).Map({PNO, PName, Weight, City}->{PNO, PName, Weight2})", 3, 6},
+		{rel.Map(mapFcn, [][]string{}), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)).Map({PNO, PName, Weight, City}->{PNO, PName, Weight2})", 3, 6},
 	}
 
 	for i, tt := range relTest {
+		if err := tt.rel.Err(); err != nil {
+			t.Errorf("%d has Err() => %v", err)
+			continue
+		}
 		if str := tt.rel.String(); str != tt.expectString {
 			t.Errorf("%d has String() => %v, want %v", i, str, tt.expectString)
 		}
@@ -151,8 +150,8 @@ func TestProject(t *testing.T) {
 		}
 	}
 	// test cancellation
-	res := make(chan interface{})
-	cancel := rel.Tuples(res)
+	res := make(chan pTup)
+	cancel := rel.TupleChan(res)
 	close(cancel)
 	select {
 	case <-res:
@@ -167,10 +166,10 @@ func TestProject(t *testing.T) {
 	rel1.err = err
 	rel2 := parts().Project(pTup{}).(*projectExpr)
 	rel2.err = err
-	res = make(chan interface{})
-	_ = rel1.Tuples(res)
+	res = make(chan pTup)
+	_ = rel1.TupleChan(res)
 	if _, ok := <-res; ok {
-		t.Errorf("did not short circuit Tuples")
+		t.Errorf("did not short circuit TupleChan")
 	}
 	errTest := []Relation{
 		rel1.Rename(titleCaseTup{}),
@@ -180,8 +179,8 @@ func TestProject(t *testing.T) {
 		rel.SetDiff(rel2),
 		rel1.Join(rel2, orderTup{}),
 		rel.Join(rel2, orderTup{}),
-		rel1.GroupBy(groupByTup{}, valTup{}, groupFcn),
-		rel1.Map(mapFcn, mapRes{}, mapKeys),
+		rel1.GroupBy(groupByTup{}, groupFcn),
+		rel1.Map(mapFcn, mapKeys),
 	}
 	for i, errRel := range errTest {
 		if errRel.Err() != err {
@@ -201,8 +200,8 @@ func BenchmarkProjectTinyIdent(b *testing.B) {
 	b.ResetTimer()
 	r1 := exRel.Project(exTup2{})
 	for i := 0; i < b.N; i++ {
-		t := make(chan interface{})
-		r1.Tuples(t)
+		t := make(chan exTup2)
+		r1.TupleChan(t)
 		for _ = range t {
 			// do nothing
 		}
@@ -260,8 +259,8 @@ func BenchmarkProjectTinyDistinct(b *testing.B) {
 	b.ResetTimer()
 	r1 := exRel.Project(fooOnly{})
 	for i := 0; i < b.N; i++ {
-		t := make(chan interface{})
-		r1.Tuples(t)
+		t := make(chan fooOnly)
+		r1.TupleChan(t)
 		for _ = range t {
 			// do nothing
 		}
@@ -321,8 +320,8 @@ func BenchmarkProjectTinyNonDistinct(b *testing.B) {
 	b.ResetTimer()
 	r1 := exRel.Project(barOnly{})
 	for i := 0; i < b.N; i++ {
-		t := make(chan interface{})
-		r1.Tuples(t)
+		t := make(chan barOnly)
+		r1.TupleChan(t)
 		for _ = range t {
 			// do nothing
 		}
@@ -336,8 +335,8 @@ func BenchmarkProjectSmallIdent(b *testing.B) {
 	b.ResetTimer()
 	r1 := exRel.Project(exTup2{})
 	for i := 0; i < b.N; i++ {
-		t := make(chan interface{})
-		r1.Tuples(t)
+		t := make(chan exTup2)
+		r1.TupleChan(t)
 		for _ = range t {
 			// do nothing
 		}
@@ -355,8 +354,8 @@ func BenchmarkProjectSmallDistinct(b *testing.B) {
 	b.ResetTimer()
 	r1 := exRel.Project(fooOnly{})
 	for i := 0; i < b.N; i++ {
-		t := make(chan interface{})
-		r1.Tuples(t)
+		t := make(chan fooOnly)
+		r1.TupleChan(t)
 		for _ = range t {
 			// do nothing
 		}
@@ -374,8 +373,8 @@ func BenchmarkProjectSmallNonDistinct(b *testing.B) {
 	b.ResetTimer()
 	r1 := exRel.Project(barOnly{})
 	for i := 0; i < b.N; i++ {
-		t := make(chan interface{})
-		r1.Tuples(t)
+		t := make(chan barOnly)
+		r1.TupleChan(t)
 		for _ = range t {
 			// do nothing
 		}
@@ -389,8 +388,8 @@ func BenchmarkProjectMediumIdent(b *testing.B) {
 	b.ResetTimer()
 	r1 := exRel.Project(exTup2{})
 	for i := 0; i < b.N; i++ {
-		t := make(chan interface{})
-		r1.Tuples(t)
+		t := make(chan exTup2)
+		r1.TupleChan(t)
 		for _ = range t {
 			// do nothing
 		}
@@ -408,8 +407,8 @@ func BenchmarkProjectMediumDistinct(b *testing.B) {
 	b.ResetTimer()
 	r1 := exRel.Project(fooOnly{})
 	for i := 0; i < b.N; i++ {
-		t := make(chan interface{})
-		r1.Tuples(t)
+		t := make(chan fooOnly)
+		r1.TupleChan(t)
 		for _ = range t {
 			// do nothing
 		}
@@ -427,8 +426,8 @@ func BenchmarkProjectMediumNonDistinct(b *testing.B) {
 	b.ResetTimer()
 	r1 := exRel.Project(barOnly{})
 	for i := 0; i < b.N; i++ {
-		t := make(chan interface{})
-		r1.Tuples(t)
+		t := make(chan barOnly)
+		r1.TupleChan(t)
 		for _ = range t {
 			// do nothing
 		}

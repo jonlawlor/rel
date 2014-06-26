@@ -15,16 +15,17 @@ type groupByExpr struct {
 	// zero is the resulting relation tuple type
 	zero interface{}
 
-	// valZero is the tuple type of the values provided to the grouping
-	// function.  We might want to infer it from the grouping function
-	// instead though, like restrict does?
-	valZero interface{}
+	// valType is the tuple type of the values provided to the grouping
+	// function by the input chan
+	valType reflect.Type
+
+	// resType is the tuple type of the values returned from the grouping
+	// function.
+	resType reflect.Type
 
 	// gfcn is the function which when given a channel of tuples, returns
 	// the value of the group after the input channel is closed.
-	// We might want to be able to short circuit this evaluation in a few
-	// cases though?
-	gfcn func(<-chan interface{}) interface{}
+	gfcn reflect.Value
 
 	err error
 }
@@ -39,32 +40,28 @@ type groupByExpr struct {
 // complete their work, and then send a done signal to a channel which
 // can then close the result channel.
 
-func (r *groupByExpr) Tuples(t chan<- interface{}) chan<- struct{} {
+// TupleChan sends each tuple in the relation to a channel
+func (r *groupByExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
-
-	if r.Err() != nil {
-		close(t)
+	// reflect on the channel
+	chv := reflect.ValueOf(t)
+	err := ensureChan(chv.Type(), r.zero)
+	if err != nil {
+		r.err = err
+		return cancel
+	}
+	if r.err != nil {
+		chv.Close()
 		return cancel
 	}
 
 	// figure out the new elements used for each of the derived types
 	e1 := reflect.TypeOf(r.source1.Zero())
-	e2 := reflect.TypeOf(r.zero)    // type of the resulting relation's tuples
-	ev := reflect.TypeOf(r.valZero) // type of the tuples put into groupby values
-
-	// note: if for some reason this is called on a grouping that includes
-	// a candidate key, then this function should instead act as a map, and
-	// we might want to have a different codepath for that.
-
-	// create the map for channels to grouping goroutines
-	groupMap := make(map[interface{}]chan interface{})
-
-	// create waitgroup that indicates that the computations are complete
-	var wg sync.WaitGroup
 
 	// create the channel of tuples from source
-	body := make(chan interface{})
-	bcancel := r.source1.Tuples(body)
+	// TODO(jonlawlor): restrict the channel direction
+	body := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e1), 0)
+	bcancel := r.source1.TupleChan(body.Interface())
 
 	// for each of the tuples, extract the group values out and set
 	// the ones that are not in vtup to the values in the tuple.
@@ -73,68 +70,85 @@ func (r *groupByExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 	// increment the waitgroup, and finally send the vtup to the
 	// channel.
 
-	// figure out where in each of the structs the group and value
-	// attributes are found
-	e2fieldMap := att.FieldMap(e1, e2)
-	evfieldMap := att.FieldMap(e1, ev)
+	go func(body, res reflect.Value) {
 
-	// map from the values to the group (with zeros in the value fields)
-	// I couldn't figure out a way to assign the values into the group
-	// by modifying it using reflection though so we end up allocating a
-	// new element.
-	// TODO(jonlawlor): figure out how to avoid reallocation
-	vgfieldMap := att.FieldMap(e2, ev)
+		// create the map for channels to grouping goroutines
+		groupMap := make(map[interface{}]reflect.Value)
 
-	go func(b1 <-chan interface{}, res chan<- interface{}) {
-	Loop:
+		// create waitgroup that indicates that the computations are complete
+		var wg sync.WaitGroup
+
+		// figure out where in each of the structs the group and value
+		// attributes are found
+		e2 := reflect.TypeOf(r.zero) // type of the resulting relation's tuples
+		ev := r.valType              // type of the tuples put into groupby values
+		e2fieldMap := att.FieldMap(e1, e2)
+		evfieldMap := att.FieldMap(e1, ev)
+
+		// map from the values to the group (with zeros in the value fields)
+		// I couldn't figure out a way to assign the values into the group
+		// by modifying it using reflection though so we end up allocating a
+		// new element.
+		vgfieldMap := att.FieldMap(e2, ev)
+
+		// create the select statement reflections
+		sourceSel := reflect.SelectCase{reflect.SelectRecv, body, reflect.Value{}}
+		canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+		inCases := []reflect.SelectCase{canSel, sourceSel}
+
 		for {
-			select {
-			case tup, ok := <-b1:
-				if !ok {
-					break Loop
-				}
-				// this reflection may be a bottleneck, and we may be able to
-				// replace it with a concurrent version.
-				gtupi, vtupi := att.PartialProject(reflect.ValueOf(tup), e2, ev, e2fieldMap, evfieldMap)
-
-				// the map cannot be accessed concurrently though
-				// a lock needs to be placed here
-				if _, exists := groupMap[gtupi]; !exists {
-					wg.Add(1)
-					// create the channel
-					groupChan := make(chan interface{})
-					groupMap[gtupi] = groupChan
-					// remove the lock
-
-					// launch a goroutine which consumes values from the group,
-					// applies the grouping function, and then when all values
-					// are sent, gets the result from the grouping function and
-					// puts it into the result tuple, which it then returns
-					go func(gtupi interface{}, groupChan <-chan interface{}) {
-						defer wg.Done()
-						// run the grouping function and turn the result
-						// into the reflect.Value
-						vtup := reflect.ValueOf(r.gfcn(groupChan))
-						// combine the returned values with the group tuple
-						// to create the new complete tuple
-						select {
-						case res <- att.CombineTuples(reflect.ValueOf(gtupi), vtup, e2, vgfieldMap).Interface():
-						case <-cancel:
-							// do nothing, everything has already been closed
-						}
-					}(gtupi, groupChan)
-				}
-				groupMap[gtupi] <- vtupi
-			case <-cancel:
+			chosen, tup, ok := reflect.Select(inCases)
+			// cancel has been closed, so close the results
+			if chosen == 0 {
 				close(bcancel)
-				break Loop
+				return
 			}
+			if !ok {
+				// source channel was closed
+				break
+			}
+
+			// this reflection may be a bottleneck, and we may be able to
+			// replace it with a parallel version.
+			gtup, vtup := att.PartialProject(tup, e2, ev, e2fieldMap, evfieldMap)
+			gtupi := gtup.Interface()
+			if _, exists := groupMap[gtupi]; !exists {
+				// a new group has been encountered
+				wg.Add(1)
+				// create the channel
+				groupChan := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, ev), 0)
+				groupMap[gtupi] = groupChan
+
+				// launch a goroutine which consumes values from the group,
+				// applies the grouping function, and then when all values
+				// are sent, gets the result from the grouping function and
+				// puts it into the result tuple, which it then returns
+
+				go func(gtup, groupChan reflect.Value) {
+					defer wg.Done()
+					// run the grouping function and turn the result into the
+					// reflect.Value
+					resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
+
+					vals := r.gfcn.Call([]reflect.Value{groupChan})
+
+					// combine the returned values with the group tuple
+					// to create the new complete tuple
+					resSel.Send = att.CombineTuples(gtup, vals[0], e2, vgfieldMap)
+
+					_, _, _ = reflect.Select([]reflect.SelectCase{canSel, resSel})
+					// we actually don't care about what's been chosen or what
+					// happens, just that someone heard an answer or the cancel
+					// channel was closed.
+				}(gtup, groupChan)
+			}
+			groupMap[gtupi].Send(vtup)
 		}
 		// close all of the group channels so the processes can finish
 		// this can only be done after the tuples in the original relation
 		// have all been sent to the groups
 		for _, v := range groupMap {
-			close(v)
+			v.Close()
 		}
 		// close the results channel when the waitgroup is finished
 		wg.Wait()
@@ -145,9 +159,9 @@ func (r *groupByExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 			if err := r.source1.Err(); err != nil {
 				r.err = err
 			}
-			close(res)
+			res.Close()
 		}
-	}(body, t)
+	}(body, chv)
 	return cancel
 }
 
@@ -165,8 +179,8 @@ func (r *groupByExpr) CKeys() att.CandKeys {
 	// just a map) or the group itself.
 
 	e1 := reflect.TypeOf(r.source1.Zero())
-	e2 := reflect.TypeOf(r.zero)    // type of the resulting relation's tuples
-	ev := reflect.TypeOf(r.valZero) // type of the tuples put into groupby values
+	e2 := r.resType // type of the resulting relation's tuples
+	ev := r.valType // type of the tuples put into groupby values
 
 	// note: if for some reason this is called on a grouping that includes
 	// a candidate key, then this function should instead act as a map, and
@@ -211,14 +225,14 @@ func (r *groupByExpr) GoString() string {
 
 // String returns a text representation of the Relation
 func (r *groupByExpr) String() string {
-	h := att.FieldNames(reflect.TypeOf(r.valZero))
+	h := att.FieldNames(r.resType)
 	s := make([]string, len(h))
 	for i, v := range h {
 		s[i] = string(v)
 	}
 
 	// TODO(jonlawlor) add better identification to the grouping func
-	return r.source1.String() + ".GroupBy({" + HeadingString(r) + "}, {" + strings.Join(s, ", ") + "})"
+	return r.source1.String() + ".GroupBy({" + HeadingString(r) + "}->{" + strings.Join(s, ", ") + "})"
 
 }
 
@@ -271,13 +285,13 @@ func (r1 *groupByExpr) Join(r2 Relation, zero interface{}) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *groupByExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
-	return NewGroupBy(r1, t2, vt, gfcn)
+func (r1 *groupByExpr) GroupBy(t2, gfcn interface{}) Relation {
+	return NewGroupBy(r1, t2, gfcn)
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *groupByExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
-	return NewMap(r1, mfcn, z2, ckeystr)
+func (r1 *groupByExpr) Map(mfcn interface{}, ckeystr [][]string) Relation {
+	return NewMap(r1, mfcn, ckeystr)
 }
 
 // Error returns an error encountered during construction or computation

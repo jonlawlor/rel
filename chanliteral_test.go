@@ -21,18 +21,39 @@ func drain(t chan exTup2) {
 }
 
 func toChanLiteral(r Relation, isDistinct bool) Relation {
+	r2, _ := toChanLiteralCancel(r, isDistinct)
+	return r2
+}
+
+func toChanLiteralCancel(r Relation, isDistinct bool) (r2 Relation, c chan<- struct{}) {
+	cancel := make(chan struct{})
 	// construct a channel using reflection
+
 	z := r.Zero()
-	ch := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, reflect.TypeOf(z)), 0)
-	t := make(chan interface{})
-	_ = r.Tuples(t)
-	go func(b <-chan interface{}) {
-		for tup := range b {
-			ch.Send(reflect.ValueOf(tup))
+	e := reflect.TypeOf(z)
+	ch := reflect.MakeChan(reflect.ChanOf(reflect.SendDir, e), 0)
+	body := reflect.MakeChan(reflect.ChanOf(reflect.RecvDir, e), 0)
+	r.TupleChan(body.Interface())
+	go func(b reflect.Value) {
+		resSel := reflect.SelectCase{reflect.SelectSend, ch, reflect.Value{}}
+		canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+
+		for {
+			tup, ok := b.Recv()
+			if !ok {
+				break
+			}
+			resSel.Send = tup
+			chosen, _, _ := reflect.Select([]reflect.SelectCase{canSel, resSel})
+			if chosen == 0 {
+				return
+			}
 		}
 		ch.Close()
-	}(t)
-	return &chanLiteral{ch, r.CKeys(), r.Zero(), isDistinct, nil}
+	}(body)
+	c = cancel
+	r2 = &chanLiteral{ch, r.CKeys(), z, isDistinct, nil}
+	return
 }
 
 func TestChanLiteral(t *testing.T) {
@@ -64,11 +85,10 @@ func TestChanLiteral(t *testing.T) {
 	type valTup struct {
 		Qty int
 	}
-	groupFcn := func(val <-chan interface{}) interface{} {
+	groupFcn := func(val <-chan valTup) valTup {
 		res := valTup{}
 		for vi := range val {
-			v := vi.(valTup)
-			res.Qty += v.Qty
+			res.Qty += vi.Qty
 		}
 		return res
 	}
@@ -78,12 +98,8 @@ func TestChanLiteral(t *testing.T) {
 		Qty1 int
 		Qty2 int
 	}
-	mapFcn := func(tup1 interface{}) interface{} {
-		if v, ok := tup1.(orderTup); ok {
-			return mapRes{v.PNO, v.SNO, v.Qty, v.Qty * 2}
-		} else {
-			return mapRes{}
-		}
+	mapFcn := func(tup1 orderTup) mapRes {
+		return mapRes{tup1.PNO, tup1.SNO, tup1.Qty, tup1.Qty * 2}
 	}
 	mapKeys := [][]string{
 		[]string{"PNO", "SNO"},
@@ -102,12 +118,16 @@ func TestChanLiteral(t *testing.T) {
 		{toChanLiteral(orders(), true).SetDiff(toChanLiteral(orders(), false)), "Relation(PNO, SNO, Qty) − Relation(PNO, SNO, Qty)", 3, 0},
 		{toChanLiteral(orders(), true).Union(toChanLiteral(orders(), false)), "Relation(PNO, SNO, Qty) ∪ Relation(PNO, SNO, Qty)", 3, 12},
 		{toChanLiteral(orders(), true).Join(toChanLiteral(suppliers(), false), joinTup{}), "Relation(PNO, SNO, Qty) ⋈ Relation(SNO, SName, Status, City)", 6, 11},
-		{toChanLiteral(orders(), true).GroupBy(groupByTup{}, valTup{}, groupFcn), "Relation(PNO, SNO, Qty).GroupBy({PNO, Qty}, {Qty})", 2, 4},
-		{toChanLiteral(orders(), true).Map(mapFcn, mapRes{}, mapKeys), "Relation(PNO, SNO, Qty).Map({PNO, SNO, Qty}->{PNO, SNO, Qty1, Qty2})", 4, 12},
-		{toChanLiteral(orders(), true).Map(mapFcn, mapRes{}, [][]string{}), "Relation(PNO, SNO, Qty).Map({PNO, SNO, Qty}->{PNO, SNO, Qty1, Qty2})", 4, 12},
+		{toChanLiteral(orders(), true).GroupBy(groupByTup{}, groupFcn), "Relation(PNO, SNO, Qty).GroupBy({PNO, Qty}->{Qty})", 2, 4},
+		{toChanLiteral(orders(), true).Map(mapFcn, mapKeys), "Relation(PNO, SNO, Qty).Map({PNO, SNO, Qty}->{PNO, SNO, Qty1, Qty2})", 4, 12},
+		{toChanLiteral(orders(), true).Map(mapFcn, [][]string{}), "Relation(PNO, SNO, Qty).Map({PNO, SNO, Qty}->{PNO, SNO, Qty1, Qty2})", 4, 12},
 	}
 
 	for i, tt := range relTest {
+		if err := tt.rel.Err(); err != nil {
+			t.Errorf("%d has Err() => %v", err)
+			continue
+		}
 		if str := tt.rel.String(); str != tt.expectString {
 			t.Errorf("%d has String() => %v, want %v", i, str, tt.expectString)
 		}
@@ -118,11 +138,10 @@ func TestChanLiteral(t *testing.T) {
 			t.Errorf("%d %s has Card() => %v, want %v", i, tt.expectString, card, tt.expectCard)
 		}
 	}
-
 	// test cancellation
-	r := toChanLiteral(orders(), true)
-	res := make(chan interface{})
-	cancel := r.Tuples(res)
+	r, cancelSource := toChanLiteralCancel(orders(), true)
+	res := make(chan orderTup)
+	cancel := r.TupleChan(res)
 	close(cancel)
 	select {
 	case <-res:
@@ -130,11 +149,12 @@ func TestChanLiteral(t *testing.T) {
 	default:
 		// passed test
 	}
+	close(cancelSource)
 
 	// test non distinct & cancellation
-	r = toChanLiteral(orders(), false)
-	res = make(chan interface{})
-	cancel = r.Tuples(res)
+	r, cancelSource = toChanLiteralCancel(orders(), false)
+	res = make(chan orderTup)
+	cancel = r.TupleChan(res)
 	close(cancel)
 	select {
 	case <-res:
@@ -142,8 +162,10 @@ func TestChanLiteral(t *testing.T) {
 	default:
 		// passed test
 	}
+	close(cancelSource)
 
 	// test errors
+
 	err := fmt.Errorf("testing error")
 	r1 := new(chanLiteral)
 	r1 = toChanLiteral(orders(), true).(*chanLiteral)
@@ -151,10 +173,10 @@ func TestChanLiteral(t *testing.T) {
 	r2 := new(chanLiteral)
 	r2 = toChanLiteral(orders(), true).(*chanLiteral)
 	r2.err = err
-	res = make(chan interface{})
-	_ = r1.Tuples(res)
+	res = make(chan orderTup)
+	_ = r1.TupleChan(res)
 	if _, ok := <-res; ok {
-		t.Errorf("%d did not short circuit Tuples")
+		t.Errorf("%d did not short circuit TupleChan")
 	}
 	errTest := []Relation{
 		r1.Project(distinctTup{}),
@@ -166,8 +188,8 @@ func TestChanLiteral(t *testing.T) {
 		r.SetDiff(r2),
 		r1.Join(r2, orderTup{}),
 		r.Join(r2, orderTup{}),
-		r1.GroupBy(groupByTup{}, valTup{}, groupFcn),
-		r1.Map(mapFcn, mapRes{}, mapKeys),
+		r1.GroupBy(groupByTup{}, groupFcn),
+		r1.Map(mapFcn, mapKeys),
 	}
 	for i, errRel := range errTest {
 		if errRel.Err() != err {

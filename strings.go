@@ -31,12 +31,19 @@ func goStringTabTable(r Relation) string {
 	s.WriteString("}{\n")
 
 	// write the body
-	tups := make(chan interface{})
-	r.Tuples(tups)
+	body := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, reflect.TypeOf(r.Zero())), 0)
+	tups := body.Interface()
+	_ = r.TupleChan(tups)
 
 	deg := Deg(r)
-	for tup := range tups {
-		rtup := reflect.ValueOf(tup)
+	sourceSel := reflect.SelectCase{reflect.SelectRecv, body, reflect.Value{}}
+	inCases := []reflect.SelectCase{sourceSel}
+
+	for {
+		_, rtup, ok := reflect.Select(inCases)
+		if !ok {
+			break
+		}
 		// this part might be replacable with some workers that
 		// convert tuples to strings
 		fmt.Fprintf(w, "\t{")
@@ -92,11 +99,18 @@ func stringTabTable(r Relation) string {
 	fmt.Fprintf(w, "\t|\n")
 
 	// write the body
-	tups := make(chan interface{})
-	r.Tuples(tups)
+	body := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, reflect.TypeOf(r.Zero())), 0)
+	tups := body.Interface()
+	_ = r.TupleChan(tups)
 
-	for tup := range tups {
-		rtup := reflect.ValueOf(tup)
+	sourceSel := reflect.SelectCase{reflect.SelectRecv, body, reflect.Value{}}
+	inCases := []reflect.SelectCase{sourceSel}
+
+	for {
+		_, rtup, ok := reflect.Select(inCases)
+		if !ok {
+			break
+		}
 		// this part might be replacable with some workers that
 		// convert tuples to strings
 		for j := 0; j < deg; j++ {

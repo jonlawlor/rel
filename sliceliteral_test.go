@@ -39,11 +39,10 @@ func TestSliceLiteral(t *testing.T) {
 	type valTup struct {
 		Qty int
 	}
-	groupFcn := func(val <-chan interface{}) interface{} {
+	groupFcn := func(val <-chan valTup) valTup {
 		res := valTup{}
 		for vi := range val {
-			v := vi.(valTup)
-			res.Qty += v.Qty
+			res.Qty += vi.Qty
 		}
 		return res
 	}
@@ -53,12 +52,8 @@ func TestSliceLiteral(t *testing.T) {
 		Qty1 int
 		Qty2 int
 	}
-	mapFcn := func(tup1 interface{}) interface{} {
-		if v, ok := tup1.(orderTup); ok {
-			return mapRes{v.PNO, v.SNO, v.Qty, v.Qty * 2}
-		} else {
-			return mapRes{}
-		}
+	mapFcn := func(tup1 orderTup) mapRes {
+		return mapRes{tup1.PNO, tup1.SNO, tup1.Qty, tup1.Qty * 2}
 	}
 	mapKeys := [][]string{
 		[]string{"PNO", "SNO"},
@@ -78,12 +73,16 @@ func TestSliceLiteral(t *testing.T) {
 		{rel.SetDiff(orders()), "Relation(PNO, SNO, Qty) − Relation(PNO, SNO, Qty)", 3, 0},
 		{rel.Union(orders()), "Relation(PNO, SNO, Qty) ∪ Relation(PNO, SNO, Qty)", 3, 12},
 		{rel.Join(suppliers(), joinTup{}), "Relation(PNO, SNO, Qty) ⋈ Relation(SNO, SName, Status, City)", 6, 11},
-		{rel.GroupBy(groupByTup{}, valTup{}, groupFcn), "Relation(PNO, SNO, Qty).GroupBy({PNO, Qty}, {Qty})", 2, 4},
-		{rel.Map(mapFcn, mapRes{}, mapKeys), "Relation(PNO, SNO, Qty).Map({PNO, SNO, Qty}->{PNO, SNO, Qty1, Qty2})", 4, 12},
-		{rel.Map(mapFcn, mapRes{}, [][]string{}), "Relation(PNO, SNO, Qty).Map({PNO, SNO, Qty}->{PNO, SNO, Qty1, Qty2})", 4, 12},
+		{rel.GroupBy(groupByTup{}, groupFcn), "Relation(PNO, SNO, Qty).GroupBy({PNO, Qty}->{Qty})", 2, 4},
+		{rel.Map(mapFcn, mapKeys), "Relation(PNO, SNO, Qty).Map({PNO, SNO, Qty}->{PNO, SNO, Qty1, Qty2})", 4, 12},
+		{rel.Map(mapFcn, [][]string{}), "Relation(PNO, SNO, Qty).Map({PNO, SNO, Qty}->{PNO, SNO, Qty1, Qty2})", 4, 12},
 	}
 
 	for i, tt := range relTest {
+		if err := tt.rel.Err(); err != nil {
+			t.Errorf("%d has Err() => %v", err)
+			continue
+		}
 		if str := tt.rel.String(); str != tt.expectString {
 			t.Errorf("%d has String() => %v, want %v", i, str, tt.expectString)
 		}
@@ -95,8 +94,8 @@ func TestSliceLiteral(t *testing.T) {
 		}
 	}
 	// test cancellation
-	res := make(chan interface{})
-	cancel := rel.Tuples(res)
+	res := make(chan orderTup)
+	cancel := rel.TupleChan(res)
 	close(cancel)
 	select {
 	case <-res:
@@ -110,10 +109,10 @@ func TestSliceLiteral(t *testing.T) {
 	r1.err = err
 	r2 := orders().(*sliceLiteral)
 	r2.err = err
-	res = make(chan interface{})
-	_ = r1.Tuples(res)
+	res = make(chan orderTup)
+	_ = r1.TupleChan(res)
 	if _, ok := <-res; ok {
-		t.Errorf("%d did not short circuit Tuples")
+		t.Errorf("%d did not short circuit TupleChan")
 	}
 	errTest := []Relation{
 		r1.Project(distinctTup{}),
@@ -125,8 +124,8 @@ func TestSliceLiteral(t *testing.T) {
 		rel.SetDiff(r2),
 		r1.Join(r2, orderTup{}),
 		rel.Join(r2, orderTup{}),
-		r1.GroupBy(groupByTup{}, valTup{}, groupFcn),
-		r1.Map(mapFcn, mapRes{}, mapKeys),
+		r1.GroupBy(groupByTup{}, groupFcn),
+		r1.Map(mapFcn, mapKeys),
 	}
 	for i, errRel := range errTest {
 		if errRel.Err() != err {

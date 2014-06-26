@@ -2,9 +2,17 @@
 
 package rel
 
-import "github.com/jonlawlor/rel/att"
+import (
+	"github.com/jonlawlor/rel/att"
+	"reflect"
+)
 
-// projection is a type that represents a project operation
+// TODO(jonlawlor): reexamine how map handles types.  We might want to derive
+// source and result types from just the function.
+
+// map is a type that represents applying a function to each tuple in a source
+// set.
+
 type mapExpr struct {
 	// the input relation
 	source1 Relation
@@ -12,8 +20,16 @@ type mapExpr struct {
 	// zero is the resulting relation tuple type
 	zero interface{}
 
+	// valTYpe is the tuple type of the values provided to the mapping
+	// function.
+	valType reflect.Type
+
+	// resType is the tuple type of the values returned from the mapping
+	// function.
+	resType reflect.Type
+
 	// the function that maps from source tuple type to result tuple type
-	fcn func(interface{}) interface{}
+	rmfcn reflect.Value
 
 	// set of candidate keys
 	cKeys att.CandKeys
@@ -25,39 +41,68 @@ type mapExpr struct {
 	err error
 }
 
-// Tuples sends each tuple in the relation to a channel
-// note: this consumes the values of the relation, and when it is finished it
-// closes the input channel.
-func (r *mapExpr) Tuples(t chan<- interface{}) chan<- struct{} {
+func (r *mapExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
-
-	if r.Err() != nil {
-		close(t)
+	// reflect on the channel
+	chv := reflect.ValueOf(t)
+	err := ensureChan(chv.Type(), r.zero)
+	if err != nil {
+		r.err = err
+		return cancel
+	}
+	if r.err != nil {
+		chv.Close()
 		return cancel
 	}
 
-	body1 := make(chan interface{})
-	bcancel := r.source1.Tuples(body1)
+	// figure out the new elements used for each of the derived types
+	e1 := reflect.TypeOf(r.source1.Zero())
+
+	// figure out which fields stay, and where they are in each of the tuple
+	// types.
+	// TODO(jonlawlor): error if fields in e2 are not in r1's tuples.
+	fMap := att.FieldMap(e1, r.valType)
+
+	body1 := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e1), 0)
+	bcancel := r.source1.TupleChan(body1.Interface())
 
 	if r.isDistinct {
 		// assign fields from the old relation to fields in the new
 		// TODO(jonlawlor): add parallelism here
-		go func(body <-chan interface{}, res chan<- interface{}) {
-		Loop:
+		go func(body, res reflect.Value) {
+			// input channels
+			sourceSel := reflect.SelectCase{reflect.SelectRecv, body, reflect.Value{}}
+			canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+			inCases := []reflect.SelectCase{canSel, sourceSel}
+
+			// output channels
+			resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
+
 			for {
-				select {
-				case tup1, ok := <-body:
-					if !ok {
-						break Loop
-					}
-					select {
-					// set the field in the new tuple to the value from the old one
-					case res <- r.fcn(tup1):
-					case <-cancel:
-						close(bcancel)
-						return
-					}
-				case <-cancel:
+				chosen, tup, ok := reflect.Select(inCases)
+
+				if chosen == 0 {
+					// cancel has been closed, so close the source as well
+					close(bcancel)
+					return
+				}
+				if !ok {
+					// source channel was closed
+					break
+				}
+
+				// construct the function input
+				fcnin := reflect.Indirect(reflect.New(r.valType))
+				for _, fm := range fMap {
+					fcninf := fcnin.Field(fm.J)
+					fcninf.Set(tup.Field(fm.I))
+				}
+				// set the field in the new tuple to the value from the old one
+
+				fcnout := r.rmfcn.Call([]reflect.Value{fcnin})[0]
+				resSel.Send = fcnout
+				chosen, _, ok = reflect.Select([]reflect.SelectCase{canSel, resSel})
+				if chosen == 0 {
 					close(bcancel)
 					return
 				}
@@ -65,41 +110,63 @@ func (r *mapExpr) Tuples(t chan<- interface{}) chan<- struct{} {
 			if err := r.source1.Err(); err != nil {
 				r.err = err
 			}
-			close(res)
-		}(body1, t)
+			res.Close()
+		}(body1, chv)
 
 		return cancel
 	}
-	go func(body <-chan interface{}, res chan<- interface{}) {
+	go func(body, res reflect.Value) {
 		m := map[interface{}]struct{}{}
-	Loop:
+
+		// input channels
+		sourceSel := reflect.SelectCase{reflect.SelectRecv, body, reflect.Value{}}
+		canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+		inCases := []reflect.SelectCase{canSel, sourceSel}
+
+		// output channels
+		resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
+
 		for {
-			select {
-			case tup1, ok := <-body:
-				if !ok {
-					break Loop
-				}
-				tup2 := r.fcn(tup1)
-				// set the field in the new tuple to the value from the old one
-				if _, isdup := m[tup2]; !isdup {
-					m[tup2] = struct{}{}
-					select {
-					case t <- tup2:
-					case <-cancel:
-						close(bcancel)
-						return
-					}
-				}
-			case <-cancel:
+			chosen, tup, ok := reflect.Select(inCases)
+
+			if chosen == 0 {
+				// cancel has been closed, so close the source as well
 				close(bcancel)
 				return
 			}
+			if !ok {
+				// source channel was closed
+				break
+			}
+
+			// construct the function input
+			fcnin := reflect.Indirect(reflect.New(r.valType))
+			for _, fm := range fMap {
+				fcninf := fcnin.Field(fm.J)
+				fcninf.Set(tup.Field(fm.I))
+			}
+			// set the field in the new tuple to the value from the old one
+
+			fcnout := r.rmfcn.Call([]reflect.Value{fcnin})[0]
+
+			// check that the output from the function is not a duplicate
+			if _, isdup := m[fcnout.Interface()]; !isdup {
+				// it isn't a dupe, so send it on the results
+				m[fcnout.Interface()] = struct{}{}
+				resSel.Send = fcnout
+				chosen, _, ok = reflect.Select([]reflect.SelectCase{canSel, resSel})
+				if chosen == 0 {
+					close(bcancel)
+					return
+				}
+			}
 		}
+
 		if err := r.source1.Err(); err != nil {
 			r.err = err
 		}
-		close(t)
-	}(body1, t)
+		chv.Close()
+	}(body1, chv)
 
 	return cancel
 
@@ -168,13 +235,13 @@ func (r1 *mapExpr) Join(r2 Relation, zero interface{}) Relation {
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *mapExpr) GroupBy(t2, vt interface{}, gfcn func(<-chan interface{}) interface{}) Relation {
-	return NewGroupBy(r1, t2, vt, gfcn)
+func (r1 *mapExpr) GroupBy(t2, gfcn interface{}) Relation {
+	return NewGroupBy(r1, t2, gfcn)
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *mapExpr) Map(mfcn func(from interface{}) (to interface{}), z2 interface{}, ckeystr [][]string) Relation {
-	return NewMap(r1, mfcn, z2, ckeystr)
+func (r1 *mapExpr) Map(mfcn interface{}, ckeystr [][]string) Relation {
+	return NewMap(r1, mfcn, ckeystr)
 }
 
 // Error returns an error encountered during construction or computation

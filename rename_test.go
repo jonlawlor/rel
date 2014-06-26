@@ -85,11 +85,10 @@ func TestRename(t *testing.T) {
 	type valTup struct {
 		QTY int
 	}
-	groupFcn := func(val <-chan interface{}) interface{} {
+	groupFcn := func(val <-chan valTup) valTup {
 		res := valTup{}
 		for vi := range val {
-			v := vi.(valTup)
-			res.QTY += v.QTY
+			res.QTY += vi.QTY
 		}
 		return res
 	}
@@ -100,12 +99,8 @@ func TestRename(t *testing.T) {
 		Qty1 int
 		Qty2 int
 	}
-	mapFcn := func(tup1 interface{}) interface{} {
-		if v, ok := tup1.(upperCaseTup); ok {
-			return mapRes{v.PNO, v.SNO, v.QTY, v.QTY * 2}
-		} else {
-			return mapRes{}
-		}
+	mapFcn := func(tup1 upperCaseTup) mapRes {
+		return mapRes{tup1.PNO, tup1.SNO, tup1.QTY, tup1.QTY * 2}
 	}
 	mapKeys := [][]string{
 		[]string{"PNO", "SNO"},
@@ -124,12 +119,16 @@ func TestRename(t *testing.T) {
 		{rel.SetDiff(orders().Rename(upperCaseTup{})), "ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)) − ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty))", 3, 0},
 		{rel.Union(orders().Rename(upperCaseTup{})), "ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)) ∪ ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty))", 3, 12},
 		{rel.Join(suppliers(), joinTup{}), "ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)) ⋈ Relation(SNO, SName, Status, City)", 6, 11},
-		{rel.GroupBy(groupByTup{}, valTup{}, groupFcn), "ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)).GroupBy({PNO, QTY}, {QTY})", 2, 4},
-		{rel.Map(mapFcn, mapRes{}, mapKeys), "ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)).Map({PNO, SNO, QTY}->{PNO, SNO, Qty1, Qty2})", 4, 12},
-		{rel.Map(mapFcn, mapRes{}, [][]string{}), "ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)).Map({PNO, SNO, QTY}->{PNO, SNO, Qty1, Qty2})", 4, 12},
+		{rel.GroupBy(groupByTup{}, groupFcn), "ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)).GroupBy({PNO, QTY}->{QTY})", 2, 4},
+		{rel.Map(mapFcn, mapKeys), "ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)).Map({PNO, SNO, QTY}->{PNO, SNO, Qty1, Qty2})", 4, 12},
+		{rel.Map(mapFcn, [][]string{}), "ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)).Map({PNO, SNO, QTY}->{PNO, SNO, Qty1, Qty2})", 4, 12},
 	}
 
 	for i, tt := range relTest {
+		if err := tt.rel.Err(); err != nil {
+			t.Errorf("%d has Err() => %v", err)
+			continue
+		}
 		if str := tt.rel.String(); str != tt.expectString {
 			t.Errorf("%d has String() => %v, want %v", i, str, tt.expectString)
 		}
@@ -141,8 +140,8 @@ func TestRename(t *testing.T) {
 		}
 	}
 	// test cancellation
-	res := make(chan interface{})
-	cancel := rel.Tuples(res)
+	res := make(chan upperCaseTup)
+	cancel := rel.TupleChan(res)
 	close(cancel)
 	select {
 	case <-res:
@@ -157,10 +156,10 @@ func TestRename(t *testing.T) {
 	rel1.err = err
 	rel2 := orders().Rename(upperCaseTup{}).(*renameExpr)
 	rel2.err = err
-	res = make(chan interface{})
-	_ = rel1.Tuples(res)
+	res = make(chan upperCaseTup)
+	_ = rel1.TupleChan(res)
 	if _, ok := <-res; ok {
-		t.Errorf("did not short circuit Tuples")
+		t.Errorf("did not short circuit TupleChan")
 	}
 	errTest := []Relation{
 		rel1.Project(distinctTup{}),
@@ -171,8 +170,8 @@ func TestRename(t *testing.T) {
 		rel.SetDiff(rel2),
 		rel1.Join(rel2, orderTup{}),
 		rel.Join(rel2, orderTup{}),
-		rel1.GroupBy(groupByTup{}, valTup{}, groupFcn),
-		rel1.Map(mapFcn, mapRes{}, mapKeys),
+		rel1.GroupBy(groupByTup{}, groupFcn),
+		rel1.Map(mapFcn, mapKeys),
 	}
 	for i, errRel := range errTest {
 		if errRel.Err() != err {
@@ -196,8 +195,8 @@ func BenchmarkRename(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// each iteration produces 12 tuples
-		t := make(chan interface{})
-		r1.Tuples(t)
+		t := make(chan r2tup)
+		r1.TupleChan(t)
 		for _ = range t {
 		}
 	}
