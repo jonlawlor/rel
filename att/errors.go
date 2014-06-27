@@ -1,10 +1,10 @@
-// errors contains the types of errors that can be returned by the rel package.
+// errors are a set of functions useful for type checks, given the absence
+// of static type checking due to reflection.
 
-package rel
+package att
 
 import (
 	"fmt"
-	"github.com/jonlawlor/rel/att"
 	"reflect"
 )
 
@@ -32,9 +32,9 @@ func (e *ElemError) Error() string {
 	return "rel: expected tuple element '" + e.Expected.Name() + "', found '" + e.Found.Name() + "'"
 }
 
-// ensureChan returns an error if the the input is not a channel with elements
+// EnsureChan returns an error if the the input is not a channel with elements
 // of the specified type.
-func ensureChan(ch reflect.Type, zero interface{}) error {
+func EnsureChan(ch reflect.Type, zero interface{}) error {
 	if t := ch.Kind(); t == reflect.Chan {
 		// now check that the zero element can be sent to the channel
 		te := ch.Elem()
@@ -48,9 +48,9 @@ func ensureChan(ch reflect.Type, zero interface{}) error {
 	}
 }
 
-// ensureSlice returns an error if the the input is not a slice with elements
+// EnsureSlice returns an error if the the input is not a slice with elements
 // of the specified type.
-func ensureSlice(sl reflect.Type, zero interface{}) error {
+func EnsureSlice(sl reflect.Type, zero interface{}) error {
 	if t := sl.Kind(); t == reflect.Slice {
 		// now check that the zero element can be sent to the channel
 		te := sl.Elem()
@@ -64,9 +64,9 @@ func ensureSlice(sl reflect.Type, zero interface{}) error {
 	}
 }
 
-// ensureMap returns an error if the the input is not a map with key elements
+// EnsureMap returns an error if the the input is not a map with key elements
 // of the specified type, and value elements of type struct{}
-func ensureMap(m reflect.Type, zero interface{}) error {
+func EnsureMap(m reflect.Type, zero interface{}) error {
 	if t := m.Kind(); t == reflect.Map {
 		// now check that the zero element can be sent to the channel
 		tk := m.Key()
@@ -112,8 +112,8 @@ func (e *NumOutError) Error() string {
 // domainErorr represents an error that occurs when the input or output tuples
 // of a function are not subdomains of the expected domains
 type domainError struct {
-	Expected []att.Attribute
-	Found    []att.Attribute
+	Expected []Attribute
+	Found    []Attribute
 }
 
 // InDomainError represents an error that occurs when the input tuples
@@ -132,10 +132,10 @@ func (e *OutDomainError) Error() string {
 	return fmt.Sprintf("rel: expected function output to be subdomain of %v, found %v", e.Expected, e.Found)
 }
 
-// ensureGroupFunc returns an error if the input is not a function with only
+// EnsureGroupFunc returns an error if the input is not a function with only
 // one input and one output, where the input and output are subdomains of given
 // tuples.
-func ensureGroupFunc(gfcn reflect.Type, inSuper, outSuper interface{}) (err error, inTup, outTup reflect.Type) {
+func EnsureGroupFunc(gfcn reflect.Type, inSuper, outSuper interface{}) (err error, inTup, outTup reflect.Type) {
 	if t := gfcn.Kind(); t != reflect.Func {
 		err = &ContainerError{t, reflect.Func}
 		return
@@ -160,24 +160,24 @@ func ensureGroupFunc(gfcn reflect.Type, inSuper, outSuper interface{}) (err erro
 	outTup = gfcn.Out(0)
 
 	// check that the fields are subdomains
-	inDomain := att.FieldNames(reflect.TypeOf(inSuper))
-	if fn := att.FieldNames(inTup); !att.IsSubDomain(fn, inDomain) {
+	inDomain := FieldNames(reflect.TypeOf(inSuper))
+	if fn := FieldNames(inTup); !IsSubDomain(fn, inDomain) {
 		err = &InDomainError{inDomain, fn}
 		return
 	}
 
-	outDomain := att.FieldNames(reflect.TypeOf(outSuper))
-	if fn := att.FieldNames(outTup); !att.IsSubDomain(fn, outDomain) {
+	outDomain := FieldNames(reflect.TypeOf(outSuper))
+	if fn := FieldNames(outTup); !IsSubDomain(fn, outDomain) {
 		err = &OutDomainError{outDomain, fn}
 		return
 	}
 	return
 }
 
-// ensureMapFunc returns an error if the input is not a function with only
+// EnsureMapFunc returns an error if the input is not a function with only
 // one input and one output, where the input is a subdomain of given
 // tuple.
-func ensureMapFunc(mfcn reflect.Type, inSuper interface{}) (err error, inTup, outTup reflect.Type) {
+func EnsureMapFunc(mfcn reflect.Type, inSuper interface{}) (err error, inTup, outTup reflect.Type) {
 	if t := mfcn.Kind(); t != reflect.Func {
 		err = &ContainerError{t, reflect.Func}
 		return
@@ -196,8 +196,8 @@ func ensureMapFunc(mfcn reflect.Type, inSuper interface{}) (err error, inTup, ou
 	outTup = mfcn.Out(0)
 
 	// check that the fields are subdomains
-	inDomain := att.FieldNames(reflect.TypeOf(inSuper))
-	if fn := att.FieldNames(inTup); !att.IsSubDomain(fn, inDomain) {
+	inDomain := FieldNames(reflect.TypeOf(inSuper))
+	if fn := FieldNames(inTup); !IsSubDomain(fn, inDomain) {
 		err = &InDomainError{inDomain, fn}
 		return
 	}

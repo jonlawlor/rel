@@ -13,8 +13,10 @@ type exTup2 struct {
 	Bar string
 }
 
+// TestMatrixExample is an example of sparse matrix algebra implemented in
+// relational algebra.
 func TestMatrixExample(t *testing.T) {
-	// this should be changed to be a text example maybe.  It is a work in progress.
+
 	type matrixElem struct {
 		R int
 		C int
@@ -37,22 +39,26 @@ func TestMatrixExample(t *testing.T) {
 		VA float64
 		VB float64
 	}
-	type multRes struct {
-		R int
-		C int
-		M int
-		V float64
-	}
-	mapMult := func(tup multElemC) multRes {
-		return multRes{tup.R, tup.C, tup.M, tup.VA * tup.VB}
+	//type multRes struct {
+	//	R int
+	//	C int
+	//	M int
+	//	V float64
+	//}
+	//mapMult := func(tup multElemC) multRes {
+	//	return multRes{tup.R, tup.C, tup.M, tup.VA * tup.VB}
+	//}
+	type groupTup struct {
+		VA float64
+		VB float64
 	}
 	type valTup struct {
 		V float64
 	}
-	groupAdd := func(val <-chan valTup) valTup {
+	groupAdd := func(val <-chan groupTup) valTup {
 		res := valTup{}
 		for vi := range val {
-			res.V += vi.V
+			res.V += vi.VA * vi.VB
 		}
 		return res
 	}
@@ -78,7 +84,6 @@ func TestMatrixExample(t *testing.T) {
 	}, [][]string{[]string{"R", "C"}})
 
 	C := A.Rename(multElemA{}).Join(B.Rename(multElemB{}), multElemC{}).
-		Map(mapMult, [][]string{[]string{"R", "C", "M"}}).
 		GroupBy(matrixElem{}, groupAdd)
 
 	expectRes := New([]matrixElem{

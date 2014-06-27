@@ -189,26 +189,21 @@ SubLoop:
 // The reason we have to put zero values is that we can't make derived types.
 // returns the results as an interface instead of as reflect.Value's
 func PartialProject(tup reflect.Value, ltyp, rtyp reflect.Type, lFieldMap, rFieldMap map[Attribute]FieldIndex) (reflect.Value, reflect.Value) {
-
-	// we could avoid passing in th lFieldMap and
-
 	// assign fields from the old relation to fields in the new
 	ltup := reflect.Indirect(reflect.New(ltyp))
 	rtup := reflect.Indirect(reflect.New(rtyp))
 
 	// note thet rtup is a subset of ltup, but the fields in ltup that are
 	// in ltup will retain the zero value
-
 	for lname, lfm := range lFieldMap {
-		// if it is in the right tuple, assign it to the right tuple, otherwise
-		// assign it to the left tuple
-		if rfm, exists := rFieldMap[lname]; exists {
-			tupf := rtup.Field(rfm.J)
-			tupf.Set(tup.Field(rfm.I))
-		} else {
+		if _, exists := rFieldMap[lname]; !exists {
 			tupf := ltup.Field(lfm.J)
 			tupf.Set(tup.Field(lfm.I))
 		}
+	}
+	for _, rfm := range rFieldMap {
+		tupf := rtup.Field(rfm.J)
+		tupf.Set(tup.Field(rfm.I))
 	}
 	return ltup, rtup
 }

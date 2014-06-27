@@ -43,8 +43,12 @@ type Relation interface {
 
 	// non relational but still useful
 
-	// t2 is the resulting tuple type, vt is the subtuple that is going to the
-	// grouping function gfcn.
+	// t2 is the resulting tuple type, gfcn is a function which takes as input
+	// a subdomain of the tuples in the source relation, and then produces
+	// result tuples that are a subdomain of the t2 tuple.  The attributes that
+	// are in t2 that are not a part of the result tuples must also exist in
+	// the source relation's tuples, and they are used to determine unique
+	// groups.
 	GroupBy(t2, gfcn interface{}) Relation
 
 	// not necessary but still very useful!
@@ -275,7 +279,7 @@ func NewGroupBy(r1 Relation, t2, gfcn interface{}) Relation {
 	// gfcn has to be a function with one input, and one output, where the
 	// input is a subdomain of r1, and where the output is a subdomain of t2.
 	rgfcn := reflect.ValueOf(gfcn)
-	err, intup, outtup := ensureGroupFunc(rgfcn.Type(), r1.Zero(), t2)
+	err, intup, outtup := att.EnsureGroupFunc(rgfcn.Type(), r1.Zero(), t2)
 	return &groupByExpr{r1, t2, intup, outtup, rgfcn, err}
 }
 
@@ -289,7 +293,7 @@ func NewMap(r1 Relation, mfcn interface{}, ckeystr [][]string) Relation {
 	}
 	// determine the type of the returned tuples
 	rmfcn := reflect.ValueOf(mfcn)
-	err, intup, outtup := ensureMapFunc(rmfcn.Type(), r1.Zero())
+	err, intup, outtup := att.EnsureMapFunc(rmfcn.Type(), r1.Zero())
 	z2 := reflect.Indirect(reflect.New(outtup)).Interface()
 
 	if len(ckeystr) == 0 {

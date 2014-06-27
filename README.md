@@ -73,13 +73,13 @@ type matrixElem struct {
 	V float64
 }
 type multElemA struct {
-	R int
-	M int
+	R  int
+	M  int
 	VA float64
-}	
+}
 type multElemB struct {
-	M int
-	C int
+	M  int
+	C  int
 	VB float64
 }
 type multElemC struct {
@@ -89,54 +89,47 @@ type multElemC struct {
 	VA float64
 	VB float64
 }
-type multRes struct {
-	R int
-	C int
-	M int
-	V float64
-}
-mapMult := func (tup multElemC) multRes {
-	return multRes{v.R, v.C, v.M, v.VA * v.VB}
+type groupTup struct {
+	VA float64
+	VB float64
 }
 type valTup struct {
 	V float64
 }
-groupAdd := func(val <-chan valTup) valTup {
+groupAdd := func(val <-chan groupTup) valTup {
 	res := valTup{}
 	for vi := range val {
-		res.V += vi.V
+		res.V += vi.VA * vi.VB
 	}
 	return res
 }
 
-// representation of the matrix:
-//  1.0 2.0
-//  3.0 4.0 
-A := rel.New([]matrixElem{
+// representation of a matrix:
+//  1 2
+//  3 4
+A := New([]matrixElem{
 	{1, 1, 1.0},
 	{1, 2, 2.0},
 	{2, 1, 3.0},
 	{2, 2, 4.0},
-},[][]string{[]string{"R", "C"}})
+}, [][]string{[]string{"R", "C"}})
 
-// representation of the matrix:
-//  4.0 17.0 
-//  9.0 17.0
+// representation of a matrix:
+//  4 17
+//  9 17
 B := New([]matrixElem{
 	{1, 1, 4.0},
 	{1, 2, 17.0},
 	{2, 1, 9.0},
 	{2, 2, 17.0},
-},[][]string{[]string{"R", "C"}})
-
+}, [][]string{[]string{"R", "C"}})
 
 C := A.Rename(multElemA{}).Join(B.Rename(multElemB{}), multElemC{}).
-	Map(mapMult, [][]string{[]string{"R", "C", "M"}}).
 	GroupBy(matrixElem{}, groupAdd)
 	
 fmt.Println("\n%#v",C)
 
-// Output:
+// Output: (might be in any order)
 // rel.New([]struct {
 //  R int     
 //  C int     
@@ -149,9 +142,9 @@ fmt.Println("\n%#v",C)
 // })
 ```
 
-It isn't going to set any records for brevity or efficiency.  It demonstrates some of the issues with the rel package's current state: it results in a lot of type definitions for intermediate tuple representation, which is an area that requires work.  Behind the scenes there is quite a bit of reflection as well, which comes with other downsides, including even slower performance and less type safety.  Also, every relational operation (except for no-ops) results in a new pipeline stage getting built, with more channels handing off values.
+It isn't going to set any records for brevity or efficiency.  It demonstrates some of the issues with the rel package's current state: it results in a lot of type definitions for intermediate tuple representation.  Behind the scenes there is quite a bit of reflection as well, which comes with other downsides: slower performance and less type safety.  Above, every relational operation results in a new pipeline stage getting built, with more channels handing off values.  Some of the operations result in parallel execution; in this case the join operation has runtime.MaxConcurrent goroutines each performing a parallel nested loop join, and during the groupby, each group gets its own goroutine, also executed in parallel.
 
-On the other hand, thanks to interface's duck typing, users of this package can define their own Relation(s), which could be used in a similar manner to LINQ's Type Providers.  The "literal" Relations above can be replaced by Relations that provide values from an SQL database, or a csv.Reader (https://github.com/jonlawlor/csv), or in a user defined source if they roll their own Relation, which can take advantage of the query rewrite rules in the rel package.
+Thanks to interface's duck typing, users of this package can define their own Relation(s), which could be used in a similar manner to LINQ's Type Providers.  The "literal" Relations above can be replaced by Relations that provide values from an SQL database, or a csv.Reader (https://github.com/jonlawlor/csv), or in a user defined source if they roll their own Relation, which can take advantage of the query rewrite rules in the rel package.
 
 Why care about relational algebra over SQL?  Relational algebra is _so much simpler_ than the SQL standard.  The current SQL standard is hundreds of pages long and defines everything from regular expressions to recursive queries to interaction with Java procedures.  You have to pay thousands of dollars to see the latest SQL standard.  E. F. Codd's original paper is 11 pages long and is available for free.[2]  Unsurprisingly that makes it much easier to reason about.  I figure gophers should find that sentiment familiar - good theory has had features added to it until it mutates into something else. [3][4]
 

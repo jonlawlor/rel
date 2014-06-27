@@ -45,7 +45,7 @@ func (r *groupByExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := ensureChan(chv.Type(), r.zero)
+	err := att.EnsureChan(chv.Type(), r.zero)
 	if err != nil {
 		r.err = err
 		return cancel
@@ -89,7 +89,8 @@ func (r *groupByExpr) TupleChan(t interface{}) chan<- struct{} {
 		// I couldn't figure out a way to assign the values into the group
 		// by modifying it using reflection though so we end up allocating a
 		// new element.
-		vgfieldMap := att.FieldMap(e2, ev)
+		er := r.resType
+		rgfieldMap := att.FieldMap(e2, er)
 
 		// create the select statement reflections
 		sourceSel := reflect.SelectCase{reflect.SelectRecv, body, reflect.Value{}}
@@ -131,10 +132,9 @@ func (r *groupByExpr) TupleChan(t interface{}) chan<- struct{} {
 					resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
 
 					vals := r.gfcn.Call([]reflect.Value{groupChan})
-
 					// combine the returned values with the group tuple
 					// to create the new complete tuple
-					resSel.Send = att.CombineTuples(gtup, vals[0], e2, vgfieldMap)
+					resSel.Send = att.CombineTuples(gtup, vals[0], e2, rgfieldMap)
 
 					_, _, _ = reflect.Select([]reflect.SelectCase{canSel, resSel})
 					// we actually don't care about what's been chosen or what

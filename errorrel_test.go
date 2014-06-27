@@ -24,7 +24,7 @@ func (r *errorRel) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := ensureChan(chv.Type(), r.zero)
+	err := att.EnsureChan(chv.Type(), r.zero)
 	if err != nil {
 		r.err = err
 		return cancel

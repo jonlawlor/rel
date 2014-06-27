@@ -26,7 +26,7 @@ func (r *restrictExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := ensureChan(chv.Type(), r.source1.Zero())
+	err := att.EnsureChan(chv.Type(), r.source1.Zero())
 	if err != nil {
 		r.err = err
 		return cancel
