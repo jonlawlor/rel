@@ -3,7 +3,6 @@
 package rel
 
 import (
-	"github.com/jonlawlor/rel/att"
 	"reflect"
 	"runtime"
 	"sync"
@@ -26,7 +25,7 @@ func (r *joinExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := att.EnsureChan(chv.Type(), r.zero)
+	err := EnsureChan(chv.Type(), r.zero)
 	if err != nil {
 		r.err = err
 		return cancel
@@ -44,9 +43,9 @@ func (r *joinExpr) TupleChan(t interface{}) chan<- struct{} {
 	h2 := Heading(r.source2)
 	h3 := Heading(r)
 
-	map12 := att.AttributeMap(h1, h2) // used to determine equality
-	map31 := att.AttributeMap(h3, h1) // used to construct returned values
-	map32 := att.AttributeMap(h3, h2) // used to construct returned values
+	map12 := AttributeMap(h1, h2) // used to determine equality
+	map31 := AttributeMap(h3, h1) // used to construct returned values
+	map32 := AttributeMap(h3, h2) // used to construct returned values
 
 	// the types of the source tuples
 	e1 := reflect.TypeOf(r.source1.Zero())
@@ -134,10 +133,10 @@ func (r *joinExpr) TupleChan(t interface{}) chan<- struct{} {
 				// the opposite relation.
 				if chosen == 1 {
 					for _, rtup2 := range mtups {
-						if att.PartialEquals(rtup, rtup2, map12) {
+						if PartialEquals(rtup, rtup2, map12) {
 							tup3 := reflect.Indirect(reflect.New(e3))
-							att.CombineTuples2(&tup3, rtup, map31)
-							att.CombineTuples2(&tup3, rtup2, map32)
+							CombineTuples2(&tup3, rtup, map31)
+							CombineTuples2(&tup3, rtup2, map32)
 
 							resSel.Send = tup3
 							chosen, _, ok = reflect.Select([]reflect.SelectCase{canSel, resSel})
@@ -149,10 +148,10 @@ func (r *joinExpr) TupleChan(t interface{}) chan<- struct{} {
 					}
 				} else {
 					for _, rtup1 := range mtups {
-						if att.PartialEquals(rtup1, rtup, map12) {
+						if PartialEquals(rtup1, rtup, map12) {
 							tup3 := reflect.Indirect(reflect.New(e3))
-							att.CombineTuples2(&tup3, rtup1, map31)
-							att.CombineTuples2(&tup3, rtup, map32)
+							CombineTuples2(&tup3, rtup1, map31)
+							CombineTuples2(&tup3, rtup, map32)
 							resSel.Send = tup3
 							chosen, _, ok = reflect.Select([]reflect.SelectCase{canSel, resSel})
 							if chosen == 0 {
@@ -176,16 +175,16 @@ func (r *joinExpr) Zero() interface{} {
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *joinExpr) CKeys() att.CandKeys {
+func (r *joinExpr) CKeys() CandKeys {
 	// the candidate keys of a join are a join of the candidate keys as well
 	cKeys1 := r.source1.CKeys()
 	cKeys2 := r.source2.CKeys()
 
-	cKeysRes := make([][]att.Attribute, 0)
+	cKeysRes := make([][]Attribute, 0)
 
 	for _, ck1 := range cKeys1 {
 		for _, ck2 := range cKeys2 {
-			ck := make([]att.Attribute, len(ck1))
+			ck := make([]Attribute, len(ck1))
 			copy(ck, ck1)
 		Loop:
 			for j := range ck2 {
@@ -199,7 +198,7 @@ func (r *joinExpr) CKeys() att.CandKeys {
 			cKeysRes = append(cKeysRes, ck)
 		}
 	}
-	att.OrderCandidateKeys(cKeysRes)
+	OrderCandidateKeys(cKeysRes)
 	return cKeysRes
 }
 
@@ -227,9 +226,9 @@ func (r1 *joinExpr) Project(z2 interface{}) Relation {
 // This is a general purpose restrict - we might want to have specific ones for
 // the typical theta comparisons or <= <, =, >, >=, because it will allow much
 // better optimization on the source data side.
-func (r1 *joinExpr) Restrict(p att.Predicate) Relation {
+func (r1 *joinExpr) Restrict(p Predicate) Relation {
 	// decompose compound predicates
-	if andPred, ok := p.(att.AndPred); ok {
+	if andPred, ok := p.(AndPred); ok {
 		// this covers some theta joins
 		return r1.Restrict(andPred.P1).Restrict(andPred.P2)
 	}
@@ -237,13 +236,13 @@ func (r1 *joinExpr) Restrict(p att.Predicate) Relation {
 	dom := p.Domain()
 	h1 := Heading(r1.source1)
 	h2 := Heading(r1.source2)
-	if att.IsSubDomain(dom, h1) {
-		if att.IsSubDomain(dom, h2) {
+	if IsSubDomain(dom, h1) {
+		if IsSubDomain(dom, h2) {
 			return r1.source1.Restrict(p).Join(r1.source2.Restrict(p), r1.zero)
 		} else {
 			return r1.source1.Restrict(p).Join(r1.source2, r1.zero)
 		}
-	} else if att.IsSubDomain(dom, h2) {
+	} else if IsSubDomain(dom, h2) {
 		return r1.source1.Join(r1.source2.Restrict(p), r1.zero)
 	} else {
 		return NewRestrict(r1, p)

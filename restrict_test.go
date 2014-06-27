@@ -2,7 +2,7 @@ package rel
 
 import (
 	"fmt"
-	"github.com/jonlawlor/rel/att"
+
 	"testing"
 )
 
@@ -15,9 +15,9 @@ func TestRestrict(t *testing.T) {
 		in  Relation
 		out int
 	}{
-		{exRel.Restrict(att.AdHoc{func(i struct{}) bool { return true }}), 10},
-		{exRel.Restrict(att.AdHoc{func(i struct{}) bool { return false }}), 0},
-		{exRel.Restrict(att.AdHoc{func(i struct{ Foo int }) bool { return i.Foo > 5 }}), 4},
+		{exRel.Restrict(AdHoc{func(i struct{}) bool { return true }}), 10},
+		{exRel.Restrict(AdHoc{func(i struct{}) bool { return false }}), 0},
+		{exRel.Restrict(AdHoc{func(i struct{ Foo int }) bool { return i.Foo > 5 }}), 4},
 	}
 	for _, tt := range restrictTests {
 		c := Card(tt.in)
@@ -27,7 +27,7 @@ func TestRestrict(t *testing.T) {
 	}
 
 	// test the degrees, cardinality, and string representation
-	rel := orders().Restrict(att.Attribute("Qty").GT(100))
+	rel := orders().Restrict(Attribute("Qty").GT(100))
 	type distinctTup struct {
 		PNO int
 		SNO int
@@ -83,7 +83,7 @@ func TestRestrict(t *testing.T) {
 		expectCard   int
 	}{
 		{rel, "σ{Qty > 100}(Relation(PNO, SNO, Qty))", 3, 10},
-		{rel.Restrict(att.Attribute("PNO").EQ(1).And(att.Attribute("Qty").GT(200))), "σ{Qty > 100}(σ{(PNO == 1) && (Qty > 200)}(Relation(PNO, SNO, Qty)))", 3, 2},
+		{rel.Restrict(Attribute("PNO").EQ(1).And(Attribute("Qty").GT(200))), "σ{Qty > 100}(σ{(PNO == 1) && (Qty > 200)}(Relation(PNO, SNO, Qty)))", 3, 2},
 		{rel.Project(distinctTup{}), "π{PNO, SNO}(σ{Qty > 100}(Relation(PNO, SNO, Qty)))", 2, 10},
 		{rel.Project(nonDistinctTup{}), "σ{Qty > 100}(π{PNO, Qty}(Relation(PNO, SNO, Qty)))", 2, 9},
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, Sno, Qty}/{PNO, SNO, Qty}(σ{Qty > 100}(Relation(PNO, SNO, Qty)))", 3, 10},
@@ -123,9 +123,9 @@ func TestRestrict(t *testing.T) {
 
 	// test errors
 	err := fmt.Errorf("testing error")
-	r1 := orders().Restrict(att.Attribute("Qty").GT(100)).(*restrictExpr)
+	r1 := orders().Restrict(Attribute("Qty").GT(100)).(*restrictExpr)
 	r1.err = err
-	r2 := orders().Restrict(att.Attribute("Qty").GT(100)).(*restrictExpr)
+	r2 := orders().Restrict(Attribute("Qty").GT(100)).(*restrictExpr)
 	r2.err = err
 	res = make(chan orderTup)
 	_ = r1.TupleChan(res)
@@ -155,7 +155,7 @@ func BenchmarkRestrictIdent(b *testing.B) {
 	// test the time it takes to pull all of the tuples after passing in an
 	// identity predicate (always true)
 	exRel := New(exampleRelSlice2(10), [][]string{[]string{"Foo"}})
-	pred := att.AdHoc{func(i struct{}) bool {
+	pred := AdHoc{func(i struct{}) bool {
 		return true
 	}}
 	r1 := exRel.Restrict(pred)
@@ -173,7 +173,7 @@ func BenchmarkRestrictZero(b *testing.B) {
 	// test the time it takes to pull all of the tuples after passing in an
 	// zero predicate (always false)
 	exRel := New(exampleRelSlice2(10), [][]string{[]string{"Foo"}})
-	pred := att.AdHoc{func(i struct{}) bool {
+	pred := AdHoc{func(i struct{}) bool {
 		return false
 	}}
 	r1 := exRel.Restrict(pred)

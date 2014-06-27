@@ -4,7 +4,7 @@ package rel
 
 import (
 	"fmt"
-	"github.com/jonlawlor/rel/att"
+
 	"reflect"
 	"strings"
 )
@@ -22,7 +22,7 @@ type Relation interface {
 	// CKeys is the set of candidate keys for the Relation.  They will be
 	// sorted from smallest key size to largest, and each key will be
 	// sorted alphabetically.
-	CKeys() att.CandKeys
+	CKeys() CandKeys
 
 	// TupleChan takes a channel with the same element type as Zero, and
 	// concurrently sends the results of the relational operation over it.  You
@@ -59,7 +59,7 @@ type Relation interface {
 	//
 	// If the input Predicate depends on attributes that do not exist in the
 	// source relation, then the Relation result will have non nill Err().
-	Restrict(p att.Predicate) Relation
+	Restrict(p Predicate) Relation
 
 	// Rename changes the names of attributes in a relation.  The new names
 	// should be provided in the same order as the corresponding old names.
@@ -168,14 +168,14 @@ func New(v interface{}, ckeystr [][]string) Relation {
 
 			// all relations have a candidate key of all of their attributes, or
 			// a non zero subset if the relation is not dee or dum
-			r.cKeys = att.DefaultKeys(z)
+			r.cKeys = DefaultKeys(z)
 		} else {
 			// convert from [][]string to CandKeys
-			r.cKeys = att.String2CandKeys(ckeystr)
+			r.cKeys = String2CandKeys(ckeystr)
 		}
 		r.zero = z
 		// we might want to check the candidate keys for validity here?
-		att.OrderCandidateKeys(r.cKeys)
+		OrderCandidateKeys(r.cKeys)
 		return r
 
 	case reflect.Chan:
@@ -185,16 +185,16 @@ func New(v interface{}, ckeystr [][]string) Relation {
 		r := new(chanLiteral)
 		r.rbody = rbody // TODO(jonlawlor): check direction
 		if len(ckeystr) == 0 {
-			r.cKeys = att.DefaultKeys(z)
+			r.cKeys = DefaultKeys(z)
 			// note that even zero degree relations need to be distinct
 		} else {
-			r.cKeys = att.String2CandKeys(ckeystr)
+			r.cKeys = String2CandKeys(ckeystr)
 			r.sourceDistinct = true
 		}
 
 		r.zero = z
 		// we might want to check the candidate keys for validity here?
-		att.OrderCandidateKeys(r.cKeys)
+		OrderCandidateKeys(r.cKeys)
 		return r
 
 	case reflect.Slice:
@@ -204,17 +204,17 @@ func New(v interface{}, ckeystr [][]string) Relation {
 		r := new(sliceLiteral)
 		r.rbody = rbody
 		if len(ckeystr) == 0 {
-			r.cKeys = att.DefaultKeys(z)
+			r.cKeys = DefaultKeys(z)
 			// note that even zero degree relations need to be distinct
 		} else {
-			r.cKeys = att.String2CandKeys(ckeystr)
+			r.cKeys = String2CandKeys(ckeystr)
 			r.sourceDistinct = true
 		}
 
 		r.zero = z
 
 		// we might want to check the candidate keys for validity here?
-		att.OrderCandidateKeys(r.cKeys)
+		OrderCandidateKeys(r.cKeys)
 		return r
 	default:
 		panic(fmt.Sprintf("unrecognized relation kind: %v", rbody.Kind()))
@@ -222,8 +222,8 @@ func New(v interface{}, ckeystr [][]string) Relation {
 }
 
 // Heading is a slice containing the attributes of the input Relation.
-func Heading(r Relation) []att.Attribute {
-	return att.FieldNames(reflect.TypeOf(r.Zero()))
+func Heading(r Relation) []Attribute {
+	return FieldNames(reflect.TypeOf(r.Zero()))
 }
 
 // HeadingString is a string representation of the attributes of a relation
@@ -278,8 +278,8 @@ func NewProject(r1 Relation, z2 interface{}) Relation {
 		// don't bother building the relation and just return the original
 		return r1
 	}
-	att2 := att.FieldNames(reflect.TypeOf(z2))
-	err := att.EnsureSubDomain(att2, Heading(r1))
+	att2 := FieldNames(reflect.TypeOf(z2))
+	err := EnsureSubDomain(att2, Heading(r1))
 	if Deg(r1) == len(att2) && err == nil {
 		// projection is a no op
 		return r1
@@ -291,12 +291,12 @@ func NewProject(r1 Relation, z2 interface{}) Relation {
 // NewRestrict creates a new relation expression with less than or equal cardinality.
 // p has to be a predicate of a subdomain of the input relation.
 // It should be used to implement new Relations.
-func NewRestrict(r1 Relation, p att.Predicate) Relation {
+func NewRestrict(r1 Relation, p Predicate) Relation {
 	if r1.Err() != nil {
 		// don't bother building the relation and just return the original
 		return r1
 	}
-	err := att.EnsureSubDomain(p.Domain(), Heading(r1))
+	err := EnsureSubDomain(p.Domain(), Heading(r1))
 	return &restrictExpr{r1, p, err}
 }
 
@@ -309,10 +309,10 @@ func NewRename(r1 Relation, z2 interface{}) Relation {
 		return r1
 	}
 	d1 := Deg(r1)
-	d2 := len(att.FieldNames(reflect.TypeOf(z2)))
+	d2 := len(FieldNames(reflect.TypeOf(z2)))
 
 	if d1 != d2 {
-		return &renameExpr{r1, z2, &att.DegreeError{d1, d2}}
+		return &renameExpr{r1, z2, &DegreeError{d1, d2}}
 	}
 	return &renameExpr{r1, z2, nil}
 }
@@ -328,7 +328,7 @@ func NewUnion(r1, r2 Relation) Relation {
 		// don't bother building the relation and just return the original
 		return r2
 	}
-	err := att.EnsureSameDomain(Heading(r1), Heading(r2))
+	err := EnsureSameDomain(Heading(r1), Heading(r2))
 	return &unionExpr{r1, r2, err}
 }
 
@@ -343,7 +343,7 @@ func NewDiff(r1, r2 Relation) Relation {
 		// don't bother building the relation and just return the original
 		return r2
 	}
-	err := att.EnsureSameDomain(Heading(r1), Heading(r2))
+	err := EnsureSameDomain(Heading(r1), Heading(r2))
 	return &diffExpr{r1, r2, err}
 }
 
@@ -358,7 +358,7 @@ func NewJoin(r1, r2 Relation, zero interface{}) Relation {
 		// don't bother building the relation and just return the original
 		return r2
 	}
-	err := att.EnsureSubDomain(att.FieldNames(reflect.TypeOf(zero)), append(Heading(r1), Heading(r2)...))
+	err := EnsureSubDomain(FieldNames(reflect.TypeOf(zero)), append(Heading(r1), Heading(r2)...))
 	return &joinExpr{r1, r2, zero, err}
 }
 
@@ -374,7 +374,7 @@ func NewGroupBy(r1 Relation, t2, gfcn interface{}) Relation {
 	// gfcn has to be a function with one input, and one output, where the
 	// input is a subdomain of r1, and where the output is a subdomain of t2.
 	rgfcn := reflect.ValueOf(gfcn)
-	err, intup, outtup := att.EnsureGroupFunc(rgfcn.Type(), r1.Zero(), t2)
+	err, intup, outtup := EnsureGroupFunc(rgfcn.Type(), r1.Zero(), t2)
 	return &groupByExpr{r1, t2, intup, outtup, rgfcn, err}
 }
 
@@ -387,13 +387,13 @@ func NewMap(r1 Relation, mfcn interface{}, ckeystr [][]string) Relation {
 	}
 	// determine the type of the returned tuples
 	rmfcn := reflect.ValueOf(mfcn)
-	err, intup, outtup := att.EnsureMapFunc(rmfcn.Type(), r1.Zero())
+	err, intup, outtup := EnsureMapFunc(rmfcn.Type(), r1.Zero())
 	z2 := reflect.Indirect(reflect.New(outtup)).Interface()
 
 	if len(ckeystr) == 0 {
 		// all relations have a candidate key of all of their attributes, or
 		// a non zero subset if the relation is not dee or dum
-		return &mapExpr{r1, z2, intup, outtup, rmfcn, att.DefaultKeys(z2), false, err}
+		return &mapExpr{r1, z2, intup, outtup, rmfcn, DefaultKeys(z2), false, err}
 	}
-	return &mapExpr{r1, z2, intup, outtup, rmfcn, att.String2CandKeys(ckeystr), true, err}
+	return &mapExpr{r1, z2, intup, outtup, rmfcn, String2CandKeys(ckeystr), true, err}
 }

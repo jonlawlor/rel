@@ -1,41 +1,23 @@
 rel
 ===
 
-Relational Algebra in Go.  Go's interfaces & duck typing are used to provide an extensible ORM that is capable of query rewrite, and perform relational operations both in native go and on source dbms's. Go's concurrency mechanisms allow for fine control of the inherent parallelism in relational operations.  It is my hope that this package will produce some interesting approaches to implement relational expressions.  This package is currently experimental and its interfaces may change.
+Relational Algebra in Go.  Go's interfaces & duck typing are used to provide an extensible ORM that is capable of query rewrite, and can perform relational operations both in native go and on source dbms's. Go's concurrency mechanisms (will) allow for fine control of the inherent parallelism in relational operations.  It is my hope that this package will produce some interesting approaches to implement relational expressions.  This package is currently experimental and its interfaces may change.
 
-This implements most of the traditional elements of relational algebra, including project, restrict, join, setdiff, and union.  It also implements some of the common non-relational operations, including groupby, and map.  To learn more about relational algebra, C. J. Date's Database in Depth is a great place to start, and it is used as the source of terminology in the rel package.
+This implements most of the traditional elements of relational algebra, including project, restrict, join, set difference, and union.  It also implements some of the common non-relational operations, including groupby, and map.  To learn more about relational algebra, C. J. Date's Database in Depth is a great place to start, and it is used as the source of terminology in the rel package.
 
-Please note that relational algebra *_is not SQL_*.  In particular, NULL is not a part of relational algebra, and all relations must be distinct.
+Please note that relational algebra *_is not SQL_*.  In particular, NULL is not a part of relational algebra, and all relations are distinct.
 
-The semantics of this package are very similar to Microsoft's LINQ, although the syntax is somewhat different.  rel provides a uniform interface to many different types of data sources.  This isn't LINQ though - it is a library, and it is not integrated with the language, which means rel has a significant performance cost relative to normal go code that doesn't use reflection.
-
-Interfaces
-==========
-The uses of the interfaces defined in the rel package are outlined here.
-
-Relation Interface
-------------------
-
-Relations are channels of tuples, and operations on those channels.  The relational algebra operations of project, restrict, join, intersect, setdiff, and union all take at least one relation input and result in a relation output.  Many of the relational operations feature query rewrite, using the rules of relational algebra, for example: http://www.dcs.warwick.ac.uk/~wmb/CS319/pdf/opt.pdf.
-
-Results tuples can be cancelled, or Relational operations can be an error.  The difference between them is that errors come from the source, and cancellation comes from the sink.
-
-Predicate Interface
--------------------
-Predicates are used in the restrict operation.
+The semantics of this package are very similar to Microsoft's LINQ, although the syntax is somewhat different.  rel provides a uniform interface to many different types of data sources.  This isn't LINQ though - it is a library, and it is not integrated with the language, which means rel has a significant performance cost relative to normal go code that doesn't use reflection.  It also reduces the type safety.  At some point in the future, code generation along the same lines as the gen package (http://clipperhouse.github.io/gen/) and the megajson package (https://github.com/benbjohnson/megajson).
 
 
 TODOs
 =====
-+ Add errors to indicate when relations are constructed from invalid operations
 + Reach 100% test coverage (currently 85%)
++ Implement benchmarks in both "normal" rel reflection and native equivalents to determine reflection overhead
 + Implement sub packages for other data sources, such as generic sql tables, json, or gob.
-+ Implement non relational operations like order.
-+ Write better docs
-+ Hook up chan_mem to some kind of copying mechanism.
-+ Add more predicate tests
++ Implement non relational operations like order?
++ Hook up chan_mem to some kind of copying mechanism
 + Should attributes have an associated type, or just a name like it is now?
-+ Add candidate key tests
 
 Errors
 ======
@@ -57,7 +39,7 @@ Draft Golang Nuts Announcement
 ==============================
 [ANN] Relational Algebra
 
-rel is a relational algebra package for Go, available at https://github.com/jonlawlor/rel.  It provides an ORM which can perform extensible query rewrite.  Relations are implemented as pipelines of tuples that are transformed and composed to produce results through a channel using reflection.  The package is currently experimental, interfaces are subject to change, and you should not use it for anything requiring even medium performance.
+rel is a relational algebra package for Go, available at https://github.com/jonlawlor/rel.  It provides an ORM which can perform extensible query rewrite, and can perform relational operations both in native go and on source dbms's.  Relations are implemented as pipelines of tuples that are transformed and composed to produce results through a channel using reflection.  The package is currently experimental, interfaces are subject to change, and you should not use it for anything requiring even medium performance.
 
 quote:
 Relational queries are ideally suited to parallel execution; they consist of uniform operations applied to uniform streams of data. Each operator produces a new relation, so the operators can be composed into highly parallel dataflow graphs. By streaming the output of one operator into the input of another operator, the two operators can work in series giving pipelined parallelism. By partitioning the input data among multiple processors and memories, an operator can often be split into many independent operators each working on a part of the data. This partitioned data and execution gives partitioned parallelism. [1]

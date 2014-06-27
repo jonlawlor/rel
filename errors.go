@@ -1,7 +1,7 @@
 // errors are a set of functions useful for type checks, given the absence
 // of static type checking due to reflection.
 
-package att
+package rel
 
 import (
 	"fmt"

@@ -3,7 +3,6 @@
 package rel
 
 import (
-	"github.com/jonlawlor/rel/att"
 	"reflect"
 	"strings"
 	"sync"
@@ -45,7 +44,7 @@ func (r *groupByExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := att.EnsureChan(chv.Type(), r.zero)
+	err := EnsureChan(chv.Type(), r.zero)
 	if err != nil {
 		r.err = err
 		return cancel
@@ -82,15 +81,15 @@ func (r *groupByExpr) TupleChan(t interface{}) chan<- struct{} {
 		// attributes are found
 		e2 := reflect.TypeOf(r.zero) // type of the resulting relation's tuples
 		ev := r.valType              // type of the tuples put into groupby values
-		e2fieldMap := att.FieldMap(e1, e2)
-		evfieldMap := att.FieldMap(e1, ev)
+		e2fieldMap := FieldMap(e1, e2)
+		evfieldMap := FieldMap(e1, ev)
 
 		// map from the values to the group (with zeros in the value fields)
 		// I couldn't figure out a way to assign the values into the group
 		// by modifying it using reflection though so we end up allocating a
 		// new element.
 		er := r.resType
-		rgfieldMap := att.FieldMap(e2, er)
+		rgfieldMap := FieldMap(e2, er)
 
 		// create the select statement reflections
 		sourceSel := reflect.SelectCase{reflect.SelectRecv, body, reflect.Value{}}
@@ -111,7 +110,7 @@ func (r *groupByExpr) TupleChan(t interface{}) chan<- struct{} {
 
 			// this reflection may be a bottleneck, and we may be able to
 			// replace it with a parallel version.
-			gtup, vtup := att.PartialProject(tup, e2, ev, e2fieldMap, evfieldMap)
+			gtup, vtup := PartialProject(tup, e2, ev, e2fieldMap, evfieldMap)
 			gtupi := gtup.Interface()
 			if _, exists := groupMap[gtupi]; !exists {
 				// a new group has been encountered
@@ -134,7 +133,7 @@ func (r *groupByExpr) TupleChan(t interface{}) chan<- struct{} {
 					vals := r.gfcn.Call([]reflect.Value{groupChan})
 					// combine the returned values with the group tuple
 					// to create the new complete tuple
-					resSel.Send = att.CombineTuples(gtup, vals[0], e2, rgfieldMap)
+					resSel.Send = CombineTuples(gtup, vals[0], e2, rgfieldMap)
 
 					_, _, _ = reflect.Select([]reflect.SelectCase{canSel, resSel})
 					// we actually don't care about what's been chosen or what
@@ -171,7 +170,7 @@ func (r *groupByExpr) Zero() interface{} {
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *groupByExpr) CKeys() att.CandKeys {
+func (r *groupByExpr) CKeys() CandKeys {
 	// determine the new candidate keys, which can be any of the original
 	// candidate keys that are a subset of the group (which would also
 	// mean that every tuple in the original relation is in its own group
@@ -195,21 +194,21 @@ func (r *groupByExpr) CKeys() att.CandKeys {
 
 	// figure out where in each of the structs the group and value
 	// attributes are found
-	e2fieldMap := att.FieldMap(e1, e2)
-	evfieldMap := att.FieldMap(e1, ev)
+	e2fieldMap := FieldMap(e1, e2)
+	evfieldMap := FieldMap(e1, ev)
 
-	groupFieldMap := make(map[att.Attribute]att.FieldIndex)
+	groupFieldMap := make(map[Attribute]FieldIndex)
 	for name, v := range e2fieldMap {
 		if _, isValue := evfieldMap[name]; !isValue {
 			groupFieldMap[name] = v
 		}
 	}
-	names := att.FieldNames(e2)
+	names := FieldNames(e2)
 
-	ck2 := att.SubsetCandidateKeys(r.source1.CKeys(), names, groupFieldMap)
+	ck2 := SubsetCandidateKeys(r.source1.CKeys(), names, groupFieldMap)
 
 	// determine the new names and types
-	cn := att.FieldNames(e2)
+	cn := FieldNames(e2)
 
 	if len(ck2) == 0 {
 		ck2 = append(ck2, cn)
@@ -225,7 +224,7 @@ func (r *groupByExpr) GoString() string {
 
 // String returns a text representation of the Relation
 func (r *groupByExpr) String() string {
-	h := att.FieldNames(r.resType)
+	h := FieldNames(r.resType)
 	s := make([]string, len(h))
 	for i, v := range h {
 		s[i] = string(v)
@@ -247,7 +246,7 @@ func (r1 *groupByExpr) Project(z2 interface{}) Relation {
 // This is a general purpose restrict - we might want to have specific ones for
 // the typical theta comparisons or <= <, =, >, >=, because it will allow much
 // better optimization on the source data side.
-func (r1 *groupByExpr) Restrict(p att.Predicate) Relation {
+func (r1 *groupByExpr) Restrict(p Predicate) Relation {
 	// TODO(jonlawlor): this can be passed through if the predicate only
 	// depends upon the attributes that are not in valZero
 	return NewRestrict(r1, p)

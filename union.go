@@ -3,7 +3,6 @@
 package rel
 
 import (
-	"github.com/jonlawlor/rel/att"
 	"reflect"
 	"runtime"
 	"sync"
@@ -22,7 +21,7 @@ func (r *unionExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := att.EnsureChan(chv.Type(), r.Zero())
+	err := EnsureChan(chv.Type(), r.Zero())
 	if err != nil {
 		r.err = err
 		return cancel
@@ -117,14 +116,14 @@ func (r *unionExpr) Zero() interface{} {
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *unionExpr) CKeys() att.CandKeys {
+func (r *unionExpr) CKeys() CandKeys {
 	// unions have the intersection of the source candidate keys
 	// the keys are sorted on length and then alphabetically, which helps
 	// reduce the number of comparisons needed.
 	cKeys1 := r.source1.CKeys()
 	cKeys2 := r.source2.CKeys()
 
-	cKeysRes := make([][]att.Attribute, 0)
+	cKeysRes := make([][]Attribute, 0)
 
 	// this can only happen if either relation is dee or dum
 	if len(cKeys1) == 0 || len(cKeys2) == 0 {
@@ -193,7 +192,7 @@ func (r1 *unionExpr) Project(z2 interface{}) Relation {
 // This is a general purpose restrict - we might want to have specific ones for
 // the typical theta comparisons or <= <, =, >, >=, because it will allow much
 // better optimization on the source data side.
-func (r1 *unionExpr) Restrict(p att.Predicate) Relation {
+func (r1 *unionExpr) Restrict(p Predicate) Relation {
 	return NewUnion(r1.source1.Restrict(p), r1.source2.Restrict(p))
 }
 

@@ -4,7 +4,6 @@
 package rel
 
 import (
-	"github.com/jonlawlor/rel/att"
 	"reflect"
 )
 
@@ -14,7 +13,7 @@ type sliceLiteral struct {
 	rbody reflect.Value
 
 	// set of candidate keys
-	cKeys att.CandKeys
+	cKeys CandKeys
 
 	// the type of the tuples contained within the relation
 	zero interface{}
@@ -30,7 +29,7 @@ func (r *sliceLiteral) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := att.EnsureChan(chv.Type(), r.zero)
+	err := EnsureChan(chv.Type(), r.zero)
 	if err != nil {
 		r.err = err
 		return cancel
@@ -90,7 +89,7 @@ func (r *sliceLiteral) Zero() interface{} {
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *sliceLiteral) CKeys() att.CandKeys {
+func (r *sliceLiteral) CKeys() CandKeys {
 	return r.cKeys
 }
 
@@ -115,7 +114,7 @@ func (r1 *sliceLiteral) Project(z2 interface{}) Relation {
 // This is a general purpose restrict - we might want to have specific ones for
 // the typical theta comparisons or <= <, =, >, >=, because it will allow much
 // better optimization on the source data side.
-func (r1 *sliceLiteral) Restrict(p att.Predicate) Relation {
+func (r1 *sliceLiteral) Restrict(p Predicate) Relation {
 	return NewRestrict(r1, p)
 }
 

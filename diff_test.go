@@ -2,7 +2,7 @@ package rel
 
 import (
 	"fmt"
-	"github.com/jonlawlor/rel/att"
+
 	"testing"
 )
 
@@ -20,7 +20,7 @@ func TestDiff(t *testing.T) {
 	}
 
 	// test the degrees, cardinality, and string representation
-	rel := orders().Restrict(att.Attribute("Qty").NE(300)).Diff(orders().Restrict(att.Attribute("Qty").EQ(200)))
+	rel := orders().Restrict(Attribute("Qty").NE(300)).Diff(orders().Restrict(Attribute("Qty").EQ(200)))
 	type distinctTup struct {
 		PNO int
 		SNO int
@@ -75,7 +75,7 @@ func TestDiff(t *testing.T) {
 		expectCard   int
 	}{
 		{rel, "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty))", 3, 5},
-		{rel.Restrict(att.Attribute("PNO").EQ(1)), "σ{Qty != 300}(σ{PNO == 1}(Relation(PNO, SNO, Qty))) − σ{Qty == 200}(σ{PNO == 1}(Relation(PNO, SNO, Qty)))", 3, 3},
+		{rel.Restrict(Attribute("PNO").EQ(1)), "σ{Qty != 300}(σ{PNO == 1}(Relation(PNO, SNO, Qty))) − σ{Qty == 200}(σ{PNO == 1}(Relation(PNO, SNO, Qty)))", 3, 3},
 		{rel.Project(distinctTup{}), "π{PNO, SNO}(σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)))", 2, 5},
 		{rel.Project(nonDistinctTup{}), "π{PNO, Qty}(σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)))", 2, 4},
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, Sno, Qty}/{PNO, SNO, Qty}(σ{Qty != 300}(Relation(PNO, SNO, Qty))) − ρ{Pno, Sno, Qty}/{PNO, SNO, Qty}(σ{Qty == 200}(Relation(PNO, SNO, Qty)))", 3, 5},
@@ -115,9 +115,9 @@ func TestDiff(t *testing.T) {
 
 	// test errors
 	err := fmt.Errorf("testing error")
-	rel1 := orders().Restrict(att.Attribute("Qty").GE(300)).Diff(orders().Restrict(att.Attribute("Qty").NE(200))).(*diffExpr)
+	rel1 := orders().Restrict(Attribute("Qty").GE(300)).Diff(orders().Restrict(Attribute("Qty").NE(200))).(*diffExpr)
 	rel1.err = err
-	rel2 := orders().Restrict(att.Attribute("Qty").GE(300)).Diff(orders().Restrict(att.Attribute("Qty").NE(200))).(*diffExpr)
+	rel2 := orders().Restrict(Attribute("Qty").GE(300)).Diff(orders().Restrict(Attribute("Qty").NE(200))).(*diffExpr)
 	rel2.err = err
 	res = make(chan orderTup)
 	_ = rel1.TupleChan(res)

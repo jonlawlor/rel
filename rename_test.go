@@ -2,7 +2,7 @@ package rel
 
 import (
 	"fmt"
-	"github.com/jonlawlor/rel/att"
+
 	"testing"
 )
 
@@ -112,7 +112,7 @@ func TestRename(t *testing.T) {
 		expectCard   int
 	}{
 		{rel, "ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty))", 3, 12},
-		{rel.Restrict(att.Attribute("PNO").EQ(1)), "σ{PNO == 1}(ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)))", 3, 6},
+		{rel.Restrict(Attribute("PNO").EQ(1)), "σ{PNO == 1}(ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)))", 3, 6},
 		{rel.Project(distinctTup{}), "π{PNO, SNO}(ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)))", 2, 12},
 		{rel.Project(nonDistinctTup{}), "π{PNO, QTY}(ρ{PNO, SNO, QTY}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty)))", 2, 10},
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, Sno, Qty}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty))", 3, 12},
@@ -163,7 +163,7 @@ func TestRename(t *testing.T) {
 	}
 	errTest := []Relation{
 		rel1.Project(distinctTup{}),
-		rel1.Restrict(att.Not(att.Attribute("PNO").EQ(1))),
+		rel1.Restrict(Not(Attribute("PNO").EQ(1))),
 		rel1.Union(rel2),
 		rel.Union(rel2),
 		rel1.Diff(rel2),

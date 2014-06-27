@@ -2,7 +2,7 @@ package rel
 
 import (
 	"fmt"
-	"github.com/jonlawlor/rel/att"
+
 	"reflect"
 )
 
@@ -21,7 +21,7 @@ func (r *errorRel) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := att.EnsureChan(chv.Type(), r.zero)
+	err := EnsureChan(chv.Type(), r.zero)
 	if err != nil {
 		r.err = err
 		return cancel
@@ -48,8 +48,8 @@ func (r *errorRel) Zero() interface{} {
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *errorRel) CKeys() att.CandKeys {
-	return att.CandKeys{}
+func (r *errorRel) CKeys() CandKeys {
+	return CandKeys{}
 }
 
 // GoString returns a text representation of the Relation
@@ -68,7 +68,7 @@ func (r1 *errorRel) Project(z2 interface{}) Relation {
 }
 
 // Restrict creates a new relation with less than or equal cardinality
-func (r1 *errorRel) Restrict(p att.Predicate) Relation {
+func (r1 *errorRel) Restrict(p Predicate) Relation {
 	return NewRestrict(r1, p)
 }
 

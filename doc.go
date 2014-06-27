@@ -32,7 +32,7 @@
 // fields.  The fields of the struct are the attributes of the tuple it
 // represents.
 //
-// Attributes are represented in a subpackage, github.com/jonlawlor/rel/att.
+// Attributes are represented in a subpackage, github.com/jonlawlor/rel/
 // Briefly, they are strings with some additional methods that are useful for
 // constructing predicates and candidate keys.
 //

@@ -5,7 +5,6 @@
 package rel
 
 import (
-	"github.com/jonlawlor/rel/att"
 	"reflect"
 )
 
@@ -23,7 +22,7 @@ func (r *renameExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := att.EnsureChan(chv.Type(), r.zero)
+	err := EnsureChan(chv.Type(), r.zero)
 	if err != nil {
 		r.err = err
 		return cancel
@@ -121,31 +120,31 @@ func (r *renameExpr) Zero() interface{} {
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *renameExpr) CKeys() att.CandKeys {
+func (r *renameExpr) CKeys() CandKeys {
 	z2 := reflect.TypeOf(r.zero)
 
 	// figure out the new names
-	names2 := att.FieldNames(z2)
+	names2 := FieldNames(z2)
 
 	// create a map from the old names to the new names if there is any
 	// difference between them
-	nameMap := make(map[att.Attribute]att.Attribute)
+	nameMap := make(map[Attribute]Attribute)
 	for i, att := range Heading(r.source1) {
 		nameMap[att] = names2[i]
 	}
 
 	cKeys1 := r.source1.CKeys()
-	cKeys2 := make(att.CandKeys, len(cKeys1))
+	cKeys2 := make(CandKeys, len(cKeys1))
 	// for each of the candidate keys, rename any keys from the old names to
 	// the new ones
 	for i := range cKeys1 {
-		cKeys2[i] = make([]att.Attribute, len(cKeys1[i]))
+		cKeys2[i] = make([]Attribute, len(cKeys1[i]))
 		for j, key := range cKeys1[i] {
 			cKeys2[i][j] = nameMap[key]
 		}
 	}
 	// order the keys
-	att.OrderCandidateKeys(cKeys2)
+	OrderCandidateKeys(cKeys2)
 	return cKeys2
 }
 
@@ -174,7 +173,7 @@ func (r1 *renameExpr) Project(z2 interface{}) Relation {
 // This is a general purpose restrict - we might want to have specific ones for
 // the typical theta comparisons or <= <, =, >, >=, because it will allow much
 // better optimization on the source data side.
-func (r1 *renameExpr) Restrict(p att.Predicate) Relation {
+func (r1 *renameExpr) Restrict(p Predicate) Relation {
 	return NewRestrict(r1, p)
 }
 

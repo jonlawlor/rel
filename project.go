@@ -3,7 +3,6 @@
 package rel
 
 import (
-	"github.com/jonlawlor/rel/att"
 	"reflect"
 )
 
@@ -22,7 +21,7 @@ func (r *projectExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := att.EnsureChan(chv.Type(), r.zero)
+	err := EnsureChan(chv.Type(), r.zero)
 	if err != nil {
 		r.err = err
 		return cancel
@@ -48,13 +47,13 @@ func (r *projectExpr) TupleChan(t interface{}) chan<- struct{} {
 	// figure out which fields stay, and where they are in each of the tuple
 	// types.
 	// TODO(jonlawlor): error if fields in e2 are not in r1's tuples.
-	fMap := att.FieldMap(e1, e2)
+	fMap := FieldMap(e1, e2)
 
 	// figure out if we need to distinct the results because there are no
 	// candidate keys left
 	// TODO(jonlawlor): refactor with the code in the CKeys() method, or
 	// include in an isDistinct field?
-	cKeys := att.SubsetCandidateKeys(r.source1.CKeys(), Heading(r.source1), fMap)
+	cKeys := SubsetCandidateKeys(r.source1.CKeys(), Heading(r.source1), fMap)
 	if len(cKeys) == 0 {
 		go func(body, res reflect.Value) {
 			m := map[interface{}]struct{}{}
@@ -153,7 +152,7 @@ func (r *projectExpr) Zero() interface{} {
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *projectExpr) CKeys() att.CandKeys {
+func (r *projectExpr) CKeys() CandKeys {
 	z1 := r.source1.Zero()
 
 	cKeys := r.source1.CKeys()
@@ -170,12 +169,12 @@ func (r *projectExpr) CKeys() att.CandKeys {
 	}
 
 	// otherwise we have to subset the candidate keys.
-	fMap := att.FieldMap(e1, e2)
-	cKeys = att.SubsetCandidateKeys(cKeys, Heading(r.source1), fMap)
+	fMap := FieldMap(e1, e2)
+	cKeys = SubsetCandidateKeys(cKeys, Heading(r.source1), fMap)
 
 	// every relation except dee and dum have at least one candidate key
 	if len(cKeys) == 0 {
-		cKeys = att.DefaultKeys(r.zero)
+		cKeys = DefaultKeys(r.zero)
 	}
 
 	return cKeys
@@ -204,7 +203,7 @@ func (r1 *projectExpr) Project(z2 interface{}) Relation {
 // This is a general purpose restrict - we might want to have specific ones for
 // the typical theta comparisons or <= <, =, >, >=, because it will allow much
 // better optimization on the source data side.
-func (r1 *projectExpr) Restrict(p att.Predicate) Relation {
+func (r1 *projectExpr) Restrict(p Predicate) Relation {
 	return NewProject(r1.source1.Restrict(p), r1.zero)
 }
 

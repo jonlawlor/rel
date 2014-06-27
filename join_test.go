@@ -2,7 +2,7 @@ package rel
 
 import (
 	"fmt"
-	"github.com/jonlawlor/rel/att"
+
 	"testing"
 )
 
@@ -120,12 +120,12 @@ func TestJoin(t *testing.T) {
 		expectCard   int
 	}{
 		{rel, "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty)", 6, 12},
-		{rel.Restrict(att.Attribute("PNO").EQ(1)), "σ{PNO == 1}(Relation(PNO, PName, Color, Weight, City)) ⋈ σ{PNO == 1}(Relation(PNO, SNO, Qty))", 6, 6},
+		{rel.Restrict(Attribute("PNO").EQ(1)), "σ{PNO == 1}(Relation(PNO, PName, Color, Weight, City)) ⋈ σ{PNO == 1}(Relation(PNO, SNO, Qty))", 6, 6},
 		{rel.Project(distinctTup{}), "π{PNO, PName}(Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty))", 2, 4},
 		{rel.Project(nonDistinctTup{}), "π{PName, City}(Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty))", 2, 4},
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, PName, Weight, City, Sno, Qty}/{PNO, PName, Weight, City, SNO, Qty}(Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty))", 6, 12},
-		{rel.Diff(rel.Restrict(att.Attribute("Weight").LT(15.0))), "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty) − σ{Weight < 15}(Relation(PNO, PName, Color, Weight, City)) ⋈ Relation(PNO, SNO, Qty)", 6, 3},
-		{rel.Union(rel.Restrict(att.Attribute("Weight").LE(12.0))), "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty) ∪ σ{Weight <= 12}(Relation(PNO, PName, Color, Weight, City)) ⋈ Relation(PNO, SNO, Qty)", 6, 12},
+		{rel.Diff(rel.Restrict(Attribute("Weight").LT(15.0))), "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty) − σ{Weight < 15}(Relation(PNO, PName, Color, Weight, City)) ⋈ Relation(PNO, SNO, Qty)", 6, 3},
+		{rel.Union(rel.Restrict(Attribute("Weight").LE(12.0))), "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty) ∪ σ{Weight <= 12}(Relation(PNO, PName, Color, Weight, City)) ⋈ Relation(PNO, SNO, Qty)", 6, 12},
 		{rel.Join(suppliers(), joinTup2{}), "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty) ⋈ Relation(SNO, SName, Status, City)", 8, 4},
 		{rel.GroupBy(groupByTup{}, groupFcn), "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty).GroupBy({City, Weight, Qty}->{Weight, Qty})", 3, 3},
 		{rel.Map(mapFcn, mapKeys), "Relation(PNO, PName, Color, Weight, City) ⋈ Relation(PNO, SNO, Qty).Map({PNO, PName, Weight, City, SNO, Qty}->{PNO, TotalWt})", 2, 12}, // this is not actually distinct

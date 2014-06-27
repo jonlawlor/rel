@@ -1,6 +1,6 @@
 // predicate defines logical predicates used in relation's restrict
 
-package att
+package rel
 
 import (
 	"fmt"

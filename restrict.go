@@ -3,7 +3,6 @@
 package rel
 
 import (
-	"github.com/jonlawlor/rel/att"
 	"reflect"
 	"runtime"
 	"sync"
@@ -17,7 +16,7 @@ type restrictExpr struct {
 	source1 Relation
 
 	// the restriction predicate
-	p att.Predicate
+	p Predicate
 
 	err error
 }
@@ -26,7 +25,7 @@ func (r *restrictExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := att.EnsureChan(chv.Type(), r.source1.Zero())
+	err := EnsureChan(chv.Type(), r.source1.Zero())
 	if err != nil {
 		r.err = err
 		return cancel
@@ -66,7 +65,7 @@ func (r *restrictExpr) TupleChan(t interface{}) chan<- struct{} {
 	}(chv)
 
 	for i := 0; i < mc; i++ {
-		go func(body, res reflect.Value, p att.Predicate) {
+		go func(body, res reflect.Value, p Predicate) {
 			// input channels
 			sourceSel := reflect.SelectCase{reflect.SelectRecv, body, reflect.Value{}}
 			canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
@@ -106,7 +105,7 @@ func (r *restrictExpr) Zero() interface{} {
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *restrictExpr) CKeys() att.CandKeys {
+func (r *restrictExpr) CKeys() CandKeys {
 	return r.source1.CKeys()
 }
 
@@ -123,8 +122,8 @@ func (r *restrictExpr) String() string {
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
 func (r1 *restrictExpr) Project(z2 interface{}) Relation {
-	att2 := att.FieldNames(reflect.TypeOf(z2))
-	if att.IsSubDomain(r1.p.Domain(), att2) { // the predicate's attributes exist after project
+	att2 := FieldNames(reflect.TypeOf(z2))
+	if IsSubDomain(r1.p.Domain(), att2) { // the predicate's attributes exist after project
 		return NewRestrict(r1.source1.Project(z2), r1.p)
 	} else {
 		return NewProject(r1, z2)
@@ -136,7 +135,7 @@ func (r1 *restrictExpr) Project(z2 interface{}) Relation {
 // This is a general purpose restrict - we might want to have specific ones for
 // the typical theta comparisons or <= <, =, >, >=, because it will allow much
 // better optimization on the source data side.
-func (r1 *restrictExpr) Restrict(p att.Predicate) Relation {
+func (r1 *restrictExpr) Restrict(p Predicate) Relation {
 	// try reversing the order, which may allow some lower degree restrictions
 	// to pass through
 	return NewRestrict(r1.source1.Restrict(p), r1.p)

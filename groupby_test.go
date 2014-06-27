@@ -2,7 +2,7 @@ package rel
 
 import (
 	"fmt"
-	"github.com/jonlawlor/rel/att"
+
 	"testing"
 )
 
@@ -102,12 +102,12 @@ func TestGroupBy(t *testing.T) {
 		expectCard   int
 	}{
 		{rel, "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight})", 4, 6},
-		{rel.Restrict(att.Attribute("PNO").EQ(1)), "σ{PNO == 1}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}))", 4, 1},
+		{rel.Restrict(Attribute("PNO").EQ(1)), "σ{PNO == 1}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}))", 4, 1},
 		{rel.Project(distinctTup{}), "π{PNO, PName}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}))", 2, 6},
 		{rel.Project(nonDistinctTup{}), "π{PName, City}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}))", 2, 6},
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, PName, Weight, City}/{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}))", 4, 6},
-		{rel.Diff(rel.Restrict(att.Attribute("Weight").LT(15.0))), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}) − σ{Weight < 15}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}))", 4, 3},
-		{rel.Union(rel.Restrict(att.Attribute("Weight").LE(12.0))), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}) ∪ σ{Weight <= 12}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}))", 4, 6},
+		{rel.Diff(rel.Restrict(Attribute("Weight").LT(15.0))), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}) − σ{Weight < 15}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}))", 4, 3},
+		{rel.Union(rel.Restrict(Attribute("Weight").LE(12.0))), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}) ∪ σ{Weight <= 12}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}))", 4, 6},
 		{rel.Join(suppliers(), joinTup{}), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}) ⋈ Relation(SNO, SName, Status, City)", 5, 10},
 		{rel.GroupBy(groupByTup2{}, weightSum), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}).GroupBy({City, Weight}->{Weight})", 2, 3},
 		{rel.Map(mapFcn, mapKeys), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}).Map({PNO, PName, Weight, City}->{PNO, PName, Weight2})", 3, 6},
@@ -152,7 +152,7 @@ func TestGroupBy(t *testing.T) {
 	}
 	errTest := []Relation{
 		rel1.Project(distinctTup{}),
-		rel1.Restrict(att.Not(att.Attribute("PNO").EQ(1))),
+		rel1.Restrict(Not(Attribute("PNO").EQ(1))),
 		rel1.Rename(titleCaseTup{}),
 		rel1.Union(rel2),
 		rel.Union(rel2),

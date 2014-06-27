@@ -2,7 +2,7 @@ package rel
 
 import (
 	"fmt"
-	"github.com/jonlawlor/rel/att"
+
 	"testing"
 )
 
@@ -66,7 +66,7 @@ func TestSliceLiteral(t *testing.T) {
 		expectCard   int
 	}{
 		{rel, "Relation(PNO, SNO, Qty)", 3, 12},
-		{rel.Restrict(att.Attribute("PNO").EQ(1)), "σ{PNO == 1}(Relation(PNO, SNO, Qty))", 3, 6},
+		{rel.Restrict(Attribute("PNO").EQ(1)), "σ{PNO == 1}(Relation(PNO, SNO, Qty))", 3, 6},
 		{rel.Project(distinctTup{}), "π{PNO, SNO}(Relation(PNO, SNO, Qty))", 2, 12},
 		{rel.Project(nonDistinctTup{}), "π{PNO, Qty}(Relation(PNO, SNO, Qty))", 2, 10},
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, Sno, Qty}/{PNO, SNO, Qty}(Relation(PNO, SNO, Qty))", 3, 12},
@@ -116,7 +116,7 @@ func TestSliceLiteral(t *testing.T) {
 	}
 	errTest := []Relation{
 		r1.Project(distinctTup{}),
-		r1.Restrict(att.Not(att.Attribute("PNO").EQ(1))),
+		r1.Restrict(Not(Attribute("PNO").EQ(1))),
 		r1.Rename(titleCaseTup{}),
 		r1.Union(r2),
 		rel.Union(r2),

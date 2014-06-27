@@ -2,7 +2,7 @@ package rel
 
 import (
 	"fmt"
-	"github.com/jonlawlor/rel/att"
+
 	"testing"
 )
 
@@ -18,7 +18,7 @@ func TestUnion(t *testing.T) {
 	}
 
 	// test the degrees, cardinality, and string representation
-	rel := orders().Restrict(att.Attribute("Qty").GE(300)).Union(orders().Restrict(att.Attribute("Qty").NE(200)))
+	rel := orders().Restrict(Attribute("Qty").GE(300)).Union(orders().Restrict(Attribute("Qty").NE(200)))
 	type distinctTup struct {
 		PNO int
 		SNO int
@@ -74,7 +74,7 @@ func TestUnion(t *testing.T) {
 		expectCard   int
 	}{
 		{rel, "σ{Qty >= 300}(Relation(PNO, SNO, Qty)) ∪ σ{Qty != 200}(Relation(PNO, SNO, Qty))", 3, 8},
-		{rel.Restrict(att.Attribute("PNO").EQ(1)), "σ{Qty >= 300}(σ{PNO == 1}(Relation(PNO, SNO, Qty))) ∪ σ{Qty != 200}(σ{PNO == 1}(Relation(PNO, SNO, Qty)))", 3, 4},
+		{rel.Restrict(Attribute("PNO").EQ(1)), "σ{Qty >= 300}(σ{PNO == 1}(Relation(PNO, SNO, Qty))) ∪ σ{Qty != 200}(σ{PNO == 1}(Relation(PNO, SNO, Qty)))", 3, 4},
 		{rel.Project(distinctTup{}), "π{PNO, SNO}(σ{Qty >= 300}(Relation(PNO, SNO, Qty))) ∪ π{PNO, SNO}(σ{Qty != 200}(Relation(PNO, SNO, Qty)))", 2, 8},
 		{rel.Project(nonDistinctTup{}), "σ{Qty >= 300}(π{PNO, Qty}(Relation(PNO, SNO, Qty))) ∪ σ{Qty != 200}(π{PNO, Qty}(Relation(PNO, SNO, Qty)))", 2, 7},
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, Sno, Qty}/{PNO, SNO, Qty}(σ{Qty >= 300}(Relation(PNO, SNO, Qty))) ∪ ρ{Pno, Sno, Qty}/{PNO, SNO, Qty}(σ{Qty != 200}(Relation(PNO, SNO, Qty)))", 3, 8},
@@ -113,9 +113,9 @@ func TestUnion(t *testing.T) {
 	}
 	// test errors
 	err := fmt.Errorf("testing error")
-	rel1 := orders().Restrict(att.Attribute("Qty").GE(300)).Union(orders().Restrict(att.Attribute("Qty").NE(200))).(*unionExpr)
+	rel1 := orders().Restrict(Attribute("Qty").GE(300)).Union(orders().Restrict(Attribute("Qty").NE(200))).(*unionExpr)
 	rel1.err = err
-	rel2 := orders().Restrict(att.Attribute("Qty").GE(300)).Union(orders().Restrict(att.Attribute("Qty").NE(200))).(*unionExpr)
+	rel2 := orders().Restrict(Attribute("Qty").GE(300)).Union(orders().Restrict(Attribute("Qty").NE(200))).(*unionExpr)
 	rel2.err = err
 	res = make(chan orderTup)
 	_ = rel1.TupleChan(res)

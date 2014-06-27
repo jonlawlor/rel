@@ -2,7 +2,7 @@ package rel
 
 import (
 	"fmt"
-	"github.com/jonlawlor/rel/att"
+
 	"testing"
 )
 
@@ -121,12 +121,12 @@ func TestProject(t *testing.T) {
 		expectCard   int
 	}{
 		{rel, "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City))", 4, 6},
-		{rel.Restrict(att.Attribute("PNO").EQ(1)), "π{PNO, PName, Weight, City}(σ{PNO == 1}(Relation(PNO, PName, Color, Weight, City)))", 4, 1},
+		{rel.Restrict(Attribute("PNO").EQ(1)), "π{PNO, PName, Weight, City}(σ{PNO == 1}(Relation(PNO, PName, Color, Weight, City)))", 4, 1},
 		{rel.Project(distinctTup{}), "π{PNO, PName}(Relation(PNO, PName, Color, Weight, City))", 2, 6},
 		{rel.Project(nonDistinctTup{}), "π{PName, City}(Relation(PNO, PName, Color, Weight, City))", 2, 6},
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, PName, Weight, City}/{PNO, PName, Weight, City}(π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)))", 4, 6},
-		{rel.Diff(rel.Restrict(att.Attribute("Weight").LT(15.0))), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)) − π{PNO, PName, Weight, City}(σ{Weight < 15}(Relation(PNO, PName, Color, Weight, City)))", 4, 3},
-		{rel.Union(rel.Restrict(att.Attribute("Weight").LE(12.0))), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)) ∪ π{PNO, PName, Weight, City}(σ{Weight <= 12}(Relation(PNO, PName, Color, Weight, City)))", 4, 6},
+		{rel.Diff(rel.Restrict(Attribute("Weight").LT(15.0))), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)) − π{PNO, PName, Weight, City}(σ{Weight < 15}(Relation(PNO, PName, Color, Weight, City)))", 4, 3},
+		{rel.Union(rel.Restrict(Attribute("Weight").LE(12.0))), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)) ∪ π{PNO, PName, Weight, City}(σ{Weight <= 12}(Relation(PNO, PName, Color, Weight, City)))", 4, 6},
 		{rel.Join(suppliers(), joinTup{}), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)) ⋈ Relation(SNO, SName, Status, City)", 5, 10},
 		{rel.GroupBy(groupByTup{}, groupFcn), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)).GroupBy({City, Weight}->{Weight})", 2, 3},
 		{rel.Map(mapFcn, mapKeys), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)).Map({PNO, PName, Weight, City}->{PNO, PName, Weight2})", 3, 6},

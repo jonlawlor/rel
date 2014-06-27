@@ -3,7 +3,6 @@
 package rel
 
 import (
-	"github.com/jonlawlor/rel/att"
 	"reflect"
 )
 
@@ -32,7 +31,7 @@ type mapExpr struct {
 	rmfcn reflect.Value
 
 	// set of candidate keys
-	cKeys att.CandKeys
+	cKeys CandKeys
 
 	// sourceDistinct indicates if the function results in distinct tuples or
 	// if a distinct has to be performed afterwards
@@ -45,7 +44,7 @@ func (r *mapExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := att.EnsureChan(chv.Type(), r.zero)
+	err := EnsureChan(chv.Type(), r.zero)
 	if err != nil {
 		r.err = err
 		return cancel
@@ -61,7 +60,7 @@ func (r *mapExpr) TupleChan(t interface{}) chan<- struct{} {
 	// figure out which fields stay, and where they are in each of the tuple
 	// types.
 	// TODO(jonlawlor): error if fields in e2 are not in r1's tuples.
-	fMap := att.FieldMap(e1, r.valType)
+	fMap := FieldMap(e1, r.valType)
 
 	body1 := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e1), 0)
 	bcancel := r.source1.TupleChan(body1.Interface())
@@ -178,7 +177,7 @@ func (r *mapExpr) Zero() interface{} {
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *mapExpr) CKeys() att.CandKeys {
+func (r *mapExpr) CKeys() CandKeys {
 	return r.cKeys
 }
 
@@ -203,7 +202,7 @@ func (r1 *mapExpr) Project(z2 interface{}) Relation {
 // This is a general purpose restrict - we might want to have specific ones for
 // the typical theta comparisons or <= <, =, >, >=, because it will allow much
 // better optimization on the source data side.
-func (r1 *mapExpr) Restrict(p att.Predicate) Relation {
+func (r1 *mapExpr) Restrict(p Predicate) Relation {
 	return NewRestrict(r1, p)
 }
 

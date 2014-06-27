@@ -1,6 +1,7 @@
-// Package att represents attributes, and the candidate keys and predicates
-// constructed from attributes.  It also contains the definitions of tuples.
-package att
+// attributes, and the candidate keys and predicates constructed from
+// attributes.  It also contains the definitions of tuples.
+
+package rel
 
 import (
 	"reflect"

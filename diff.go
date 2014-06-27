@@ -3,7 +3,6 @@
 package rel
 
 import (
-	"github.com/jonlawlor/rel/att"
 	"reflect"
 )
 
@@ -20,7 +19,7 @@ func (r *diffExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := att.EnsureChan(chv.Type(), r.Zero())
+	err := EnsureChan(chv.Type(), r.Zero())
 	if err != nil {
 		r.err = err
 		return cancel
@@ -113,7 +112,7 @@ func (r *diffExpr) Zero() interface{} {
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *diffExpr) CKeys() att.CandKeys {
+func (r *diffExpr) CKeys() CandKeys {
 	return r.source1.CKeys()
 }
 
@@ -138,7 +137,7 @@ func (r1 *diffExpr) Project(z2 interface{}) Relation {
 // This is a general purpose restrict - we might want to have specific ones for
 // the typical theta comparisons or <= <, =, >, >=, because it will allow much
 // better optimization on the source data side.
-func (r1 *diffExpr) Restrict(p att.Predicate) Relation {
+func (r1 *diffExpr) Restrict(p Predicate) Relation {
 	return NewDiff(r1.source1.Restrict(p), r1.source2.Restrict(p))
 }
 
