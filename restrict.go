@@ -156,10 +156,10 @@ func (r1 *restrictExpr) Union(r2 Relation) Relation {
 	return NewUnion(r1, r2)
 }
 
-// SetDiff creates a new relation by set minusing the two inputs
+// Diff creates a new relation by set minusing the two inputs
 //
-func (r1 *restrictExpr) SetDiff(r2 Relation) Relation {
-	return NewSetDiff(r1, r2)
+func (r1 *restrictExpr) Diff(r2 Relation) Relation {
+	return NewDiff(r1, r2)
 }
 
 // Join creates a new relation by performing a natural join on the inputs

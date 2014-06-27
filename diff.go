@@ -1,4 +1,4 @@
-//setdiff implements a set difference expression in relational algebra
+//diff implements a set difference expression in relational algebra
 
 package rel
 
@@ -7,17 +7,16 @@ import (
 	"reflect"
 )
 
-// setDiffExpr implements a set difference in relational algebra
+// diffExpr implements a set difference in relational algebra
 // This is one of the operations which consumes memory.  In addition, no values
 // can be sent before all values from the second source are consumed.
-type setDiffExpr struct {
+type diffExpr struct {
 	source1 Relation
 	source2 Relation
-
-	err error
+	err     error
 }
 
-func (r *setDiffExpr) TupleChan(t interface{}) chan<- struct{} {
+func (r *diffExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
@@ -109,28 +108,28 @@ func (r *setDiffExpr) TupleChan(t interface{}) chan<- struct{} {
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *setDiffExpr) Zero() interface{} {
+func (r *diffExpr) Zero() interface{} {
 	return r.source1.Zero()
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *setDiffExpr) CKeys() att.CandKeys {
+func (r *diffExpr) CKeys() att.CandKeys {
 	return r.source1.CKeys()
 }
 
 // GoString returns a text representation of the Relation
-func (r *setDiffExpr) GoString() string {
-	return r.source1.GoString() + ".SetDiff(" + r.source2.GoString() + ")"
+func (r *diffExpr) GoString() string {
+	return r.source1.GoString() + ".Diff(" + r.source2.GoString() + ")"
 }
 
 // String returns a text representation of the Relation
-func (r *setDiffExpr) String() string {
+func (r *diffExpr) String() string {
 	return r.source1.String() + " − " + r.source2.String()
 }
 
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
-func (r1 *setDiffExpr) Project(z2 interface{}) Relation {
+func (r1 *diffExpr) Project(z2 interface{}) Relation {
 	return NewProject(r1, z2)
 }
 
@@ -139,48 +138,48 @@ func (r1 *setDiffExpr) Project(z2 interface{}) Relation {
 // This is a general purpose restrict - we might want to have specific ones for
 // the typical theta comparisons or <= <, =, >, >=, because it will allow much
 // better optimization on the source data side.
-func (r1 *setDiffExpr) Restrict(p att.Predicate) Relation {
-	return NewSetDiff(r1.source1.Restrict(p), r1.source2.Restrict(p))
+func (r1 *diffExpr) Restrict(p att.Predicate) Relation {
+	return NewDiff(r1.source1.Restrict(p), r1.source2.Restrict(p))
 }
 
 // Rename creates a new relation with new column names
 // z2 has to be a struct with the same number of fields as the input relation
 // note: we might want to change this into a projectrename operation?  It will
 // be tricky to represent this in go's type system, I think.
-func (r1 *setDiffExpr) Rename(z2 interface{}) Relation {
-	return NewSetDiff(r1.source1.Rename(z2), r1.source2.Rename(z2))
+func (r1 *diffExpr) Rename(z2 interface{}) Relation {
+	return NewDiff(r1.source1.Rename(z2), r1.source2.Rename(z2))
 }
 
 // Union creates a new relation by unioning the bodies of both inputs
 //
-func (r1 *setDiffExpr) Union(r2 Relation) Relation {
+func (r1 *diffExpr) Union(r2 Relation) Relation {
 	return NewUnion(r1, r2)
 }
 
-// SetDiff creates a new relation by set minusing the two inputs
+// Diff creates a new relation by set minusing the two inputs
 //
-func (r1 *setDiffExpr) SetDiff(r2 Relation) Relation {
-	return NewSetDiff(r1, r2)
+func (r1 *diffExpr) Diff(r2 Relation) Relation {
+	return NewDiff(r1, r2)
 }
 
 // Join creates a new relation by performing a natural join on the inputs
 //
-func (r1 *setDiffExpr) Join(r2 Relation, zero interface{}) Relation {
+func (r1 *diffExpr) Join(r2 Relation, zero interface{}) Relation {
 	return NewJoin(r1, r2, zero)
 }
 
 // GroupBy creates a new relation by grouping and applying a user defined func
 //
-func (r1 *setDiffExpr) GroupBy(t2, gfcn interface{}) Relation {
+func (r1 *diffExpr) GroupBy(t2, gfcn interface{}) Relation {
 	return NewGroupBy(r1, t2, gfcn)
 }
 
 // Map creates a new relation by applying a function to tuples in the source
-func (r1 *setDiffExpr) Map(mfcn interface{}, ckeystr [][]string) Relation {
+func (r1 *diffExpr) Map(mfcn interface{}, ckeystr [][]string) Relation {
 	return NewMap(r1, mfcn, ckeystr)
 }
 
 // Error returns an error encountered during construction or computation
-func (r1 *setDiffExpr) Err() error {
+func (r1 *diffExpr) Err() error {
 	return r1.err
 }

@@ -7,20 +7,20 @@ import (
 )
 
 // tests for setdiff op
-func TestSetDiff(t *testing.T) {
+func TestDiff(t *testing.T) {
 
 	// TODO(jonlawlor): replace with table driven test?
 	exRel1 := New(exampleRelSlice2(10), [][]string{[]string{"Foo"}})
 	exRel2 := New(exampleRelSlice2(100), [][]string{[]string{"Foo"}})
 
-	r1 := exRel1.SetDiff(exRel2)
+	r1 := exRel1.Diff(exRel2)
 	if Card(r1) != 0 {
-		t.Errorf("Card(exRel1.SetDiff(exRel2)) = %d, want \"%d\"", Card(r1), 0)
+		t.Errorf("Card(exRel1.Diff(exRel2)) = %d, want \"%d\"", Card(r1), 0)
 
 	}
 
 	// test the degrees, cardinality, and string representation
-	rel := orders().Restrict(att.Attribute("Qty").NE(300)).SetDiff(orders().Restrict(att.Attribute("Qty").EQ(200)))
+	rel := orders().Restrict(att.Attribute("Qty").NE(300)).Diff(orders().Restrict(att.Attribute("Qty").EQ(200)))
 	type distinctTup struct {
 		PNO int
 		SNO int
@@ -79,7 +79,7 @@ func TestSetDiff(t *testing.T) {
 		{rel.Project(distinctTup{}), "π{PNO, SNO}(σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)))", 2, 5},
 		{rel.Project(nonDistinctTup{}), "π{PNO, Qty}(σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)))", 2, 4},
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, Sno, Qty}/{PNO, SNO, Qty}(σ{Qty != 300}(Relation(PNO, SNO, Qty))) − ρ{Pno, Sno, Qty}/{PNO, SNO, Qty}(σ{Qty == 200}(Relation(PNO, SNO, Qty)))", 3, 5},
-		{rel.SetDiff(orders()), "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)) − Relation(PNO, SNO, Qty)", 3, 0},
+		{rel.Diff(orders()), "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)) − Relation(PNO, SNO, Qty)", 3, 0},
 		{rel.Union(orders()), "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)) ∪ Relation(PNO, SNO, Qty)", 3, 12},
 		{rel.Join(suppliers(), joinTup{}), "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)) ⋈ Relation(SNO, SName, Status, City)", 6, 4},
 		{rel.GroupBy(groupByTup{}, groupFcn), "σ{Qty != 300}(Relation(PNO, SNO, Qty)) − σ{Qty == 200}(Relation(PNO, SNO, Qty)).GroupBy({PNO, Qty}->{Qty})", 2, 3},
@@ -115,9 +115,9 @@ func TestSetDiff(t *testing.T) {
 
 	// test errors
 	err := fmt.Errorf("testing error")
-	rel1 := orders().Restrict(att.Attribute("Qty").GE(300)).SetDiff(orders().Restrict(att.Attribute("Qty").NE(200))).(*setDiffExpr)
+	rel1 := orders().Restrict(att.Attribute("Qty").GE(300)).Diff(orders().Restrict(att.Attribute("Qty").NE(200))).(*diffExpr)
 	rel1.err = err
-	rel2 := orders().Restrict(att.Attribute("Qty").GE(300)).SetDiff(orders().Restrict(att.Attribute("Qty").NE(200))).(*setDiffExpr)
+	rel2 := orders().Restrict(att.Attribute("Qty").GE(300)).Diff(orders().Restrict(att.Attribute("Qty").NE(200))).(*diffExpr)
 	rel2.err = err
 	res = make(chan orderTup)
 	_ = rel1.TupleChan(res)
@@ -128,8 +128,8 @@ func TestSetDiff(t *testing.T) {
 		rel1.Project(distinctTup{}),
 		rel1.Union(rel2),
 		rel1.Union(rel2),
-		rel1.SetDiff(rel2),
-		rel.SetDiff(rel2),
+		rel1.Diff(rel2),
+		rel.Diff(rel2),
 		rel1.Join(rel2, orderTup{}),
 		rel.Join(rel2, orderTup{}),
 		rel1.GroupBy(groupByTup{}, groupFcn),
@@ -141,11 +141,11 @@ func TestSetDiff(t *testing.T) {
 		}
 	}
 }
-func BenchmarkSetDiff(b *testing.B) {
+func BenchmarkDiff(b *testing.B) {
 	exRel1 := New(exampleRelSlice2(10), [][]string{[]string{"Foo"}})
 	exRel2 := New(exampleRelSlice2(10), [][]string{[]string{"Foo"}})
 
-	r1 := exRel1.SetDiff(exRel2)
+	r1 := exRel1.Diff(exRel2)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// each iteration produces 0 tuples (1 dupe each)

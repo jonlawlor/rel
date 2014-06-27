@@ -33,7 +33,7 @@ func TestGroupBy(t *testing.T) {
 		{3, 200},
 	}, [][]string{})
 	r1 := orders().GroupBy(r1tup{}, groupFcn)
-	if Card(r1.SetDiff(wantRes)) != 0 || Card(wantRes.SetDiff(r1)) != 0 {
+	if Card(r1.Diff(wantRes)) != 0 || Card(wantRes.Diff(r1)) != 0 {
 		t.Errorf("orders.Groupby = \"%s\", want (ignore order) \"%s\"", r1.GoString(), wantRes.GoString())
 	}
 
@@ -107,7 +107,7 @@ func TestGroupBy(t *testing.T) {
 		{rel.Project(distinctTup{}), "π{PNO, PName}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}))", 2, 6},
 		{rel.Project(nonDistinctTup{}), "π{PName, City}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}))", 2, 6},
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, PName, Weight, City}/{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}))", 4, 6},
-		{rel.SetDiff(rel.Restrict(att.Attribute("Weight").LT(15.0))), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}) − σ{Weight < 15}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}))", 4, 3},
+		{rel.Diff(rel.Restrict(att.Attribute("Weight").LT(15.0))), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}) − σ{Weight < 15}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}))", 4, 3},
 		{rel.Union(rel.Restrict(att.Attribute("Weight").LE(12.0))), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}) ∪ σ{Weight <= 12}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}))", 4, 6},
 		{rel.Join(suppliers(), joinTup{}), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}) ⋈ Relation(SNO, SName, Status, City)", 6, 10},
 		{rel.GroupBy(groupByTup2{}, weightSum), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}).GroupBy({City, Weight}->{Weight})", 2, 3},
@@ -157,8 +157,8 @@ func TestGroupBy(t *testing.T) {
 		rel1.Rename(titleCaseTup{}),
 		rel1.Union(rel2),
 		rel.Union(rel2),
-		rel1.SetDiff(rel2),
-		rel.SetDiff(rel2),
+		rel1.Diff(rel2),
+		rel.Diff(rel2),
 		rel1.Join(rel2, orderTup{}),
 		rel.Join(rel2, orderTup{}),
 		rel1.GroupBy(groupByTup2{}, groupFcn),

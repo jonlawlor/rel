@@ -93,7 +93,7 @@ func TestMatrixExample(t *testing.T) {
 		{2, 2, 119},
 	}, [][]string{})
 
-	if Card(C.SetDiff(expectRes)) != 0 || Card(expectRes.SetDiff(C)) != 0 {
+	if Card(C.Diff(expectRes)) != 0 || Card(expectRes.Diff(C)) != 0 {
 		t.Errorf("matrix multiply has result => %v, want (ignore order) %v", C.GoString(), expectRes.GoString())
 	}
 

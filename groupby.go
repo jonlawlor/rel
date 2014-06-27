@@ -269,12 +269,12 @@ func (r1 *groupByExpr) Union(r2 Relation) Relation {
 	return NewUnion(r1, r2)
 }
 
-// SetDiff creates a new relation by set minusing the two inputs
+// Diff creates a new relation by set minusing the two inputs
 //
-func (r1 *groupByExpr) SetDiff(r2 Relation) Relation {
+func (r1 *groupByExpr) Diff(r2 Relation) Relation {
 	// TODO(jonlawlor): this can be rewritten if there are candidate keys
 	// in the groupby are a superset of some candidate keys in the union?
-	return NewSetDiff(r1, r2)
+	return NewDiff(r1, r2)
 }
 
 // Join creates a new relation by performing a natural join on the inputs
