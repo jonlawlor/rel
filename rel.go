@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// A relation is a set of tuples with named attributes.
+// Relation is a set of tuples with named attributes.
 // See "A Relational Model of Data for Large Shared Data Banks" by Codd and
 // "An introduction to Database Systems" by Date for the background for
 // relational algebra.
@@ -92,6 +92,8 @@ type Relation interface {
 	// the two relations do not have the same Zero type, then the resulting
 	// Relation will have a non nil Err().
 	Diff(r2 Relation) Relation
+
+	// TODO(jonlawlor): implement SemiDiff
 
 	// Join combines two relations by combining tuples between the two if the
 	// tuples have identical values in the attributes that share the same
@@ -265,6 +267,9 @@ func Card(r Relation) (i int) {
 	return
 }
 
+// TODO(jonlawlor): move error checking to the relational methods, to avoid
+// rechecking during query rewrite.
+
 // NewProject creates a new relation expression with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
 // It should be used to implement new Relations.
@@ -274,38 +279,40 @@ func NewProject(r1 Relation, z2 interface{}) Relation {
 		return r1
 	}
 	att2 := att.FieldNames(reflect.TypeOf(z2))
-	//TODO(jonlawlor): test that z2 is a subset of r1's zero
-	if Deg(r1) == len(att2) {
-		// either projection is an error or a no op
+	err := att.EnsureSubDomain(att2, Heading(r1))
+	if Deg(r1) == len(att2) && err == nil {
+		// projection is a no op
 		return r1
 	} else {
-		return &projectExpr{r1, z2, nil}
+		return &projectExpr{r1, z2, err}
 	}
 }
 
-// NewRestrict creates a new relation expression with less than or equal cardinality
-// p has to be a func(tup T) bool where tup is a subdomain of the input r.
-// This is a general purpose restrict - we might want to have specific ones for
-// the typical theta comparisons or <= <, =, >, >=, because it will allow much
-// better optimization on the source data side.
+// NewRestrict creates a new relation expression with less than or equal cardinality.
+// p has to be a predicate of a subdomain of the input relation.
 // It should be used to implement new Relations.
 func NewRestrict(r1 Relation, p att.Predicate) Relation {
 	if r1.Err() != nil {
 		// don't bother building the relation and just return the original
 		return r1
 	}
-	return &restrictExpr{r1, p, nil}
+	err := att.EnsureSubDomain(p.Domain(), Heading(r1))
+	return &restrictExpr{r1, p, err}
 }
 
 // NewRename creates a new relation with new column names
-// z2 has to be a struct with the same number of fields as the input relation
-// note: we might want to change this into a projectrename operation?  It will
-// be tricky to represent this in go's type system, I think.
+// z2 has to be a struct with the same number of fields as the input relation.
 // It should be used to implement new Relations.
 func NewRename(r1 Relation, z2 interface{}) Relation {
 	if r1.Err() != nil {
 		// don't bother building the relation and just return the original
 		return r1
+	}
+	d1 := Deg(r1)
+	d2 := len(att.FieldNames(reflect.TypeOf(z2)))
+
+	if d1 != d2 {
+		return &renameExpr{r1, z2, &att.DegreeError{d1, d2}}
 	}
 	return &renameExpr{r1, z2, nil}
 }
@@ -321,7 +328,8 @@ func NewUnion(r1, r2 Relation) Relation {
 		// don't bother building the relation and just return the original
 		return r2
 	}
-	return &unionExpr{r1, r2, nil}
+	err := att.EnsureSameDomain(Heading(r1), Heading(r2))
+	return &unionExpr{r1, r2, err}
 }
 
 // NewDiff creates a new relation by set minusing the two inputs.
@@ -335,7 +343,8 @@ func NewDiff(r1, r2 Relation) Relation {
 		// don't bother building the relation and just return the original
 		return r2
 	}
-	return &diffExpr{r1, r2, nil}
+	err := att.EnsureSameDomain(Heading(r1), Heading(r2))
+	return &diffExpr{r1, r2, err}
 }
 
 // NewJoin creates a new relation by performing a natural join on the inputs.
@@ -349,7 +358,8 @@ func NewJoin(r1, r2 Relation, zero interface{}) Relation {
 		// don't bother building the relation and just return the original
 		return r2
 	}
-	return &joinExpr{r1, r2, zero, nil}
+	err := att.EnsureSubDomain(att.FieldNames(reflect.TypeOf(zero)), append(Heading(r1), Heading(r2)...))
+	return &joinExpr{r1, r2, zero, err}
 }
 
 // NewGroupBy creates a new relation by grouping and applying a user defined

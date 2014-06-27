@@ -8,6 +8,9 @@ import (
 	"reflect"
 )
 
+// I've tried to reproduce go's type error strings here, because these errors
+// act as a (poor) replacement for static type checking.
+
 // ContainerError represents an error that occurs when the wrong kind of
 // container is given to a TupleChan, TupleSlice, or TupleMap method, as
 // indicated by the name of the method.
@@ -202,4 +205,62 @@ func EnsureMapFunc(mfcn reflect.Type, inSuper interface{}) (err error, inTup, ou
 		return
 	}
 	return
+}
+
+// AttributeSubsetError represents an error that occurs when a method on a
+// relation is called with a set of tuples that are not a subset of an expected
+// type.
+type AttributeSubsetError domainError
+
+func (e *AttributeSubsetError) Error() string {
+	return fmt.Sprintf("rel: expected attributes to be a subset of %v, found %v", e.Expected, e.Found)
+}
+
+// EnsureSubDomain returns an error if the input sub is not a subdomain of
+// input dom.
+func EnsureSubDomain(sub, dom []Attribute) (err error) {
+	if IsSubDomain(sub, dom) {
+		return
+	}
+	// figure out the attributes that are in sub that are not in dom
+	invalidAttributes := make([]Attribute, 1)
+SubLoop:
+	for _, n1 := range sub {
+		for _, n2 := range dom {
+			if n1 == n2 {
+				continue SubLoop
+			}
+		}
+		invalidAttributes = append(invalidAttributes, n1)
+	}
+	return &AttributeSubsetError{dom, invalidAttributes}
+}
+
+// DegreeError represents an error that occurs when the input tuples to a
+// relational operation do not have the same degree as expected.  This only
+// occurs in rename operations.
+type DegreeError struct {
+	Expected int
+	Found    int
+}
+
+func (e *DegreeError) Error() string {
+	return fmt.Sprintf("rel: expected degree %d, found %d", e.Expected, e.Found)
+}
+
+// DomainMismatchError represents an error that occurs when two tuples have a
+// different set of attributes.
+type DomainMismatchError domainError
+
+func (e *DomainMismatchError) Error() string {
+	return fmt.Sprintf("rel: mismatched domains found: %v, and %v", e.Expected, e.Found)
+}
+
+// EnsureSameDomain returns an error if the inputs do not have the same domain.
+func EnsureSameDomain(sub, dom []Attribute) (err error) {
+	if len(sub) == len(dom) && IsSubDomain(sub, dom) {
+		return
+	}
+	// sub and dom do not have any particular order.
+	return &DomainMismatchError{sub, dom}
 }

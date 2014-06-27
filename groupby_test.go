@@ -76,7 +76,6 @@ func TestGroupBy(t *testing.T) {
 		Weight float64
 		City   string
 		SNO    int
-		Qty    int
 	}
 	type groupByTup2 struct {
 		City   string
@@ -109,14 +108,14 @@ func TestGroupBy(t *testing.T) {
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, PName, Weight, City}/{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}))", 4, 6},
 		{rel.Diff(rel.Restrict(att.Attribute("Weight").LT(15.0))), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}) − σ{Weight < 15}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}))", 4, 3},
 		{rel.Union(rel.Restrict(att.Attribute("Weight").LE(12.0))), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}) ∪ σ{Weight <= 12}(Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}))", 4, 6},
-		{rel.Join(suppliers(), joinTup{}), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}) ⋈ Relation(SNO, SName, Status, City)", 6, 10},
+		{rel.Join(suppliers(), joinTup{}), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}) ⋈ Relation(SNO, SName, Status, City)", 5, 10},
 		{rel.GroupBy(groupByTup2{}, weightSum), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}).GroupBy({City, Weight}->{Weight})", 2, 3},
 		{rel.Map(mapFcn, mapKeys), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}).Map({PNO, PName, Weight, City}->{PNO, PName, Weight2})", 3, 6},
 		{rel.Map(mapFcn, [][]string{}), "Relation(PNO, PName, Color, Weight, City).GroupBy({PNO, PName, Weight, City}->{Weight}).Map({PNO, PName, Weight, City}->{PNO, PName, Weight2})", 3, 6},
 	}
 	for i, tt := range relTest {
 		if err := tt.rel.Err(); err != nil {
-			t.Errorf("%d has Err() => %v", err)
+			t.Errorf("%d has Err() => %s", i, err.Error())
 			continue
 		}
 		if str := tt.rel.String(); str != tt.expectString {

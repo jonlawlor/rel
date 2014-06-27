@@ -80,7 +80,7 @@ func TestSliceLiteral(t *testing.T) {
 
 	for i, tt := range relTest {
 		if err := tt.rel.Err(); err != nil {
-			t.Errorf("%d has Err() => %v", err)
+			t.Errorf("%d has Err() => %s", i, err.Error())
 			continue
 		}
 		if str := tt.rel.String(); str != tt.expectString {

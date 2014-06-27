@@ -87,7 +87,6 @@ func TestProject(t *testing.T) {
 		Weight float64
 		City   string
 		SNO    int
-		Qty    int
 	}
 	type groupByTup struct {
 		City   string
@@ -128,7 +127,7 @@ func TestProject(t *testing.T) {
 		{rel.Rename(titleCaseTup{}), "ρ{Pno, PName, Weight, City}/{PNO, PName, Weight, City}(π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)))", 4, 6},
 		{rel.Diff(rel.Restrict(att.Attribute("Weight").LT(15.0))), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)) − π{PNO, PName, Weight, City}(σ{Weight < 15}(Relation(PNO, PName, Color, Weight, City)))", 4, 3},
 		{rel.Union(rel.Restrict(att.Attribute("Weight").LE(12.0))), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)) ∪ π{PNO, PName, Weight, City}(σ{Weight <= 12}(Relation(PNO, PName, Color, Weight, City)))", 4, 6},
-		{rel.Join(suppliers(), joinTup{}), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)) ⋈ Relation(SNO, SName, Status, City)", 6, 10},
+		{rel.Join(suppliers(), joinTup{}), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)) ⋈ Relation(SNO, SName, Status, City)", 5, 10},
 		{rel.GroupBy(groupByTup{}, groupFcn), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)).GroupBy({City, Weight}->{Weight})", 2, 3},
 		{rel.Map(mapFcn, mapKeys), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)).Map({PNO, PName, Weight, City}->{PNO, PName, Weight2})", 3, 6},
 		{rel.Map(mapFcn, [][]string{}), "π{PNO, PName, Weight, City}(Relation(PNO, PName, Color, Weight, City)).Map({PNO, PName, Weight, City}->{PNO, PName, Weight2})", 3, 6},
@@ -136,7 +135,7 @@ func TestProject(t *testing.T) {
 
 	for i, tt := range relTest {
 		if err := tt.rel.Err(); err != nil {
-			t.Errorf("%d has Err() => %v", err)
+			t.Errorf("%d has Err() => %s", i, err.Error())
 			continue
 		}
 		if str := tt.rel.String(); str != tt.expectString {

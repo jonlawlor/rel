@@ -4,15 +4,6 @@ import (
 	"testing"
 )
 
-// test creation of relations, including tests to determine the cost of
-// representing slices of structs as relations instead of native.
-
-// type of the example tuples in relations
-type exTup2 struct {
-	Foo int
-	Bar string
-}
-
 // TestMatrixExample is an example of sparse matrix algebra implemented in
 // relational algebra.
 func TestMatrixExample(t *testing.T) {
@@ -117,6 +108,15 @@ func exampleRelMap2(c int) map[exTup2]struct{} {
 		recs[exTup2{i, "test"}] = struct{}{}
 	}
 	return recs
+}
+
+// test creation of relations, including tests to determine the cost of
+// representing slices of structs as relations instead of native.
+
+// type of the example tuples in relations
+type exTup2 struct {
+	Foo int
+	Bar string
 }
 
 // exampleRelSlice2 creates an example relation body using chan
