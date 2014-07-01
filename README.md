@@ -9,23 +9,34 @@ Please note that relational algebra *_is not SQL_*.  In particular, NULL is not 
 
 The semantics of this package are very similar to Microsoft's LINQ, although the syntax is somewhat different.  rel provides a uniform interface to many different types of data sources.  This isn't LINQ though - it is a library, and it is not integrated with the language, which means rel has a significant performance cost relative to normal go code that doesn't use reflection.  It also reduces the type safety.  At some point in the future, code generation along the same lines as the gen package (http://clipperhouse.github.io/gen/) and the megajson package (https://github.com/benbjohnson/megajson).
 
+Installation
+============
+This package can be installed with the go get command:
+```
+go get github.com/jonlawlor/rel
+```
+
+Thanks
+======
+* Andrew Janke
+* Ben Johnson
 
 TODOs
 =====
 + Reach 100% test coverage (currently 85%)
 + Implement benchmarks in both "normal" rel reflection and native equivalents to determine reflection overhead
-+ Implement sub packages for other data sources, such as generic sql tables, json, or gob.
++ Implement sub packages for other data sources, such as json or gob.
 + Implement non relational operations like order?
 + Hook up chan_mem to some kind of copying mechanism
 + Should attributes have an associated type, or just a name like it is now?
 
-Errors
-======
+Error Idiom
+===========
 There are 2 types of errors that can be handled: errors in relational construction, like projecting a relation to a set of tuples that are not a subset of the original relation, and errors during computation, like when a data source unexpectedly disconnects.  There are two types of error handling available to us: either panic (and maybe recover) which is expensive, or having some kind of Err() method of relations, which returns an error.  If no error has been encountered, then Err should return nil, otherwise an error.  Having 2-arg outputs is not conducive to the method chaining that is used.  The Err() method way of handling errors is also used in the sql package's Scanner.
 
 I think the best course of action is to reserve panic for problems that are not possible for the rel package to handle in advance - like a type error in an AdHoc predicate or grouping function, which rel has no control over.
 
-To that end, rel will go the Error() route, which will be checked in the following places:
+To that end, rel will go the Err() route, which will be checked in the following places:
 
 1) during derived relational construction, if one of the source relations is an error, then that relation will be returned instead of the compound relation.  In the case that two relations are provided and both are errors, then the first will be returned.
 2) in the tuples method, if the source(s) of tuples are closed, then they are checked for an error.  If it is not nil, then the error is set in the derived relation, and the results channel is closed.
