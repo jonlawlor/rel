@@ -11,12 +11,15 @@ import (
 // unionExpr represents a union expression in relational algebra.
 // This is one of the relational operations which consumes memory.
 type unionExpr struct {
+	// source relations for the union
 	source1 Relation
 	source2 Relation
 
+	// err has the last error encountered during construction or evaluation.
 	err error
 }
 
+// TupleChan sends each tuple in the relation to a channel
 func (r *unionExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
@@ -31,6 +34,8 @@ func (r *unionExpr) TupleChan(t interface{}) chan<- struct{} {
 		return cancel
 	}
 
+	// TODO(jonlawlor): allow the caller to have more control over the
+	// amount of concurrency?
 	mc := runtime.GOMAXPROCS(-1)
 
 	var mu sync.Mutex
@@ -183,29 +188,26 @@ func (r *unionExpr) String() string {
 
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
+// Project can distribute over a union.
 func (r1 *unionExpr) Project(z2 interface{}) Relation {
 	return NewUnion(r1.source1.Project(z2), r1.source2.Project(z2))
 }
 
 // Restrict creates a new relation with less than or equal cardinality
 // p has to be a func(tup interface{}) bool where tup is a subdomain of the input r.
-// This is a general purpose restrict - we might want to have specific ones for
-// the typical theta comparisons or <= <, =, >, >=, because it will allow much
-// better optimization on the source data side.
+// Restrict can distribute over a union.
 func (r1 *unionExpr) Restrict(p Predicate) Relation {
 	return NewUnion(r1.source1.Restrict(p), r1.source2.Restrict(p))
 }
 
 // Rename creates a new relation with new column names
 // z2 has to be a struct with the same number of fields as the input relation
-// note: we might want to change this into a projectrename operation?  It will
-// be tricky to represent this in go's type system, I think.
+// rename can distribute over a union.
 func (r1 *unionExpr) Rename(z2 interface{}) Relation {
 	return NewUnion(r1.source1.Rename(z2), r1.source2.Rename(z2))
 }
 
 // Union creates a new relation by unioning the bodies of both inputs
-//
 func (r1 *unionExpr) Union(r2 Relation) Relation {
 	// It might be useful to define a multiple union?  There would be a memory
 	// benefit in some cases.
@@ -213,19 +215,16 @@ func (r1 *unionExpr) Union(r2 Relation) Relation {
 }
 
 // Diff creates a new relation by set minusing the two inputs
-//
 func (r1 *unionExpr) Diff(r2 Relation) Relation {
 	return NewDiff(r1, r2)
 }
 
 // Join creates a new relation by performing a natural join on the inputs
-//
 func (r1 *unionExpr) Join(r2 Relation, zero interface{}) Relation {
 	return NewJoin(r1, r2, zero)
 }
 
 // GroupBy creates a new relation by grouping and applying a user defined func
-//
 func (r1 *unionExpr) GroupBy(t2, gfcn interface{}) Relation {
 	return NewGroupBy(r1, t2, gfcn)
 }
@@ -235,7 +234,7 @@ func (r1 *unionExpr) Map(mfcn interface{}, ckeystr [][]string) Relation {
 	return NewMap(r1, mfcn, ckeystr)
 }
 
-// Error returns an error encountered during construction or computation
+// Err returns an error encountered during construction or computation
 func (r1 *unionExpr) Err() error {
 	return r1.err
 }

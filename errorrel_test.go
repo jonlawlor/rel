@@ -2,12 +2,11 @@ package rel
 
 import (
 	"fmt"
-
 	"reflect"
 )
 
-// type for error testing only.  It produces an error if tuples is called, and
-// does not allow any query rewrite.
+// type for error testing only.  It produces card default tuples from the
+// TupleChan method, and then sets the err field and closes the results.
 type errorRel struct {
 	zero interface{}
 	card int // this many blank zeroes will be sent on TupleChan before err is set.
@@ -102,7 +101,7 @@ func (r1 *errorRel) Map(mfcn interface{}, ckeystr [][]string) Relation {
 	return NewMap(r1, mfcn, ckeystr)
 }
 
-// Error returns an error encountered during construction or computation
+// Err returns an error encountered during construction or computation
 func (r1 *errorRel) Err() error {
 	return r1.err
 }

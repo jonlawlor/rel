@@ -8,17 +8,6 @@ import (
 
 // tests & benchmarks for the rel.chanLiteral type
 
-// unlike the rel.Map and rel.Slice type, this has to drain the resulting
-// relation, otherwise there will be hanging go-routines.  It would be better
-// if we could cancel, but that might require a different type of relation.
-
-// this allows us to drain a channel so that the source goroutines finish
-func drain(t chan exTup2) {
-	for _ = range t {
-	}
-	return
-}
-
 func toChanLiteral(r Relation, isDistinct bool) Relation {
 	r2, _ := toChanLiteralCancel(r, isDistinct)
 	return r2
@@ -195,6 +184,17 @@ func TestChanLiteral(t *testing.T) {
 			t.Errorf("%d did not short circuit error", i)
 		}
 	}
+}
+
+// unlike the rel.Map and rel.Slice type, this has to drain the resulting
+// relation, otherwise there will be hanging go-routines.  It would be better
+// if we could cancel, but that might require a different type of relation.
+
+// this allows us to drain a channel so that the source goroutines finish
+func drain(t chan exTup2) {
+	for _ = range t {
+	}
+	return
 }
 
 func BenchmarkChanLiteralNewTinySimple(b *testing.B) {

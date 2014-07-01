@@ -5,11 +5,12 @@ package rel
 import (
 	"bytes"
 	"fmt"
-
 	"reflect"
 	"strings"
 	"text/tabwriter"
 )
+
+// really not sure about these
 
 // goStringTabTable is makes a gostring out of a given relation
 func goStringTabTable(r Relation) string {

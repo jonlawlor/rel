@@ -30,15 +30,6 @@ func TestMatrixExample(t *testing.T) {
 		VA float64
 		VB float64
 	}
-	//type multRes struct {
-	//	R int
-	//	C int
-	//	M int
-	//	V float64
-	//}
-	//mapMult := func(tup multElemC) multRes {
-	//	return multRes{tup.R, tup.C, tup.M, tup.VA * tup.VB}
-	//}
 	type groupTup struct {
 		VA float64
 		VB float64

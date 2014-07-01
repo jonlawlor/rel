@@ -14,9 +14,11 @@ type projectExpr struct {
 	// the new tuple type
 	zero interface{}
 
+	// first error encountered during construction or evaluation
 	err error
 }
 
+// TupleChan sends each tuple in the relation to a channel
 func (r *projectExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
@@ -46,7 +48,6 @@ func (r *projectExpr) TupleChan(t interface{}) chan<- struct{} {
 
 	// figure out which fields stay, and where they are in each of the tuple
 	// types.
-	// TODO(jonlawlor): error if fields in e2 are not in r1's tuples.
 	fMap := FieldMap(e1, e2)
 
 	// figure out if we need to distinct the results because there are no
@@ -194,47 +195,42 @@ func (r *projectExpr) String() string {
 
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
+// This can always be rewritten as a project of the source, and skip the
+// intermediate project.
 func (r1 *projectExpr) Project(z2 interface{}) Relation {
 	return NewProject(r1.source1, z2)
 }
 
 // Restrict creates a new relation with less than or equal cardinality
 // p has to be a func(tup T) bool where tup is a subdomain of the input r.
-// This is a general purpose restrict - we might want to have specific ones for
-// the typical theta comparisons or <= <, =, >, >=, because it will allow much
-// better optimization on the source data side.
+// This can always be rewritten to pass the restrict up the relational
+// expression.
 func (r1 *projectExpr) Restrict(p Predicate) Relation {
 	return NewProject(r1.source1.Restrict(p), r1.zero)
 }
 
 // Rename creates a new relation with new column names
 // z2 has to be a struct with the same number of fields as the input relation
-// note: we might want to change this into a projectrename operation?  It will
-// be tricky to represent this in go's type system, I think.
 func (r1 *projectExpr) Rename(z2 interface{}) Relation {
 	return NewRename(r1, z2)
 }
 
 // Union creates a new relation by unioning the bodies of both inputs
-//
 func (r1 *projectExpr) Union(r2 Relation) Relation {
 	return NewUnion(r1, r2)
 }
 
 // Diff creates a new relation by set minusing the two inputs
-//
 func (r1 *projectExpr) Diff(r2 Relation) Relation {
 	return NewDiff(r1, r2)
 }
 
 // Join creates a new relation by performing a natural join on the inputs
-//
 func (r1 *projectExpr) Join(r2 Relation, zero interface{}) Relation {
 	return NewJoin(r1, r2, zero)
 }
 
 // GroupBy creates a new relation by grouping and applying a user defined func
-//
 func (r1 *projectExpr) GroupBy(t2, gfcn interface{}) Relation {
 	return NewGroupBy(r1, t2, gfcn)
 }
@@ -244,7 +240,7 @@ func (r1 *projectExpr) Map(mfcn interface{}, ckeystr [][]string) Relation {
 	return NewMap(r1, mfcn, ckeystr)
 }
 
-// Error returns an error encountered during construction or computation
+// Err returns an error encountered during construction or computation
 func (r1 *projectExpr) Err() error {
 	return r1.err
 }

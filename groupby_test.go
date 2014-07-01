@@ -2,7 +2,6 @@ package rel
 
 import (
 	"fmt"
-
 	"testing"
 )
 

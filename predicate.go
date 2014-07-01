@@ -20,9 +20,13 @@ type Predicate interface {
 	// this might have to be a recursive type instead of reflect.Type?
 	Domain() []Attribute
 
-	// infix boolean expressions
+	// And two predicates
 	And(p2 Predicate) AndPred
+
+	// Or two predicates
 	Or(p2 Predicate) OrPred
+
+	// Xor two predicates
 	Xor(p2 Predicate) XorPred
 
 	String() string
@@ -950,7 +954,7 @@ func (p1 NEPred) Xor(p2 Predicate) XorPred {
 }
 
 /*
-// other common comparisons
+// TODO(jonlawlor): other common comparisons
 func (att Attribute) IN(v interface{}) INPred {
 return
 }

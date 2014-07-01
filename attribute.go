@@ -44,6 +44,7 @@ func FieldTypes(e reflect.Type) []reflect.Type {
 	return types
 }
 
+// Sorts candidate keys by number of attributes and then alphabetically.
 func OrderCandidateKeys(ckeys CandKeys) {
 	// first go through each set of keys and alphabetize
 	// this is used to compare sets of candidate keys
@@ -139,7 +140,7 @@ KeyLoop:
 	return cKeys2
 }
 
-// fieldMap creates a map from fields of one struct type to the fields of another
+// FieldMap creates a map from fields of one struct type to the fields of another
 // the returned map's values have two fields i,j , which indicate the location of
 // the field name in the input types
 // if the field is absent from either of the inputs, it is not returned.
@@ -150,8 +151,8 @@ func FieldMap(e1, e2 reflect.Type) map[Attribute]FieldIndex {
 	return AttributeMap(fn1, fn2)
 }
 
-// fieldMap creates a map from fields of one struct type to the fields of another
-// the returned map's values have two fields i,j , which indicate the location of
+// Attribute creates a map from positions of one set of attributes to another.
+// The returned map's values have two fields i,j , which indicate the location of
 // the field name in the input types
 // if the field is absent from either of the inputs, it is not returned.
 func AttributeMap(fn1, fn2 []Attribute) map[Attribute]FieldIndex {
@@ -167,7 +168,7 @@ func AttributeMap(fn1, fn2 []Attribute) map[Attribute]FieldIndex {
 	return m
 }
 
-// isSubDomain returns true if the attributes in sub are all members of dom, otherwise false
+// IsSubDomain returns true if the attributes in sub are all members of dom, otherwise false
 // this would be faster if []Attributes were always ordered
 // TODO(jonlawlor): make this a method of []Attribute?
 func IsSubDomain(sub, dom []Attribute) bool {
@@ -183,7 +184,7 @@ SubLoop:
 	return true
 }
 
-// partialProject takes the attributes of the input tup, and then for the
+// PartialProject takes the attributes of the input tup, and then for the
 // attributes that are in ltyp but not in rtyp, put those values into ltup,
 // and put zero values into ltup for the values that are in rtyp.  For the
 // rtup, put only values which are in rtyp.
@@ -212,10 +213,6 @@ func PartialProject(tup reflect.Value, ltyp, rtyp reflect.Type, lFieldMap, rFiel
 // CombineTuples takes the values in rtup and assigns them to the fields
 // in ltup with the same names
 func CombineTuples(ltup, rtup reflect.Value, ltyp reflect.Type, fMap map[Attribute]FieldIndex) reflect.Value {
-	// for some reason I can't get reflect to work on a pointer to an interface
-	// so this will use a new ltup and then assign values to it from either the
-	// ltup or rtup inputs
-	// TODO(jonlawlor): avoid this new allocation somehow
 	tup2 := reflect.Indirect(reflect.New(ltyp))
 	leftNames := FieldNames(ltyp)
 	for i, leftName := range leftNames {
@@ -232,12 +229,8 @@ func CombineTuples(ltup, rtup reflect.Value, ltyp reflect.Type, fMap map[Attribu
 
 // CombineTuples
 // TODO(jonlawlor): figure out how to combine with CombineTuples, or rename
-// this func.
+// this func.  Very ugly.
 func CombineTuples2(to *reflect.Value, from reflect.Value, fMap map[Attribute]FieldIndex) {
-	// for some reason I can't get reflect to work on a pointer to an interface
-	// so this will use a new ltup and then assign values to it from either the
-	// ltup or rtup inputs
-	// TODO(jonlawlor): avoid this new allocation somehow
 	for _, fm := range fMap {
 		tof := to.Field(fm.I)
 		tof.Set(from.Field(fm.J))
@@ -245,6 +238,8 @@ func CombineTuples2(to *reflect.Value, from reflect.Value, fMap map[Attribute]Fi
 	return
 }
 
+// PartialEquals returns true when two tuples have equal values in the attributes
+// with the same names.
 func PartialEquals(tup1 reflect.Value, tup2 reflect.Value, fmap map[Attribute]FieldIndex) bool {
 	for _, fm := range fmap {
 		if tup1.Field(fm.I).Interface() != tup2.Field(fm.J).Interface() {

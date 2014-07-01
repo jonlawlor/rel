@@ -2,7 +2,6 @@ package rel
 
 import (
 	"fmt"
-
 	"testing"
 )
 
@@ -137,3 +136,5 @@ func TestMap(t *testing.T) {
 		}
 	}
 }
+
+// TODO(jonlawlor): benchmarks!

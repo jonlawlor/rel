@@ -9,8 +9,8 @@ import (
 )
 
 // Restrict applies a predicate to a relation and returns a new relation
-// Predicate is a func which accepts an interface{} of the same dynamic
-// type as the tuples of the relation, and returns a boolean.
+// Predicate is a func which accepts an subdomain of the tuples of the
+// relation, and returns a boolean.
 type restrictExpr struct {
 	// the input relation
 	source1 Relation
@@ -18,9 +18,11 @@ type restrictExpr struct {
 	// the restriction predicate
 	p Predicate
 
+	// err is the first error encountered during construction or evaluation
 	err error
 }
 
+// TupleChan sends each tuple in the relation to a channel
 func (r *restrictExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
@@ -36,6 +38,7 @@ func (r *restrictExpr) TupleChan(t interface{}) chan<- struct{} {
 	}
 
 	// transform the channel of tuples from the relation
+	// TODO(jonlawlor): add a mechanism for concurrency to be modified.
 	mc := runtime.GOMAXPROCS(-1)
 
 	z1 := r.source1.Zero()
@@ -121,6 +124,8 @@ func (r *restrictExpr) String() string {
 
 // Project creates a new relation with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.
+// Project can be rewritten if the Predicate can be evaluated on the Project's
+// results.
 func (r1 *restrictExpr) Project(z2 interface{}) Relation {
 	att2 := FieldNames(reflect.TypeOf(z2))
 	if IsSubDomain(r1.p.Domain(), att2) { // the predicate's attributes exist after project
@@ -132,9 +137,8 @@ func (r1 *restrictExpr) Project(z2 interface{}) Relation {
 
 // Restrict creates a new relation with less than or equal cardinality
 // p has to be a func(tup T) bool where tup is a subdomain of the input r.
-// This is a general purpose restrict - we might want to have specific ones for
-// the typical theta comparisons or <= <, =, >, >=, because it will allow much
-// better optimization on the source data side.
+// Restrict can be rewritten by switching the order of inputs, which may allow
+// some predicates to pass through to source relations.
 func (r1 *restrictExpr) Restrict(p Predicate) Relation {
 	// try reversing the order, which may allow some lower degree restrictions
 	// to pass through
@@ -143,27 +147,26 @@ func (r1 *restrictExpr) Restrict(p Predicate) Relation {
 
 // Rename creates a new relation with new column names
 // z2 has to be a struct with the same number of fields as the input relation
-// note: we might want to change this into a projectrename operation?  It will
-// be tricky to represent this in go's type system, I think.
 func (r1 *restrictExpr) Rename(z2 interface{}) Relation {
 	return NewRename(r1, z2)
 }
 
 // Union creates a new relation by unioning the bodies of both inputs
-//
 func (r1 *restrictExpr) Union(r2 Relation) Relation {
 	return NewUnion(r1, r2)
 }
 
 // Diff creates a new relation by set minusing the two inputs
-//
 func (r1 *restrictExpr) Diff(r2 Relation) Relation {
+	// TODO(jonlawlor): we could apply the predicate to r2 and produce the
+	// same result?
 	return NewDiff(r1, r2)
 }
 
 // Join creates a new relation by performing a natural join on the inputs
-//
 func (r1 *restrictExpr) Join(r2 Relation, zero interface{}) Relation {
+	// TODO(jonlawlor): we could sometimes apply the predicate to r2 and reduce
+	// the number of comparisons in the join.
 	return NewJoin(r1, r2, zero)
 }
 
@@ -178,7 +181,7 @@ func (r1 *restrictExpr) Map(mfcn interface{}, ckeystr [][]string) Relation {
 	return NewMap(r1, mfcn, ckeystr)
 }
 
-// Error returns an error encountered during construction or computation
+// Err returns an error encountered during construction or computation
 func (r1 *restrictExpr) Err() error {
 	return r1.err
 }

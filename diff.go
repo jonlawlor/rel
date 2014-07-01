@@ -15,6 +15,7 @@ type diffExpr struct {
 	err     error
 }
 
+// TupleChan sends each tuple in the relation to a channel
 func (r *diffExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
@@ -30,15 +31,7 @@ func (r *diffExpr) TupleChan(t interface{}) chan<- struct{} {
 	}
 
 	mem := make(map[interface{}]struct{})
-	// setdiff is unique in that it has to immediately consume all of the
-	// values from the second relation in order to send any values in the
-	// first one.  All other relational operations can be done lazily, this
-	// one can only be done half-lazy.
-	// with some indexing this is avoidable, though.
-	// In addition, we could start pulling values from the first relation as
-	// well if we were willing to later go through them.  However, this will
-	// always use more memory, so we can leave it up to the caller.
-	// Alternatively, we could pull one value from the first relation, and then
+	// TODO(jonlawlor): we could pull one value from the first relation, and then
 	// discard it if we recieve a match from the second.  Then we would have to
 	// go back through previously recieved values after receiving the from the
 	// first relation again.  That would require a mutex on mem.
@@ -134,41 +127,34 @@ func (r1 *diffExpr) Project(z2 interface{}) Relation {
 
 // Restrict creates a new relation with less than or equal cardinality
 // p has to be a func(tup T) bool where tup is a subdomain of the input r.
-// This is a general purpose restrict - we might want to have specific ones for
-// the typical theta comparisons or <= <, =, >, >=, because it will allow much
-// better optimization on the source data side.
+// Restrict can be distributed through diff.
 func (r1 *diffExpr) Restrict(p Predicate) Relation {
 	return NewDiff(r1.source1.Restrict(p), r1.source2.Restrict(p))
 }
 
 // Rename creates a new relation with new column names
 // z2 has to be a struct with the same number of fields as the input relation
-// note: we might want to change this into a projectrename operation?  It will
-// be tricky to represent this in go's type system, I think.
+// Rename can be distributed through setdiff
 func (r1 *diffExpr) Rename(z2 interface{}) Relation {
 	return NewDiff(r1.source1.Rename(z2), r1.source2.Rename(z2))
 }
 
 // Union creates a new relation by unioning the bodies of both inputs
-//
 func (r1 *diffExpr) Union(r2 Relation) Relation {
 	return NewUnion(r1, r2)
 }
 
 // Diff creates a new relation by set minusing the two inputs
-//
 func (r1 *diffExpr) Diff(r2 Relation) Relation {
 	return NewDiff(r1, r2)
 }
 
 // Join creates a new relation by performing a natural join on the inputs
-//
 func (r1 *diffExpr) Join(r2 Relation, zero interface{}) Relation {
 	return NewJoin(r1, r2, zero)
 }
 
 // GroupBy creates a new relation by grouping and applying a user defined func
-//
 func (r1 *diffExpr) GroupBy(t2, gfcn interface{}) Relation {
 	return NewGroupBy(r1, t2, gfcn)
 }
@@ -178,7 +164,7 @@ func (r1 *diffExpr) Map(mfcn interface{}, ckeystr [][]string) Relation {
 	return NewMap(r1, mfcn, ckeystr)
 }
 
-// Error returns an error encountered during construction or computation
+// Err returns an error encountered during construction or computation
 func (r1 *diffExpr) Err() error {
 	return r1.err
 }

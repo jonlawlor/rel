@@ -12,7 +12,7 @@
 //
 // Union, which adds two sets together.
 //
-// Difference, which removes all elements from one set which exist in another.
+// Diff, which removes all elements from one set which exist in another.
 //
 // Restrict, which removes values from a relation that do not satisfy a
 // particular predicate.
@@ -32,9 +32,9 @@
 // fields.  The fields of the struct are the attributes of the tuple it
 // represents.
 //
-// Attributes are represented in a subpackage, github.com/jonlawlor/rel/
-// Briefly, they are strings with some additional methods that are useful for
-// constructing predicates and candidate keys.
+// Attributes are strings with some additional methods that are useful for
+// constructing predicates and candidate keys.  They have to be valid field
+// names in go.
 //
 // Predicates are functions which take a tuple and return a boolean, and are
 // used as an input for Restrict expressions.
@@ -51,11 +51,11 @@
 // Literal Relations can be defined using the rel.New function.  Given a slice,
 // map, or channel of tuples, the New function constructs a new "essential"
 // relation, with those values as tuples.  Other packages can create literal
-// relations from other sources of data, such as the github.com/jonlawlor/csv
+// relations from other sources of data, such as the github.com/jonlawlor/relcsv
 // package.
 //
 // Relational Expressions are generated when one of the methods Project,
-// Restrict, Union, SetDiff, Join, Rename, Map, or GroupBy.  During their
+// Restrict, Union, Diff, Join, Rename, Map, or GroupBy.  During their
 // construction, the rel package checks to see if they can be distributed over
 // the source relations that they are being called on, and if so, it attempts
 // to push the expressions down the tree of relations as far as they can go,

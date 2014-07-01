@@ -11,7 +11,10 @@ import (
 	"reflect"
 )
 
-// chanLiteral is an implementation of Relation using a channel
+// chanLiteral is an implementation of Relation using a channel.
+// One issue is that it does not pass along any cancellation.  Maybe it would
+// be better if there were two chanLiterals: one that allowed cancellation and
+// one that did not.
 type chanLiteral struct {
 	// the channel of tuples in the relation
 	rbody reflect.Value
@@ -79,8 +82,11 @@ func (r *chanLiteral) TupleChan(t interface{}) chan<- struct{} {
 		}(r.rbody, chv)
 		return cancel
 	}
-	// build up a map where each key is one of the tuples.  This consumes
-	// memory.
+	// Build up a map where each key is one of the tuples.  This consumes
+	// memory.  It may be better to have a seperate distinctExpr Relation,
+	// which can transform an input relation to be distinct.  On the other
+	// hand, that would produce an additional level of reflection and chan
+	// communication.
 	mem := map[interface{}]struct{}{}
 	go func(rbody, res reflect.Value) {
 		sourceSel := reflect.SelectCase{reflect.SelectRecv, rbody, reflect.Value{}}
@@ -144,41 +150,32 @@ func (r1 *chanLiteral) Project(z2 interface{}) Relation {
 
 // Restrict creates a new relation with less than or equal cardinality
 // p has to be a func(tup T) bool where tup is a subdomain of the input r.
-// This is a general purpose restrict - we might want to have specific ones for
-// the typical theta comparisons or <= <, =, >, >=, because it will allow much
-// better optimization on the source data side.
 func (r1 *chanLiteral) Restrict(p Predicate) Relation {
 	return NewRestrict(r1, p)
 }
 
 // Rename creates a new relation with new column names
 // z2 has to be a struct with the same number of fields as the input relation
-// note: we might want to change this into a projectrename operation?  It will
-// be tricky to represent this in go's type system, I think.
 func (r1 *chanLiteral) Rename(z2 interface{}) Relation {
 	return NewRename(r1, z2)
 }
 
 // Union creates a new relation by unioning the bodies of both inputs
-//
 func (r1 *chanLiteral) Union(r2 Relation) Relation {
 	return NewUnion(r1, r2)
 }
 
 // Diff creates a new relation by set minusing the two inputs
-//
 func (r1 *chanLiteral) Diff(r2 Relation) Relation {
 	return NewDiff(r1, r2)
 }
 
 // Join creates a new relation by performing a natural join on the inputs
-//
 func (r1 *chanLiteral) Join(r2 Relation, zero interface{}) Relation {
 	return NewJoin(r1, r2, zero)
 }
 
 // GroupBy creates a new relation by grouping and applying a user defined func
-//
 func (r1 *chanLiteral) GroupBy(t2, gfcn interface{}) Relation {
 	return NewGroupBy(r1, t2, gfcn)
 }
@@ -188,7 +185,7 @@ func (r1 *chanLiteral) Map(mfcn interface{}, ckeystr [][]string) Relation {
 	return NewMap(r1, mfcn, ckeystr)
 }
 
-// Error returns an error encountered during construction or computation
+// Err returns an error encountered during construction or computation
 func (r1 *chanLiteral) Err() error {
 	return r1.err
 }

@@ -4,7 +4,6 @@ package rel
 
 import (
 	"fmt"
-
 	"reflect"
 	"strings"
 )
@@ -267,8 +266,7 @@ func Card(r Relation) (i int) {
 	return
 }
 
-// TODO(jonlawlor): move error checking to the relational methods, to avoid
-// rechecking during query rewrite.
+// TODO(jonlawlor): avoid error rechecking during query rewrite?
 
 // NewProject creates a new relation expression with less than or equal degree
 // t2 has to be a new type which is a subdomain of r.

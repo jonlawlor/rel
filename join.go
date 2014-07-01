@@ -9,18 +9,22 @@ import (
 )
 
 type joinExpr struct {
+	// source1 & source2 are the two relations going into the join operation
 	source1 Relation
 	source2 Relation
-	zero    interface{}
 
+	// zero is the type of the resulting relation
+	zero interface{}
+
+	// err is the first error encountered during construction or evaluation.
 	err error
 }
 
-// This implementation of join uses a nested loop join, which I suspect is
-// better from a latency standpoint than a merge join.  However, I have
-// absolutely nothing to back that up, and it might just be easier to
-// implement than the merge join.
+// This implementation of join uses a nested loop join, which is definitely
+// slower and in most cases less memory efficient than a merge join.  However,
+// I haven't implemented sorting yet so it was much easier to implement.
 
+// TupleChan sends each tuple in the relation to a channel
 func (r *joinExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
@@ -108,6 +112,8 @@ func (r *joinExpr) TupleChan(t interface{}) chan<- struct{} {
 				}
 				if chosen > 0 && !ok {
 					// one of the bodies completed
+					// TODO(jonlawlor): remove memory for the other body, because
+					// we won't have anything to compare it to from now on.
 					inCases[chosen] = neverRecv
 					openSources--
 					continue
@@ -182,6 +188,7 @@ func (r *joinExpr) CKeys() CandKeys {
 
 	cKeysRes := make([][]Attribute, 0)
 
+	// kind of merge join
 	for _, ck1 := range cKeys1 {
 		for _, ck2 := range cKeys2 {
 			ck := make([]Attribute, len(ck1))
@@ -223,9 +230,8 @@ func (r1 *joinExpr) Project(z2 interface{}) Relation {
 
 // Restrict creates a new relation with less than or equal cardinality
 // p has to be a func(tup T) bool where tup is a subdomain of the input r.
-// This is a general purpose restrict - we might want to have specific ones for
-// the typical theta comparisons or <= <, =, >, >=, because it will allow much
-// better optimization on the source data side.
+// This can be rewritten if the predicate is a subdomain of either source
+// relation.
 func (r1 *joinExpr) Restrict(p Predicate) Relation {
 	// decompose compound predicates
 	if andPred, ok := p.(AndPred); ok {
@@ -251,32 +257,26 @@ func (r1 *joinExpr) Restrict(p Predicate) Relation {
 
 // Rename creates a new relation with new column names
 // z2 has to be a struct with the same number of fields as the input relation
-// note: we might want to change this into a projectrename operation?  It will
-// be tricky to represent this in go's type system, I think.
 func (r1 *joinExpr) Rename(z2 interface{}) Relation {
 	return NewRename(r1, z2)
 }
 
 // Union creates a new relation by unioning the bodies of both inputs
-//
 func (r1 *joinExpr) Union(r2 Relation) Relation {
 	return NewUnion(r1, r2)
 }
 
 // Diff creates a new relation by set minusing the two inputs
-//
 func (r1 *joinExpr) Diff(r2 Relation) Relation {
 	return NewDiff(r1, r2)
 }
 
 // Join creates a new relation by performing a natural join on the inputs
-//
 func (r1 *joinExpr) Join(r2 Relation, zero interface{}) Relation {
 	return NewJoin(r1, r2, zero)
 }
 
 // GroupBy creates a new relation by grouping and applying a user defined func
-//
 func (r1 *joinExpr) GroupBy(t2, gfcn interface{}) Relation {
 	return NewGroupBy(r1, t2, gfcn)
 }
@@ -286,7 +286,7 @@ func (r1 *joinExpr) Map(mfcn interface{}, ckeystr [][]string) Relation {
 	return NewMap(r1, mfcn, ckeystr)
 }
 
-// Error returns an error encountered during construction or computation
+// Err returns an error encountered during construction or computation
 func (r1 *joinExpr) Err() error {
 	return r1.err
 }

@@ -4,14 +4,10 @@ package rel
 // the example provided by C. J. Date in his book "Database in Depth" in Figure 1-3.
 // I think he might have a different type for the SNO and PNO columns, but int
 // probably works just as well.  We might want to define a type alias for it.
-
-// Maybe we should make this into an example function instead of top level
-// variables?
+// It is used extensively in the tests.
 
 // suppliers relation, with candidate keys {SNO}
 // the {SName} key is also possible to use
-
-// I'm not sure if anonymous structs would be better or worse.
 type supplierTup struct {
 	SNO    int
 	SName  string
