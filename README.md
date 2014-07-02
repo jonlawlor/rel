@@ -22,10 +22,10 @@ http://godoc.org/github.com/jonlawlor/rel
 
 Project Priorities
 ==================
-1) Faithful representation of relational algebra
-2) Extensibility
-3) Developer friendliness
-4) Performance
+* Faithful representation of relational algebra
+* Extensibility
+* Developer friendliness
+* Performance
 
 Thanks
 ======
