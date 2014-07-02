@@ -15,7 +15,7 @@
 // Diff, which removes all elements from one set which exist in another.
 //
 // Restrict, which removes values from a relation that do not satisfy a
-// particular predicate.
+// predicate.
 //
 // Project, which removes zero or more attributes from the tuples the relation
 // is defined on.
@@ -44,15 +44,15 @@
 // relation only contains unique tuples.  Some relations may contains several
 // candidate keys.
 //
-// Relations in this package can be either literal, like a relation from a
-// map of tuples, or an expression of other relations, like a join between
+// Relations in this package can be either literal, such as a relation from a
+// map of tuples, or an expression of other relations, such as a join between
 // two source relations.
 //
 // Literal Relations can be defined using the rel.New function.  Given a slice,
 // map, or channel of tuples, the New function constructs a new "essential"
-// relation, with those values as tuples.  Other packages can create literal
+// relation, with those values as tuples.  Other packages can create essential
 // relations from other sources of data, such as the github.com/jonlawlor/relcsv
-// package.
+// package, or the github.com/jonlawlor/relsql package.
 //
 // Relational Expressions are generated when one of the methods Project,
 // Restrict, Union, Diff, Join, Rename, Map, or GroupBy.  During their
@@ -76,8 +76,8 @@ package rel
 // zero, z, z1, z2, ... all represent a tuple's zero value, with defaults in
 // all of the fields.
 //
-// e, e1, e2, ... all represent the reflect.ValueOf(z) with the appropriate
-// identification.
+// elem, e, e1, e2, ... all represent the reflect.ValueOf(z) with the
+// appropriate identification.
 //
 // tup, tup1, tup2, ... all represent actual tuples going through some
 // relational transformation.

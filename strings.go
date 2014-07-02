@@ -72,6 +72,11 @@ func goStringTabTable(r Relation) string {
 	return s.String()
 }
 
+// PrettyPrint returns a human readable table of the tuples in the relation.
+func PrettyPrint(r Relation) string {
+	return stringTabTable(r)
+}
+
 // stringTabTable is makes a gostring out of a given relation
 func stringTabTable(r Relation) string {
 
