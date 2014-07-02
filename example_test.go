@@ -21,7 +21,7 @@ func (tups suppliers) Len() int           { return len(tups) }
 func (tups suppliers) Swap(i, j int)      { tups[i], tups[j] = tups[j], tups[i] }
 func (tups suppliers) Less(i, j int) bool { return tups[i].SNO < tups[j].SNO }
 
-func Example_Union() {
+func ExampleUnion() {
 	// the type of the tuples in the relation
 	// defined elsewhere...
 	// type supplierTup struct {
@@ -87,7 +87,7 @@ func Example_Union() {
 
 }
 
-func Example_Diff() {
+func ExampleDiff() {
 	// the type of the tuples in the relation
 	// defined elsewhere
 	// type supplierTup struct {
@@ -142,7 +142,7 @@ func (tups PNOSNOs) Less(i, j int) bool {
 	return tups[i].PNO < tups[j].PNO || (tups[i].PNO == tups[j].PNO && tups[i].SNO < tups[j].SNO)
 }
 
-func Example_Project_Distinct() {
+func ExampleProject_Distinct() {
 	// the type of the tuples in the input relation
 
 	type orderTup struct {
@@ -243,7 +243,7 @@ func (tups PNOQtys) Less(i, j int) bool {
 	return false
 }
 
-func Example_Project_NonDistinct() {
+func ExampleProject_NonDistinct() {
 	// the type of the tuples in the input relation
 
 	type orderTup struct {
@@ -331,7 +331,7 @@ func Example_Project_NonDistinct() {
 	//  +------+------+
 }
 
-func Example_Rename() {
+func ExampleRename() {
 	type orderTup struct {
 		PNO int
 		SNO int
@@ -390,7 +390,7 @@ func Example_Rename() {
 
 }
 
-func Example_Restrict() {
+func ExampleRestrict() {
 	// the type of the tuples in the relation
 	type supplierTup struct {
 		SNO    int
@@ -441,7 +441,7 @@ func (tups joinTups) Less(i, j int) bool {
 	return tups[i].PNO < tups[j].PNO || (tups[i].PNO == tups[j].PNO && tups[i].SNO < tups[j].SNO)
 }
 
-func Example_Join() {
+func ExampleJoin() {
 	// suppliers relation, with candidate keys {SNO}
 	// the {SName} key is also possible to use
 	// type supplierTup struct {
@@ -556,7 +556,7 @@ func (tups PNOs) Len() int           { return len(tups) }
 func (tups PNOs) Swap(i, j int)      { tups[i], tups[j] = tups[j], tups[i] }
 func (tups PNOs) Less(i, j int) bool { return tups[i].PNO < tups[j].PNO }
 
-func Example_GroupBy() {
+func ExampleGroupBy() {
 
 	// the type of the tuples in the input relation
 	type orderTup struct {
@@ -661,7 +661,7 @@ func (tups qtyDoubles) Less(i, j int) bool {
 	return tups[i].PNO < tups[j].PNO || (tups[i].PNO == tups[j].PNO && tups[i].SNO < tups[j].SNO)
 }
 
-func Example_Map() {
+func ExampleMap() {
 	type orderTup struct {
 		PNO int
 		SNO int
