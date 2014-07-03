@@ -32,7 +32,7 @@ Thanks
 * Andrew Janke
 * Ben Johnson
 * Egon Elbre
-* 
+
 TODOs
 =====
 + Reach 100% test coverage (currently 85%)
