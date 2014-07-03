@@ -31,7 +31,8 @@ Thanks
 ======
 * Andrew Janke
 * Ben Johnson
-
+* Egon Elbre
+* 
 TODOs
 =====
 + Reach 100% test coverage (currently 85%)
@@ -40,6 +41,8 @@ TODOs
 + Implement non relational operations like order?
 + Hook up chan_mem to some kind of copying mechanism
 + Should attributes have an associated type, or just a name like it is now?
++ Rewrite Predicate and Attribute interface (http://www.reddit.com/r/golang/comments/29ng75/tired_of_lightweight_simple_orms_youre_in_luck/cimwcqn)
++ Refactor reflection on tuples to a new type, instead of having reflect.ValueOf and reflect.TypeOf calls everywhere.
 
 Errors & Cancellation
 =====================
