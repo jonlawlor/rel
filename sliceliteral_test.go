@@ -111,7 +111,7 @@ func TestSliceLiteral(t *testing.T) {
 	res = make(chan orderTup)
 	_ = r1.TupleChan(res)
 	if _, ok := <-res; ok {
-		t.Errorf("%d did not short circuit TupleChan")
+		t.Errorf("sliceLiteral did not short circuit TupleChan")
 	}
 	errTest := []Relation{
 		r1.Project(distinctTup{}),

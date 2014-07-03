@@ -121,7 +121,7 @@ func TestDiff(t *testing.T) {
 	res = make(chan orderTup)
 	_ = rel1.TupleChan(res)
 	if _, ok := <-res; ok {
-		t.Errorf("%d did not short circuit TupleChan")
+		t.Errorf("diff did not short circuit TupleChan")
 	}
 	errTest := []Relation{
 		rel1.Project(distinctTup{}),

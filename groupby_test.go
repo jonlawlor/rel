@@ -147,7 +147,7 @@ func TestGroupBy(t *testing.T) {
 	res = make(chan groupByTup1)
 	_ = rel1.TupleChan(res)
 	if _, ok := <-res; ok {
-		t.Errorf("%d did not short circuit TupleChan")
+		t.Errorf("groupBy did not short circuit TupleChan")
 	}
 	errTest := []Relation{
 		rel1.Project(distinctTup{}),

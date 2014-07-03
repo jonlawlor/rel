@@ -94,8 +94,8 @@ func (r *groupByExpr) TupleChan(t interface{}) chan<- struct{} {
 		rgfieldMap := FieldMap(e2, er)
 
 		// create the select statement reflections
-		sourceSel := reflect.SelectCase{reflect.SelectRecv, body, reflect.Value{}}
-		canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+		sourceSel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: body}
+		canSel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(cancel)}
 		inCases := []reflect.SelectCase{canSel, sourceSel}
 
 		for {
@@ -130,7 +130,7 @@ func (r *groupByExpr) TupleChan(t interface{}) chan<- struct{} {
 					defer wg.Done()
 					// run the grouping function and turn the result into the
 					// reflect.Value
-					resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
+					resSel := reflect.SelectCase{Dir: reflect.SelectSend, Chan: res}
 
 					vals := r.gfcn.Call([]reflect.Value{groupChan})
 					// combine the returned values with the group tuple

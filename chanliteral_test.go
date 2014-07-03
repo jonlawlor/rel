@@ -23,8 +23,8 @@ func toChanLiteralCancel(r Relation, isDistinct bool) (r2 Relation, c chan<- str
 	body := reflect.MakeChan(reflect.ChanOf(reflect.RecvDir, e), 0)
 	r.TupleChan(body.Interface())
 	go func(b reflect.Value) {
-		resSel := reflect.SelectCase{reflect.SelectSend, ch, reflect.Value{}}
-		canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+		resSel := reflect.SelectCase{Dir: reflect.SelectSend, Chan: ch}
+		canSel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(cancel)}
 
 		for {
 			tup, ok := b.Recv()
@@ -164,7 +164,7 @@ func TestChanLiteral(t *testing.T) {
 	res = make(chan orderTup)
 	_ = r1.TupleChan(res)
 	if _, ok := <-res; ok {
-		t.Errorf("%d did not short circuit TupleChan")
+		t.Errorf("chanliteral did not short circuit TupleChan")
 	}
 	errTest := []Relation{
 		r1.Project(distinctTup{}),

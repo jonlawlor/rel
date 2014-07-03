@@ -92,14 +92,14 @@ func (r *joinExpr) TupleChan(t interface{}) chan<- struct{} {
 	for i := 0; i < mc; i++ {
 		go func(b1, b2, res reflect.Value) {
 			// input channels
-			source1Sel := reflect.SelectCase{reflect.SelectRecv, b1, reflect.Value{}}
-			source2Sel := reflect.SelectCase{reflect.SelectRecv, b2, reflect.Value{}}
-			canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
-			neverRecv := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(make(chan struct{})), reflect.Value{}}
+			source1Sel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: b1}
+			source2Sel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: b2}
+			canSel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(cancel)}
+			neverRecv := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(make(chan struct{}))}
 			inCases := []reflect.SelectCase{canSel, source1Sel, source2Sel}
 
 			// output channels
-			resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
+			resSel := reflect.SelectCase{Dir: reflect.SelectSend, Chan: res}
 
 			mtups := []reflect.Value{}
 

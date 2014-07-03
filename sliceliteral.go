@@ -44,8 +44,8 @@ func (r *sliceLiteral) TupleChan(t interface{}) chan<- struct{} {
 		go func(rbody, res reflect.Value) {
 
 			// output channels
-			canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
-			resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
+			canSel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(cancel)}
+			resSel := reflect.SelectCase{Dir: reflect.SelectSend, Chan: res}
 			for i := 0; i < rbody.Len(); i++ {
 				resSel.Send = rbody.Index(i)
 				chosen, _, _ := reflect.Select([]reflect.SelectCase{canSel, resSel})
@@ -64,8 +64,8 @@ func (r *sliceLiteral) TupleChan(t interface{}) chan<- struct{} {
 		mem := map[interface{}]struct{}{}
 
 		// output channels
-		resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
-		canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+		canSel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(cancel)}
+		resSel := reflect.SelectCase{Dir: reflect.SelectSend, Chan: res}
 
 		for i := 0; i < rbody.Len(); i++ {
 			rtup := rbody.Index(i)

@@ -37,7 +37,7 @@ func goStringTabTable(r Relation) string {
 	_ = r.TupleChan(tups)
 
 	deg := Deg(r)
-	sourceSel := reflect.SelectCase{reflect.SelectRecv, body, reflect.Value{}}
+	sourceSel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: body}
 	inCases := []reflect.SelectCase{sourceSel}
 
 	for {
@@ -109,7 +109,7 @@ func stringTabTable(r Relation) string {
 	tups := body.Interface()
 	_ = r.TupleChan(tups)
 
-	sourceSel := reflect.SelectCase{reflect.SelectRecv, body, reflect.Value{}}
+	sourceSel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: body}
 	inCases := []reflect.SelectCase{sourceSel}
 
 	for {

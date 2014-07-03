@@ -51,13 +51,13 @@ func (r *diffExpr) TupleChan(t interface{}) chan<- struct{} {
 		// we need them all before we can produce a single value from the
 		// first
 		// input channels
-		source1Sel := reflect.SelectCase{reflect.SelectRecv, b1, reflect.Value{}}
-		source2Sel := reflect.SelectCase{reflect.SelectRecv, b2, reflect.Value{}}
-		canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+		source1Sel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: b1}
+		source2Sel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: b2}
+		canSel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(cancel)}
 		inCases := []reflect.SelectCase{canSel, source2Sel}
 
 		// output channels
-		resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
+		resSel := reflect.SelectCase{Dir: reflect.SelectSend, Chan: res}
 
 		for {
 			chosen, tup, ok := reflect.Select(inCases)

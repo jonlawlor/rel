@@ -51,12 +51,12 @@ func (r *renameExpr) TupleChan(t interface{}) chan<- struct{} {
 
 	go func(body, res reflect.Value) {
 		// input channels
-		sourceSel := reflect.SelectCase{reflect.SelectRecv, body, reflect.Value{}}
-		canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+		sourceSel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: body}
+		canSel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(cancel)}
 		inCases := []reflect.SelectCase{canSel, sourceSel}
 
 		// output channels
-		resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
+		resSel := reflect.SelectCase{Dir: reflect.SelectSend, Chan: res}
 
 		if e1.AssignableTo(e2) {
 			for {

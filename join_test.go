@@ -165,7 +165,7 @@ func TestJoin(t *testing.T) {
 	res = make(chan joinTup1)
 	_ = rel1.TupleChan(res)
 	if _, ok := <-res; ok {
-		t.Errorf("%d did not short circuit TupleChan")
+		t.Errorf("join did not short circuit TupleChan")
 	}
 	errTest := []Relation{
 		rel1.Project(distinctTup{}),

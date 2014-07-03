@@ -51,12 +51,12 @@ func (r *chanLiteral) TupleChan(t interface{}) chan<- struct{} {
 	if r.sourceDistinct {
 		go func(rbody, res reflect.Value) {
 			// input channel
-			sourceSel := reflect.SelectCase{reflect.SelectRecv, rbody, reflect.Value{}}
-			canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+			sourceSel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: rbody}
+			canSel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(cancel)}
 			inCases := []reflect.SelectCase{canSel, sourceSel}
 
 			// output channel
-			resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
+			resSel := reflect.SelectCase{Dir: reflect.SelectSend, Chan: res}
 
 			for {
 				chosen, tup, ok := reflect.Select(inCases)
@@ -89,11 +89,11 @@ func (r *chanLiteral) TupleChan(t interface{}) chan<- struct{} {
 	// communication.
 	mem := map[interface{}]struct{}{}
 	go func(rbody, res reflect.Value) {
-		sourceSel := reflect.SelectCase{reflect.SelectRecv, rbody, reflect.Value{}}
-		canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+		sourceSel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: rbody}
+		canSel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(cancel)}
 		inCases := []reflect.SelectCase{canSel, sourceSel}
 
-		resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
+		resSel := reflect.SelectCase{Dir: reflect.SelectSend, Chan: res}
 
 		for {
 			chosen, rtup, ok := reflect.Select(inCases)

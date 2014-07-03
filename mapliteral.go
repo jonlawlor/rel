@@ -46,8 +46,8 @@ func (r *mapLiteral) TupleChan(t interface{}) chan<- struct{} {
 
 	go func(res reflect.Value) {
 		// output channel
-		resSel := reflect.SelectCase{reflect.SelectSend, res, reflect.Value{}}
-		canSel := reflect.SelectCase{reflect.SelectRecv, reflect.ValueOf(cancel), reflect.Value{}}
+		resSel := reflect.SelectCase{Dir: reflect.SelectSend, Chan: res}
+		canSel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(cancel)}
 
 		for _, tup := range r.rbody.MapKeys() {
 			resSel.Send = tup

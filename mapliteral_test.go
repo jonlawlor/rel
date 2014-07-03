@@ -17,7 +17,7 @@ func toMapLiteral(r Relation) Relation {
 
 	body := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e), 0)
 	_ = r.TupleChan(body.Interface())
-	sourceSel := reflect.SelectCase{reflect.SelectRecv, body, reflect.Value{}}
+	sourceSel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: body}
 	inCases := []reflect.SelectCase{sourceSel}
 
 	for {
@@ -138,7 +138,7 @@ func TestMapLiteral(t *testing.T) {
 	res = make(chan orderTup)
 	_ = r1.TupleChan(res)
 	if _, ok := <-res; ok {
-		t.Errorf("%d did not short circuit TupleChan")
+		t.Errorf("mapLiteral did not short circuit TupleChan")
 	}
 	errTest := []Relation{
 		r1.Project(distinctTup{}),
