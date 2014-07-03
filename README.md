@@ -53,4 +53,4 @@ Therefore, you should check for errors in the following places:
 2) after the chan used in TupleChan, if the source(s) of tuples are closed, then you should check for an error.
 3) if you implement your own relation, you should check for an Err() after a source closes, or set it if you have encountered one (and close the results channel).
 
-Cancellation is handled in the Tuples method.  If a caller no longer wants any results, they should close the cancel channel, which will then stop tuples from being sent by the Tuples method, which will also relay the cancellation up to any sources of tuples that it is consuming.  It will _not_ close the results channel.
+Cancellation is handled in the TupleChan method.  If a caller no longer wants any results, they should close the cancel channel, which will then stop tuples from being sent by the TupleChan method, which will also relay the cancellation up to any sources of tuples that it is consuming.  It will _not_ close the results channel.
