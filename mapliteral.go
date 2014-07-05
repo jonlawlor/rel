@@ -30,16 +30,16 @@ type mapLiteral struct {
 }
 
 // TupleChan sends each tuple in the relation to a channel
-func (r *mapLiteral) TupleChan(t interface{}) chan<- struct{} {
+func (r1 *mapLiteral) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := EnsureChan(chv.Type(), r.zero)
+	err := EnsureChan(chv.Type(), r1.zero)
 	if err != nil {
-		r.err = err
+		r1.err = err
 		return cancel
 	}
-	if r.err != nil {
+	if r1.err != nil {
 		chv.Close()
 		return cancel
 	}
@@ -49,7 +49,7 @@ func (r *mapLiteral) TupleChan(t interface{}) chan<- struct{} {
 		resSel := reflect.SelectCase{Dir: reflect.SelectSend, Chan: res}
 		canSel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(cancel)}
 
-		for _, tup := range r.rbody.MapKeys() {
+		for _, tup := range r1.rbody.MapKeys() {
 			resSel.Send = tup
 			chosen, _, _ := reflect.Select([]reflect.SelectCase{canSel, resSel})
 			if chosen == 0 {
@@ -63,23 +63,23 @@ func (r *mapLiteral) TupleChan(t interface{}) chan<- struct{} {
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *mapLiteral) Zero() interface{} {
-	return r.zero
+func (r1 *mapLiteral) Zero() interface{} {
+	return r1.zero
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *mapLiteral) CKeys() CandKeys {
-	return r.cKeys
+func (r1 *mapLiteral) CKeys() CandKeys {
+	return r1.cKeys
 }
 
 // GoString returns a text representation of the Relation
-func (r *mapLiteral) GoString() string {
-	return goStringTabTable(r)
+func (r1 *mapLiteral) GoString() string {
+	return goStringTabTable(r1)
 }
 
 // String returns a text representation of the Relation
-func (r *mapLiteral) String() string {
-	return "Relation(" + HeadingString(r) + ")"
+func (r1 *mapLiteral) String() string {
+	return "Relation(" + HeadingString(r1) + ")"
 }
 
 // Project creates a new relation with less than or equal degree

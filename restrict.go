@@ -23,16 +23,16 @@ type restrictExpr struct {
 }
 
 // TupleChan sends each tuple in the relation to a channel
-func (r *restrictExpr) TupleChan(t interface{}) chan<- struct{} {
+func (r1 *restrictExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := EnsureChan(chv.Type(), r.source1.Zero())
+	err := EnsureChan(chv.Type(), r1.source1.Zero())
 	if err != nil {
-		r.err = err
+		r1.err = err
 		return cancel
 	}
-	if r.err != nil {
+	if r1.err != nil {
 		chv.Close()
 		return cancel
 	}
@@ -41,15 +41,15 @@ func (r *restrictExpr) TupleChan(t interface{}) chan<- struct{} {
 	// TODO(jonlawlor): add a mechanism for concurrency to be modified.
 	mc := runtime.GOMAXPROCS(-1)
 
-	z1 := r.source1.Zero()
+	z1 := r1.source1.Zero()
 	e1 := reflect.TypeOf(z1)
 
-	predFunc := reflect.ValueOf(r.p.EvalFunc(e1))
+	predFunc := reflect.ValueOf(r1.p.EvalFunc(e1))
 
 	// create the channel of tuples from source
 	// TODO(jonlawlor): restrict the channel direction
 	body := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e1), 0)
-	bcancel := r.source1.TupleChan(body.Interface())
+	bcancel := r1.source1.TupleChan(body.Interface())
 
 	var wg sync.WaitGroup
 	wg.Add(mc)
@@ -60,8 +60,8 @@ func (r *restrictExpr) TupleChan(t interface{}) chan<- struct{} {
 		case <-cancel:
 			close(bcancel)
 		default:
-			if err := r.source1.Err(); err != nil {
-				r.err = err
+			if err := r1.source1.Err(); err != nil {
+				r1.err = err
 			}
 			res.Close()
 		}
@@ -97,29 +97,29 @@ func (r *restrictExpr) TupleChan(t interface{}) chan<- struct{} {
 				}
 			}
 			wg.Done()
-		}(body, chv, r.p)
+		}(body, chv, r1.p)
 	}
 	return cancel
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *restrictExpr) Zero() interface{} {
-	return r.source1.Zero()
+func (r1 *restrictExpr) Zero() interface{} {
+	return r1.source1.Zero()
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *restrictExpr) CKeys() CandKeys {
-	return r.source1.CKeys()
+func (r1 *restrictExpr) CKeys() CandKeys {
+	return r1.source1.CKeys()
 }
 
 // GoString returns a text representation of the Relation
-func (r *restrictExpr) GoString() string {
-	return r.source1.GoString() + ".Restrict(" + r.p.String() + ")"
+func (r1 *restrictExpr) GoString() string {
+	return r1.source1.GoString() + ".Restrict(" + r1.p.String() + ")"
 }
 
 // String returns a text representation of the Relation
-func (r *restrictExpr) String() string {
-	return "σ{" + r.p.String() + "}(" + r.source1.String() + ")"
+func (r1 *restrictExpr) String() string {
+	return "σ{" + r1.p.String() + "}(" + r1.source1.String() + ")"
 }
 
 // Project creates a new relation with less than or equal degree
@@ -130,9 +130,8 @@ func (r1 *restrictExpr) Project(z2 interface{}) Relation {
 	att2 := FieldNames(reflect.TypeOf(z2))
 	if IsSubDomain(r1.p.Domain(), att2) { // the predicate's attributes exist after project
 		return NewRestrict(r1.source1.Project(z2), r1.p)
-	} else {
-		return NewProject(r1, z2)
 	}
+	return NewProject(r1, z2)
 }
 
 // Restrict creates a new relation with less than or equal cardinality

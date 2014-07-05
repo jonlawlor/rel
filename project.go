@@ -19,32 +19,32 @@ type projectExpr struct {
 }
 
 // TupleChan sends each tuple in the relation to a channel
-func (r *projectExpr) TupleChan(t interface{}) chan<- struct{} {
+func (r1 *projectExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := EnsureChan(chv.Type(), r.zero)
+	err := EnsureChan(chv.Type(), r1.zero)
 	if err != nil {
-		r.err = err
+		r1.err = err
 		return cancel
 	}
-	if r.err != nil {
+	if r1.err != nil {
 		chv.Close()
 		return cancel
 	}
 
 	// transform the channel of tuples from the relation
-	z1 := r.source1.Zero()
+	z1 := r1.source1.Zero()
 	// first figure out if the tuple types of the relation and
 	// projection are equivalent.  If so, convert the tuples to
 	// the (possibly new) type and then return the new relation.
 	e1 := reflect.TypeOf(z1)
-	e2 := reflect.TypeOf(r.zero)
+	e2 := reflect.TypeOf(r1.zero)
 
 	// create the channel of tuples from source
 	// TODO(jonlawlor): restrict the channel direction
 	body := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e1), 0)
-	bcancel := r.source1.TupleChan(body.Interface())
+	bcancel := r1.source1.TupleChan(body.Interface())
 
 	// figure out which fields stay, and where they are in each of the tuple
 	// types.
@@ -54,7 +54,7 @@ func (r *projectExpr) TupleChan(t interface{}) chan<- struct{} {
 	// candidate keys left
 	// TODO(jonlawlor): refactor with the code in the CKeys() method, or
 	// include in an isDistinct field?
-	cKeys := SubsetCandidateKeys(r.source1.CKeys(), Heading(r.source1), fMap)
+	cKeys := SubsetCandidateKeys(r1.source1.CKeys(), Heading(r1.source1), fMap)
 	if len(cKeys) == 0 {
 		go func(body, res reflect.Value) {
 			m := map[interface{}]struct{}{}
@@ -94,8 +94,8 @@ func (r *projectExpr) TupleChan(t interface{}) chan<- struct{} {
 					}
 				}
 			}
-			if err := r.source1.Err(); err != nil {
-				r.err = err
+			if err := r1.source1.Err(); err != nil {
+				r1.err = err
 			}
 			res.Close()
 		}(body, chv)
@@ -138,8 +138,8 @@ func (r *projectExpr) TupleChan(t interface{}) chan<- struct{} {
 				return
 			}
 		}
-		if err := r.source1.Err(); err != nil {
-			r.err = err
+		if err := r1.source1.Err(); err != nil {
+			r1.err = err
 		}
 		res.Close()
 	}(body, chv)
@@ -148,21 +148,21 @@ func (r *projectExpr) TupleChan(t interface{}) chan<- struct{} {
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *projectExpr) Zero() interface{} {
-	return r.zero
+func (r1 *projectExpr) Zero() interface{} {
+	return r1.zero
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *projectExpr) CKeys() CandKeys {
-	z1 := r.source1.Zero()
+func (r1 *projectExpr) CKeys() CandKeys {
+	z1 := r1.source1.Zero()
 
-	cKeys := r.source1.CKeys()
+	cKeys := r1.source1.CKeys()
 
 	// first figure out if the tuple types of the relation and projection are
 	// equivalent.  If so, we don't have to do anything with the candidate
 	// keys.
 	e1 := reflect.TypeOf(z1)
-	e2 := reflect.TypeOf(r.zero)
+	e2 := reflect.TypeOf(r1.zero)
 
 	if e1.AssignableTo(e2) {
 		// nothing to do
@@ -171,11 +171,11 @@ func (r *projectExpr) CKeys() CandKeys {
 
 	// otherwise we have to subset the candidate keys.
 	fMap := FieldMap(e1, e2)
-	cKeys = SubsetCandidateKeys(cKeys, Heading(r.source1), fMap)
+	cKeys = SubsetCandidateKeys(cKeys, Heading(r1.source1), fMap)
 
 	// every relation except dee and dum have at least one candidate key
 	if len(cKeys) == 0 {
-		cKeys = DefaultKeys(r.zero)
+		cKeys = DefaultKeys(r1.zero)
 	}
 
 	return cKeys
@@ -184,13 +184,13 @@ func (r *projectExpr) CKeys() CandKeys {
 // text representation
 
 // GoString returns a text representation of the Relation
-func (r *projectExpr) GoString() string {
-	return r.source1.GoString() + ".Project(" + HeadingString(r) + ")"
+func (r1 *projectExpr) GoString() string {
+	return r1.source1.GoString() + ".Project(" + HeadingString(r1) + ")"
 }
 
 // String returns a text representation of the Relation
-func (r *projectExpr) String() string {
-	return "π{" + HeadingString(r) + "}(" + r.source1.String() + ")"
+func (r1 *projectExpr) String() string {
+	return "π{" + HeadingString(r1) + "}(" + r1.source1.String() + ")"
 }
 
 // Project creates a new relation with less than or equal degree

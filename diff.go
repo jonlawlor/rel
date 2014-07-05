@@ -16,16 +16,16 @@ type diffExpr struct {
 }
 
 // TupleChan sends each tuple in the relation to a channel
-func (r *diffExpr) TupleChan(t interface{}) chan<- struct{} {
+func (r1 *diffExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := EnsureChan(chv.Type(), r.Zero())
+	err := EnsureChan(chv.Type(), r1.Zero())
 	if err != nil {
-		r.err = err
+		r1.err = err
 		return cancel
 	}
-	if r.err != nil {
+	if r1.err != nil {
 		chv.Close()
 		return cancel
 	}
@@ -38,13 +38,13 @@ func (r *diffExpr) TupleChan(t interface{}) chan<- struct{} {
 
 	// tuples in both sides should have the same type, checked during
 	// construction
-	e := reflect.TypeOf(r.source1.Zero())
+	e := reflect.TypeOf(r1.source1.Zero())
 
 	// create channels over the body of the source relations
 	body1 := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e), 0)
-	bcancel1 := r.source1.TupleChan(body1.Interface())
+	bcancel1 := r1.source1.TupleChan(body1.Interface())
 	body2 := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e), 0)
-	bcancel2 := r.source2.TupleChan(body2.Interface())
+	bcancel2 := r1.source2.TupleChan(body2.Interface())
 
 	go func(b1, b2, res reflect.Value) {
 		// first pull all of the values from the second relation, because
@@ -88,10 +88,10 @@ func (r *diffExpr) TupleChan(t interface{}) chan<- struct{} {
 			close(bcancel1)
 			close(bcancel2)
 		default:
-			if err := r.source1.Err(); err != nil {
-				r.err = err
-			} else if err := r.source2.Err(); err != nil {
-				r.err = err
+			if err := r1.source1.Err(); err != nil {
+				r1.err = err
+			} else if err := r1.source2.Err(); err != nil {
+				r1.err = err
 			}
 			res.Close()
 		}
@@ -100,23 +100,23 @@ func (r *diffExpr) TupleChan(t interface{}) chan<- struct{} {
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *diffExpr) Zero() interface{} {
-	return r.source1.Zero()
+func (r1 *diffExpr) Zero() interface{} {
+	return r1.source1.Zero()
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *diffExpr) CKeys() CandKeys {
-	return r.source1.CKeys()
+func (r1 *diffExpr) CKeys() CandKeys {
+	return r1.source1.CKeys()
 }
 
 // GoString returns a text representation of the Relation
-func (r *diffExpr) GoString() string {
-	return r.source1.GoString() + ".Diff(" + r.source2.GoString() + ")"
+func (r1 *diffExpr) GoString() string {
+	return r1.source1.GoString() + ".Diff(" + r1.source2.GoString() + ")"
 }
 
 // String returns a text representation of the Relation
-func (r *diffExpr) String() string {
-	return r.source1.String() + " − " + r.source2.String()
+func (r1 *diffExpr) String() string {
+	return r1.source1.String() + " − " + r1.source2.String()
 }
 
 // Project creates a new relation with less than or equal degree

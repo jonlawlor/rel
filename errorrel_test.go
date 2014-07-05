@@ -16,49 +16,49 @@ type errorRel struct {
 // TupleChan sends each tuple in the relation to a channel
 // note: this consumes the values of the relation, and when it is finished it
 // closes the input channel.
-func (r *errorRel) TupleChan(t interface{}) chan<- struct{} {
+func (r1 *errorRel) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := EnsureChan(chv.Type(), r.zero)
+	err := EnsureChan(chv.Type(), r1.zero)
 	if err != nil {
-		r.err = err
+		r1.err = err
 		return cancel
 	}
-	if r.err != nil {
+	if r1.err != nil {
 		chv.Close()
 		return cancel
 	}
 
 	go func(res reflect.Value) {
-		for i := 0; i < r.card; i++ {
+		for i := 0; i < r1.card; i++ {
 			// note: these won't be distinct.
-			res.Send(reflect.ValueOf(r.zero))
+			res.Send(reflect.ValueOf(r1.zero))
 		}
-		r.err = fmt.Errorf("testing error")
+		r1.err = fmt.Errorf("testing error")
 		res.Close()
 	}(chv)
 	return cancel
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *errorRel) Zero() interface{} {
-	return r.zero
+func (r1 *errorRel) Zero() interface{} {
+	return r1.zero
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *errorRel) CKeys() CandKeys {
+func (r1 *errorRel) CKeys() CandKeys {
 	return CandKeys{}
 }
 
 // GoString returns a text representation of the Relation
-func (r *errorRel) GoString() string {
-	return "error{" + HeadingString(r) + "}"
+func (r1 *errorRel) GoString() string {
+	return "error{" + HeadingString(r1) + "}"
 }
 
 // String returns a text representation of the Relation
-func (r *errorRel) String() string {
-	return "error{" + HeadingString(r) + "}"
+func (r1 *errorRel) String() string {
+	return "error{" + HeadingString(r1) + "}"
 }
 
 // Project creates a new relation with less than or equal degree

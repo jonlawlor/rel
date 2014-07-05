@@ -65,18 +65,18 @@ type NotPred struct {
 }
 
 // String representation of Not
-func (p NotPred) String() string {
-	return fmt.Sprintf("!(%v)", p.P)
+func (p1 NotPred) String() string {
+	return fmt.Sprintf("!(%v)", p1.P)
 }
 
 // Domain is the type of input that is required to evalute the predicate
-func (p NotPred) Domain() []Attribute {
-	return p.P.Domain()
+func (p1 NotPred) Domain() []Attribute {
+	return p1.P.Domain()
 }
 
-// Eval evalutes a predicate on an input tuple
-func (p NotPred) EvalFunc(e reflect.Type) func(t interface{}) bool {
-	f := p.P.EvalFunc(e)
+// EvalFunc returns a function which evalutes a predicate on an input tuple
+func (p1 NotPred) EvalFunc(e reflect.Type) func(t interface{}) bool {
+	f := p1.P.EvalFunc(e)
 	return func(t interface{}) bool { return !f(t) }
 }
 
@@ -102,19 +102,19 @@ type AndPred struct {
 }
 
 // String representation of And
-func (p AndPred) String() string {
-	return fmt.Sprintf("(%v) && (%v)", p.P1, p.P2)
+func (p1 AndPred) String() string {
+	return fmt.Sprintf("(%v) && (%v)", p1.P1, p1.P2)
 }
 
 // Domain is the type of input that is required to evalute the predicate
-func (p AndPred) Domain() []Attribute {
-	return unionAttributes(p.P1.Domain(), p.P2.Domain())
+func (p1 AndPred) Domain() []Attribute {
+	return unionAttributes(p1.P1.Domain(), p1.P2.Domain())
 }
 
-// Eval evalutes a predicate on an input tuple
-func (p AndPred) EvalFunc(e reflect.Type) func(t interface{}) bool {
-	f1 := p.P1.EvalFunc(e)
-	f2 := p.P2.EvalFunc(e)
+// EvalFunc returns a function which evalutes a predicate on an input tuple
+func (p1 AndPred) EvalFunc(e reflect.Type) func(t interface{}) bool {
+	f1 := p1.P1.EvalFunc(e)
+	f2 := p1.P2.EvalFunc(e)
 	return func(t interface{}) bool { return f1(t) && f2(t) }
 }
 
@@ -140,20 +140,20 @@ type OrPred struct {
 }
 
 // String representation of Or
-func (p OrPred) String() string {
-	return fmt.Sprintf("(%v) || (%v)", p.P1, p.P2)
+func (p1 OrPred) String() string {
+	return fmt.Sprintf("(%v) || (%v)", p1.P1, p1.P2)
 }
 
 // Domain is the type of input that is required to evalute the predicate
-func (p OrPred) Domain() []Attribute {
-	return unionAttributes(p.P1.Domain(), p.P2.Domain())
+func (p1 OrPred) Domain() []Attribute {
+	return unionAttributes(p1.P1.Domain(), p1.P2.Domain())
 }
 
-// Eval evalutes a predicate on an input tuple
-func (p OrPred) EvalFunc(e reflect.Type) func(t interface{}) bool {
+// EvalFunc returns a function which evalutes a predicate on an input tuple
+func (p1 OrPred) EvalFunc(e reflect.Type) func(t interface{}) bool {
 
-	f1 := p.P1.EvalFunc(e)
-	f2 := p.P2.EvalFunc(e)
+	f1 := p1.P1.EvalFunc(e)
+	f2 := p1.P2.EvalFunc(e)
 	return func(t interface{}) bool { return f1(t) || f2(t) }
 }
 
@@ -179,19 +179,19 @@ type XorPred struct {
 }
 
 // String representation of Xor
-func (p XorPred) String() string {
-	return fmt.Sprintf("(%v) != (%v)", p.P1, p.P2)
+func (p1 XorPred) String() string {
+	return fmt.Sprintf("(%v) != (%v)", p1.P1, p1.P2)
 }
 
 // Domain is the type of input that is required to evalute the predicate
-func (p XorPred) Domain() []Attribute {
-	return unionAttributes(p.P1.Domain(), p.P2.Domain())
+func (p1 XorPred) Domain() []Attribute {
+	return unionAttributes(p1.P1.Domain(), p1.P2.Domain())
 }
 
-// Eval evalutes a predicate on an input tuple
-func (p XorPred) EvalFunc(e reflect.Type) func(t interface{}) bool {
-	f1 := p.P1.EvalFunc(e)
-	f2 := p.P2.EvalFunc(e)
+// EvalFunc returns a function which evalutes a predicate on an input tuple
+func (p1 XorPred) EvalFunc(e reflect.Type) func(t interface{}) bool {
+	f1 := p1.P1.EvalFunc(e)
+	f2 := p1.P2.EvalFunc(e)
 	return func(t interface{}) bool {
 		return f1(t) != f2(t)
 	}
@@ -225,8 +225,8 @@ type AdHoc struct {
 }
 
 // String representation of AdHoc
-func (p AdHoc) String() string {
-	dom := p.Domain()
+func (p1 AdHoc) String() string {
+	dom := p1.Domain()
 	s := make([]string, len(dom))
 	for i, v := range dom {
 		s[i] = string(v)
@@ -241,20 +241,20 @@ func (p AdHoc) String() string {
 }
 
 // Domain is the type of input that is required to evalute the predicate
-func (p AdHoc) Domain() []Attribute {
-	return FieldNames(reflect.TypeOf(p.F).In(0))
+func (p1 AdHoc) Domain() []Attribute {
+	return FieldNames(reflect.TypeOf(p1.F).In(0))
 }
 
-// Eval evalutes a predicate on an input tuple
-func (p AdHoc) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
+// EvalFunc returns a function which evalutes a predicate on an input tuple
+func (p1 AdHoc) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
 
-	e2 := reflect.TypeOf(p.F).In(0)
+	e2 := reflect.TypeOf(p1.F).In(0)
 
 	// figure out which fields stay, and where they are in each of the tuple
 	// types.
 	// TODO(jonlawlor): error if fields in e2 are not in r1's tuples.
 	fMap := FieldMap(e1, e2)
-	pf := reflect.ValueOf(p.F)
+	pf := reflect.ValueOf(p1.F)
 
 	return func(tup1 interface{}) bool {
 		tup2 := reflect.Indirect(reflect.New(e2))
@@ -299,57 +299,55 @@ func (p1 AdHoc) Xor(p2 Predicate) XorPred {
 // Note that you can have a runtime error if the predicate's literal has the
 // wrong type, which is particularly important with ints and floats.
 
+// EQPred is a representation of equal to (==)
 type EQPred struct {
 	att []Attribute
 	lit interface{}
 }
 
 // String representation of EQ
-func (p EQPred) String() string {
-	if len(p.att) == 2 {
-		return fmt.Sprintf("%v == %v", p.att[0], p.att[1])
-	} else {
-		return fmt.Sprintf("%v == %v", p.att[0], p.lit)
+func (p1 EQPred) String() string {
+	if len(p1.att) == 2 {
+		return fmt.Sprintf("%v == %v", p1.att[0], p1.att[1])
 	}
+	return fmt.Sprintf("%v == %v", p1.att[0], p1.lit)
 }
 
-// Equal to (==)
+// EQ Equal to (==)
 func (att1 Attribute) EQ(v interface{}) EQPred {
 	if att2, ok := v.(Attribute); ok {
 		att := make([]Attribute, 2)
 		att[0] = att1
 		att[1] = att2
 		return EQPred{att, reflect.Value{}}
-	} else { // v is a literal, we'll need runtime reflection
-		att := make([]Attribute, 1)
-		att[0] = att1
-		return EQPred{att, v}
 	}
+	// v is a literal, we'll need runtime reflection
+	att := make([]Attribute, 1)
+	att[0] = att1
+	return EQPred{att, v}
 }
 
 // Domain is the type of input that is required to evalute the predicate
-func (p EQPred) Domain() []Attribute {
-	return p.att
+func (p1 EQPred) Domain() []Attribute {
+	return p1.att
 }
 
-// Eval evalutes a predicate on an input tuple
-func (p EQPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
-
+// EvalFunc returns a function which evalutes a predicate on an input tuple
+func (p1 EQPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
 	// The only method defined on all interfaces is equal & not equal.
-
-	if len(p.att) == 2 {
-		att1 := string(p.att[0])
-		att2 := string(p.att[1])
+	if len(p1.att) == 2 {
+		att1 := string(p1.att[0])
+		att2 := string(p1.att[1])
 		return func(tup1 interface{}) bool {
 			rtup1 := reflect.ValueOf(tup1)
 			return rtup1.FieldByName(att1).Interface() == rtup1.FieldByName(att2).Interface()
 		}
-	} else { // the second element is a literal
-		att1 := string(p.att[0])
-		return func(tup1 interface{}) bool {
-			rtup1 := reflect.ValueOf(tup1)
-			return rtup1.FieldByName(att1).Interface() == p.lit
-		}
+	}
+	// the second element is a literal
+	att1 := string(p1.att[0])
+	return func(tup1 interface{}) bool {
+		rtup1 := reflect.ValueOf(tup1)
+		return rtup1.FieldByName(att1).Interface() == p1.lit
 	}
 }
 
@@ -368,48 +366,48 @@ func (p1 EQPred) Xor(p2 Predicate) XorPred {
 	return XorPred{p1, p2}
 }
 
+// LTPred is a representation of less than (<)
 type LTPred struct {
 	att []Attribute
 	lit interface{}
 }
 
 // String representation of LT
-func (p LTPred) String() string {
-	if len(p.att) == 2 {
-		return fmt.Sprintf("%v < %v", p.att[0], p.att[1])
-	} else {
-		return fmt.Sprintf("%v < %v", p.att[0], p.lit)
+func (p1 LTPred) String() string {
+	if len(p1.att) == 2 {
+		return fmt.Sprintf("%v < %v", p1.att[0], p1.att[1])
 	}
+	return fmt.Sprintf("%v < %v", p1.att[0], p1.lit)
 }
 
-// Less than (<)
+// LT Less than (<)
 func (att1 Attribute) LT(v interface{}) LTPred {
 	if att2, ok := v.(Attribute); ok {
 		att := make([]Attribute, 2)
 		att[0] = att1
 		att[1] = att2
 		return LTPred{att, reflect.Value{}}
-	} else { // v is a literal, we'll need runtime reflection
-		att := make([]Attribute, 1)
-		att[0] = att1
-		return LTPred{att, v}
 	}
+	// v is a literal, we'll need runtime reflection
+	att := make([]Attribute, 1)
+	att[0] = att1
+	return LTPred{att, v}
 }
 
 // Domain is the type of input that is required to evalute the predicate
-func (p LTPred) Domain() []Attribute {
-	return p.att
+func (p1 LTPred) Domain() []Attribute {
+	return p1.att
 }
 
-// Eval evalutes a predicate on an input tuple
-func (p LTPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
+// EvalFunc returns a function which evalutes a predicate on an input tuple
+func (p1 LTPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
 	// e1 is currently unused
 
 	// Less than is only defined on numeric and string types
 	// TODO(jonlawlor): this is hideous!
-	if len(p.att) == 2 {
-		att1 := string(p.att[0])
-		att2 := string(p.att[1])
+	if len(p1.att) == 2 {
+		att1 := string(p1.att[0])
+		att2 := string(p1.att[1])
 		return func(tup1 interface{}) bool {
 			rtup1 := reflect.ValueOf(tup1)
 			f1 := rtup1.FieldByName(att1).Interface()
@@ -444,40 +442,40 @@ func (p LTPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
 				return f1.(float64) < f2.(float64)
 			}
 		}
-	} else { // the second element is a literal
-		att1 := string(p.att[0])
-		return func(tup1 interface{}) bool {
-			rtup1 := reflect.ValueOf(tup1)
-			f1 := rtup1.FieldByName(att1).Interface()
-			switch f1.(type) {
-			default:
-				// I am _REALLY_ unsure this is the desired behavior
-				return false
-			case int:
-				return f1.(int) < p.lit.(int)
-			case string:
-				return f1.(string) < p.lit.(string)
-			case uint8:
-				return f1.(uint8) < p.lit.(uint8)
-			case uint16:
-				return f1.(uint16) < p.lit.(uint16)
-			case uint32:
-				return f1.(uint32) < p.lit.(uint32)
-			case uint64:
-				return f1.(uint64) < p.lit.(uint64)
-			case int8:
-				return f1.(int8) < p.lit.(int8)
-			case int16:
-				return f1.(int16) < p.lit.(int16)
-			case int32:
-				return f1.(int32) < p.lit.(int32)
-			case int64:
-				return f1.(int64) < p.lit.(int64)
-			case float32:
-				return f1.(float32) < p.lit.(float32)
-			case float64:
-				return f1.(float64) < p.lit.(float64)
-			}
+	}
+	// the second element is a literal
+	att1 := string(p1.att[0])
+	return func(tup1 interface{}) bool {
+		rtup1 := reflect.ValueOf(tup1)
+		f1 := rtup1.FieldByName(att1).Interface()
+		switch f1.(type) {
+		default:
+			// I am _REALLY_ unsure this is the desired behavior
+			return false
+		case int:
+			return f1.(int) < p1.lit.(int)
+		case string:
+			return f1.(string) < p1.lit.(string)
+		case uint8:
+			return f1.(uint8) < p1.lit.(uint8)
+		case uint16:
+			return f1.(uint16) < p1.lit.(uint16)
+		case uint32:
+			return f1.(uint32) < p1.lit.(uint32)
+		case uint64:
+			return f1.(uint64) < p1.lit.(uint64)
+		case int8:
+			return f1.(int8) < p1.lit.(int8)
+		case int16:
+			return f1.(int16) < p1.lit.(int16)
+		case int32:
+			return f1.(int32) < p1.lit.(int32)
+		case int64:
+			return f1.(int64) < p1.lit.(int64)
+		case float32:
+			return f1.(float32) < p1.lit.(float32)
+		case float64:
+			return f1.(float64) < p1.lit.(float64)
 		}
 	}
 }
@@ -497,48 +495,48 @@ func (p1 LTPred) Xor(p2 Predicate) XorPred {
 	return XorPred{p1, p2}
 }
 
+// LEPred is a representation of less than or equal to (<=)
 type LEPred struct {
 	att []Attribute
 	lit interface{}
 }
 
-// Less than or equal to (<=)
+// LE Less than or equal to (<=)
 func (att1 Attribute) LE(v interface{}) LEPred {
 	if att2, ok := v.(Attribute); ok {
 		att := make([]Attribute, 2)
 		att[0] = att1
 		att[1] = att2
 		return LEPred{att, reflect.Value{}}
-	} else { // v is a literal, we'll need runtime reflection
-		att := make([]Attribute, 1)
-		att[0] = att1
-		return LEPred{att, v}
 	}
+	// v is a literal, we'll need runtime reflection
+	att := make([]Attribute, 1)
+	att[0] = att1
+	return LEPred{att, v}
 }
 
 // String representation of LE
-func (p LEPred) String() string {
-	if len(p.att) == 2 {
-		return fmt.Sprintf("%v <= %v", p.att[0], p.att[1])
-	} else {
-		return fmt.Sprintf("%v <= %v", p.att[0], p.lit)
+func (p1 LEPred) String() string {
+	if len(p1.att) == 2 {
+		return fmt.Sprintf("%v <= %v", p1.att[0], p1.att[1])
 	}
+	return fmt.Sprintf("%v <= %v", p1.att[0], p1.lit)
 }
 
 // Domain is the type of input that is required to evalute the predicate
-func (p LEPred) Domain() []Attribute {
-	return p.att
+func (p1 LEPred) Domain() []Attribute {
+	return p1.att
 }
 
-// Eval evalutes a predicate on an input tuple
-func (p LEPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
+// EvalFunc returns a function which evalutes a predicate on an input tuple
+func (p1 LEPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
 	// e1 is currently unused
 
 	// Less than is only defined on numeric and string types
 	// TODO(jonlawlor): this is hideous!
-	if len(p.att) == 2 {
-		att1 := string(p.att[0])
-		att2 := string(p.att[1])
+	if len(p1.att) == 2 {
+		att1 := string(p1.att[0])
+		att2 := string(p1.att[1])
 		return func(tup1 interface{}) bool {
 			rtup1 := reflect.ValueOf(tup1)
 			f1 := rtup1.FieldByName(att1).Interface()
@@ -573,40 +571,40 @@ func (p LEPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
 				return f1.(float64) <= f2.(float64)
 			}
 		}
-	} else { // the second element is a literal
-		att1 := string(p.att[0])
-		return func(tup1 interface{}) bool {
-			rtup1 := reflect.ValueOf(tup1)
-			f1 := rtup1.FieldByName(att1).Interface()
-			switch f1.(type) {
-			default:
-				// I am _REALLY_ unsure this is the desired behavior
-				return false
-			case int:
-				return f1.(int) <= p.lit.(int)
-			case string:
-				return f1.(string) <= p.lit.(string)
-			case uint8:
-				return f1.(uint8) <= p.lit.(uint8)
-			case uint16:
-				return f1.(uint16) <= p.lit.(uint16)
-			case uint32:
-				return f1.(uint32) <= p.lit.(uint32)
-			case uint64:
-				return f1.(uint64) <= p.lit.(uint64)
-			case int8:
-				return f1.(int8) <= p.lit.(int8)
-			case int16:
-				return f1.(int16) <= p.lit.(int16)
-			case int32:
-				return f1.(int32) <= p.lit.(int32)
-			case int64:
-				return f1.(int64) <= p.lit.(int64)
-			case float32:
-				return f1.(float32) <= p.lit.(float32)
-			case float64:
-				return f1.(float64) <= p.lit.(float64)
-			}
+	}
+	// the second element is a literal
+	att1 := string(p1.att[0])
+	return func(tup1 interface{}) bool {
+		rtup1 := reflect.ValueOf(tup1)
+		f1 := rtup1.FieldByName(att1).Interface()
+		switch f1.(type) {
+		default:
+			// I am _REALLY_ unsure this is the desired behavior
+			return false
+		case int:
+			return f1.(int) <= p1.lit.(int)
+		case string:
+			return f1.(string) <= p1.lit.(string)
+		case uint8:
+			return f1.(uint8) <= p1.lit.(uint8)
+		case uint16:
+			return f1.(uint16) <= p1.lit.(uint16)
+		case uint32:
+			return f1.(uint32) <= p1.lit.(uint32)
+		case uint64:
+			return f1.(uint64) <= p1.lit.(uint64)
+		case int8:
+			return f1.(int8) <= p1.lit.(int8)
+		case int16:
+			return f1.(int16) <= p1.lit.(int16)
+		case int32:
+			return f1.(int32) <= p1.lit.(int32)
+		case int64:
+			return f1.(int64) <= p1.lit.(int64)
+		case float32:
+			return f1.(float32) <= p1.lit.(float32)
+		case float64:
+			return f1.(float64) <= p1.lit.(float64)
 		}
 	}
 }
@@ -626,48 +624,48 @@ func (p1 LEPred) Xor(p2 Predicate) XorPred {
 	return XorPred{p1, p2}
 }
 
+// GTPred is a representation of greater than (>)
 type GTPred struct {
 	att []Attribute
 	lit interface{}
 }
 
 // String representation of GT
-func (p GTPred) String() string {
-	if len(p.att) == 2 {
-		return fmt.Sprintf("%v > %v", p.att[0], p.att[1])
-	} else {
-		return fmt.Sprintf("%v > %v", p.att[0], p.lit)
+func (p1 GTPred) String() string {
+	if len(p1.att) == 2 {
+		return fmt.Sprintf("%v > %v", p1.att[0], p1.att[1])
 	}
+	return fmt.Sprintf("%v > %v", p1.att[0], p1.lit)
 }
 
-// Greater than (>)
+// GT Greater than (>)
 func (att1 Attribute) GT(v interface{}) GTPred {
 	if att2, ok := v.(Attribute); ok {
 		att := make([]Attribute, 2)
 		att[0] = att1
 		att[1] = att2
 		return GTPred{att, reflect.Value{}}
-	} else { // v is a literal, we'll need runtime reflection
-		att := make([]Attribute, 1)
-		att[0] = att1
-		return GTPred{att, v}
 	}
+	// v is a literal, we'll need runtime reflection
+	att := make([]Attribute, 1)
+	att[0] = att1
+	return GTPred{att, v}
 }
 
 // Domain is the type of input that is required to evalute the predicate
-func (p GTPred) Domain() []Attribute {
-	return p.att
+func (p1 GTPred) Domain() []Attribute {
+	return p1.att
 }
 
-// Eval evalutes a predicate on an input tuple
-func (p GTPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
+// EvalFunc returns a function which evalutes a predicate on an input tuple
+func (p1 GTPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
 	// e1 is currently unused
 
 	// Less than is only defined on numeric and string types
 	// TODO(jonlawlor): this is hideous!
-	if len(p.att) == 2 {
-		att1 := string(p.att[0])
-		att2 := string(p.att[1])
+	if len(p1.att) == 2 {
+		att1 := string(p1.att[0])
+		att2 := string(p1.att[1])
 		return func(tup1 interface{}) bool {
 			rtup1 := reflect.ValueOf(tup1)
 			f1 := rtup1.FieldByName(att1).Interface()
@@ -702,40 +700,40 @@ func (p GTPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
 				return f1.(float64) > f2.(float64)
 			}
 		}
-	} else { // the second element is a literal
-		att1 := string(p.att[0])
-		return func(tup1 interface{}) bool {
-			rtup1 := reflect.ValueOf(tup1)
-			f1 := rtup1.FieldByName(att1).Interface()
-			switch f1.(type) {
-			default:
-				// I am _REALLY_ unsure this is the desired behavior
-				return false
-			case int:
-				return f1.(int) > p.lit.(int)
-			case string:
-				return f1.(string) > p.lit.(string)
-			case uint8:
-				return f1.(uint8) > p.lit.(uint8)
-			case uint16:
-				return f1.(uint16) > p.lit.(uint16)
-			case uint32:
-				return f1.(uint32) > p.lit.(uint32)
-			case uint64:
-				return f1.(uint64) > p.lit.(uint64)
-			case int8:
-				return f1.(int8) > p.lit.(int8)
-			case int16:
-				return f1.(int16) > p.lit.(int16)
-			case int32:
-				return f1.(int32) > p.lit.(int32)
-			case int64:
-				return f1.(int64) > p.lit.(int64)
-			case float32:
-				return f1.(float32) > p.lit.(float32)
-			case float64:
-				return f1.(float64) > p.lit.(float64)
-			}
+	}
+	// the second element is a literal
+	att1 := string(p1.att[0])
+	return func(tup1 interface{}) bool {
+		rtup1 := reflect.ValueOf(tup1)
+		f1 := rtup1.FieldByName(att1).Interface()
+		switch f1.(type) {
+		default:
+			// I am _REALLY_ unsure this is the desired behavior
+			return false
+		case int:
+			return f1.(int) > p1.lit.(int)
+		case string:
+			return f1.(string) > p1.lit.(string)
+		case uint8:
+			return f1.(uint8) > p1.lit.(uint8)
+		case uint16:
+			return f1.(uint16) > p1.lit.(uint16)
+		case uint32:
+			return f1.(uint32) > p1.lit.(uint32)
+		case uint64:
+			return f1.(uint64) > p1.lit.(uint64)
+		case int8:
+			return f1.(int8) > p1.lit.(int8)
+		case int16:
+			return f1.(int16) > p1.lit.(int16)
+		case int32:
+			return f1.(int32) > p1.lit.(int32)
+		case int64:
+			return f1.(int64) > p1.lit.(int64)
+		case float32:
+			return f1.(float32) > p1.lit.(float32)
+		case float64:
+			return f1.(float64) > p1.lit.(float64)
 		}
 	}
 }
@@ -755,48 +753,48 @@ func (p1 GTPred) Xor(p2 Predicate) XorPred {
 	return XorPred{p1, p2}
 }
 
+// GEPred is a representation of greater than or equal to (>=)
 type GEPred struct {
 	att []Attribute
 	lit interface{}
 }
 
-// String representation of EQ
-func (p GEPred) String() string {
-	if len(p.att) == 2 {
-		return fmt.Sprintf("%v >= %v", p.att[0], p.att[1])
-	} else {
-		return fmt.Sprintf("%v >= %v", p.att[0], p.lit)
+// String representation of GE (>=)
+func (p1 GEPred) String() string {
+	if len(p1.att) == 2 {
+		return fmt.Sprintf("%v >= %v", p1.att[0], p1.att[1])
 	}
+	return fmt.Sprintf("%v >= %v", p1.att[0], p1.lit)
 }
 
-// Greater than or equal to (>=)
+// GE Greater than or equal to (>=)
 func (att1 Attribute) GE(v interface{}) GEPred {
 	if att2, ok := v.(Attribute); ok {
 		att := make([]Attribute, 2)
 		att[0] = att1
 		att[1] = att2
 		return GEPred{att, reflect.Value{}}
-	} else { // v is a literal, we'll need runtime reflection
-		att := make([]Attribute, 1)
-		att[0] = att1
-		return GEPred{att, v}
 	}
+	// v is a literal, we'll need runtime reflection
+	att := make([]Attribute, 1)
+	att[0] = att1
+	return GEPred{att, v}
 }
 
 // Domain is the type of input that is required to evalute the predicate
-func (p GEPred) Domain() []Attribute {
-	return p.att
+func (p1 GEPred) Domain() []Attribute {
+	return p1.att
 }
 
-// Eval evalutes a predicate on an input tuple
-func (p GEPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
+// EvalFunc returns a function which evalutes a predicate on an input tuple
+func (p1 GEPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
 	// e1 is currently unused
 
 	// Less than is only defined on numeric and string types
 	// TODO(jonlawlor): this is hideous!
-	if len(p.att) == 2 {
-		att1 := string(p.att[0])
-		att2 := string(p.att[1])
+	if len(p1.att) == 2 {
+		att1 := string(p1.att[0])
+		att2 := string(p1.att[1])
 		return func(tup1 interface{}) bool {
 			rtup1 := reflect.ValueOf(tup1)
 			f1 := rtup1.FieldByName(att1).Interface()
@@ -831,40 +829,40 @@ func (p GEPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
 				return f1.(float64) >= f2.(float64)
 			}
 		}
-	} else { // the second element is a literal
-		att1 := string(p.att[0])
-		return func(tup1 interface{}) bool {
-			rtup1 := reflect.ValueOf(tup1)
-			f1 := rtup1.FieldByName(att1).Interface()
-			switch f1.(type) {
-			default:
-				// I am _REALLY_ unsure this is the desired behavior
-				return false
-			case int:
-				return f1.(int) >= p.lit.(int)
-			case string:
-				return f1.(string) >= p.lit.(string)
-			case uint8:
-				return f1.(uint8) >= p.lit.(uint8)
-			case uint16:
-				return f1.(uint16) >= p.lit.(uint16)
-			case uint32:
-				return f1.(uint32) >= p.lit.(uint32)
-			case uint64:
-				return f1.(uint64) >= p.lit.(uint64)
-			case int8:
-				return f1.(int8) >= p.lit.(int8)
-			case int16:
-				return f1.(int16) >= p.lit.(int16)
-			case int32:
-				return f1.(int32) >= p.lit.(int32)
-			case int64:
-				return f1.(int64) >= p.lit.(int64)
-			case float32:
-				return f1.(float32) >= p.lit.(float32)
-			case float64:
-				return f1.(float64) >= p.lit.(float64)
-			}
+	}
+	// the second element is a literal
+	att1 := string(p1.att[0])
+	return func(tup1 interface{}) bool {
+		rtup1 := reflect.ValueOf(tup1)
+		f1 := rtup1.FieldByName(att1).Interface()
+		switch f1.(type) {
+		default:
+			// I am _REALLY_ unsure this is the desired behavior
+			return false
+		case int:
+			return f1.(int) >= p1.lit.(int)
+		case string:
+			return f1.(string) >= p1.lit.(string)
+		case uint8:
+			return f1.(uint8) >= p1.lit.(uint8)
+		case uint16:
+			return f1.(uint16) >= p1.lit.(uint16)
+		case uint32:
+			return f1.(uint32) >= p1.lit.(uint32)
+		case uint64:
+			return f1.(uint64) >= p1.lit.(uint64)
+		case int8:
+			return f1.(int8) >= p1.lit.(int8)
+		case int16:
+			return f1.(int16) >= p1.lit.(int16)
+		case int32:
+			return f1.(int32) >= p1.lit.(int32)
+		case int64:
+			return f1.(int64) >= p1.lit.(int64)
+		case float32:
+			return f1.(float32) >= p1.lit.(float32)
+		case float64:
+			return f1.(float64) >= p1.lit.(float64)
 		}
 	}
 }
@@ -884,57 +882,57 @@ func (p1 GEPred) Xor(p2 Predicate) XorPred {
 	return XorPred{p1, p2}
 }
 
+// NEPred represents a not equal to (!=) operation
 type NEPred struct {
 	att []Attribute
 	lit interface{}
 }
 
-// String representation of EQ
-func (p NEPred) String() string {
-	if len(p.att) == 2 {
-		return fmt.Sprintf("%v != %v", p.att[0], p.att[1])
-	} else {
-		return fmt.Sprintf("%v != %v", p.att[0], p.lit)
+// String representation of NEPred (!-)
+func (p1 NEPred) String() string {
+	if len(p1.att) == 2 {
+		return fmt.Sprintf("%v != %v", p1.att[0], p1.att[1])
 	}
+	return fmt.Sprintf("%v != %v", p1.att[0], p1.lit)
 }
 
-// Not equal to (!=)
+// NE Not equal to (!=)
 func (att1 Attribute) NE(v interface{}) NEPred {
 	if att2, ok := v.(Attribute); ok {
 		att := make([]Attribute, 2)
 		att[0] = att1
 		att[1] = att2
 		return NEPred{att, reflect.Value{}}
-	} else { // v is a literal, we'll need runtime reflection
-		att := make([]Attribute, 1)
-		att[0] = att1
-		return NEPred{att, v}
 	}
+	// v is a literal, we'll need runtime reflection
+	att := make([]Attribute, 1)
+	att[0] = att1
+	return NEPred{att, v}
 }
 
 // Domain is the type of input that is required to evalute the predicate
-func (p NEPred) Domain() []Attribute {
-	return p.att
+func (p1 NEPred) Domain() []Attribute {
+	return p1.att
 }
 
-// Eval evalutes a predicate on an input tuple
-func (p NEPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
+// EvalFunc returns a function which evalutes a predicate on an input tuple
+func (p1 NEPred) EvalFunc(e1 reflect.Type) func(t interface{}) bool {
 
 	// The only method defined on all interfaces is equal & not equal.
 
-	if len(p.att) == 2 {
-		att1 := string(p.att[0])
-		att2 := string(p.att[1])
+	if len(p1.att) == 2 {
+		att1 := string(p1.att[0])
+		att2 := string(p1.att[1])
 		return func(tup1 interface{}) bool {
 			rtup1 := reflect.ValueOf(tup1)
 			return rtup1.FieldByName(att1).Interface() != rtup1.FieldByName(att2).Interface()
 		}
-	} else { // the second element is a literal
-		att1 := string(p.att[0])
-		return func(tup1 interface{}) bool {
-			rtup1 := reflect.ValueOf(tup1)
-			return rtup1.FieldByName(att1).Interface() != p.lit
-		}
+	}
+	// the second element is a literal
+	att1 := string(p1.att[0])
+	return func(tup1 interface{}) bool {
+		rtup1 := reflect.ValueOf(tup1)
+		return rtup1.FieldByName(att1).Interface() != p1.lit
 	}
 }
 

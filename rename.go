@@ -20,16 +20,16 @@ type renameExpr struct {
 }
 
 // TupleChan sends each tuple in the relation to a channel
-func (r *renameExpr) TupleChan(t interface{}) chan<- struct{} {
+func (r1 *renameExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := EnsureChan(chv.Type(), r.zero)
+	err := EnsureChan(chv.Type(), r1.zero)
 	if err != nil {
-		r.err = err
+		r1.err = err
 		return cancel
 	}
-	if r.err != nil {
+	if r1.err != nil {
 		chv.Close()
 		return cancel
 	}
@@ -37,13 +37,13 @@ func (r *renameExpr) TupleChan(t interface{}) chan<- struct{} {
 	// first figure out if the tuple types of the relation and rename
 	// are equal.  If so, convert the tuples to the (possibly new)
 	// type and then return the new relation.
-	e1 := reflect.TypeOf(r.source1.Zero())
-	e2 := reflect.TypeOf(r.zero)
+	e1 := reflect.TypeOf(r1.source1.Zero())
+	e2 := reflect.TypeOf(r1.zero)
 
 	// create the channel of tuples from source
 	// TODO(jonlawlor): restrict the channel direction
 	body := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e1), 0)
-	bcancel := r.source1.TupleChan(body.Interface())
+	bcancel := r1.source1.TupleChan(body.Interface())
 
 	// assign the values of the original to the new names in the same
 	// locations
@@ -78,8 +78,8 @@ func (r *renameExpr) TupleChan(t interface{}) chan<- struct{} {
 					return
 				}
 			}
-			if err := r.source1.Err(); err != nil {
-				r.err = err
+			if err := r1.source1.Err(); err != nil {
+				r1.err = err
 			}
 			res.Close()
 			return
@@ -108,8 +108,8 @@ func (r *renameExpr) TupleChan(t interface{}) chan<- struct{} {
 				return
 			}
 		}
-		if err := r.source1.Err(); err != nil {
-			r.err = err
+		if err := r1.source1.Err(); err != nil {
+			r1.err = err
 		}
 		res.Close()
 	}(body, chv)
@@ -117,13 +117,13 @@ func (r *renameExpr) TupleChan(t interface{}) chan<- struct{} {
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *renameExpr) Zero() interface{} {
-	return r.zero
+func (r1 *renameExpr) Zero() interface{} {
+	return r1.zero
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *renameExpr) CKeys() CandKeys {
-	z2 := reflect.TypeOf(r.zero)
+func (r1 *renameExpr) CKeys() CandKeys {
+	z2 := reflect.TypeOf(r1.zero)
 
 	// figure out the new names
 	names2 := FieldNames(z2)
@@ -131,11 +131,11 @@ func (r *renameExpr) CKeys() CandKeys {
 	// create a map from the old names to the new names if there is any
 	// difference between them
 	nameMap := make(map[Attribute]Attribute)
-	for i, att := range Heading(r.source1) {
+	for i, att := range Heading(r1.source1) {
 		nameMap[att] = names2[i]
 	}
 
-	cKeys1 := r.source1.CKeys()
+	cKeys1 := r1.source1.CKeys()
 	cKeys2 := make(CandKeys, len(cKeys1))
 	// for each of the candidate keys, rename any keys from the old names to
 	// the new ones
@@ -151,13 +151,13 @@ func (r *renameExpr) CKeys() CandKeys {
 }
 
 // GoString returns a text representation of the Relation
-func (r *renameExpr) GoString() string {
-	return r.source1.GoString() + ".Rename(" + HeadingString(r) + ")"
+func (r1 *renameExpr) GoString() string {
+	return r1.source1.GoString() + ".Rename(" + HeadingString(r1) + ")"
 }
 
 // String returns a text representation of the Relation
-func (r *renameExpr) String() string {
-	return "ρ{" + HeadingString(r) + "}/{" + HeadingString(r.source1) + "}(" + r.source1.String() + ")"
+func (r1 *renameExpr) String() string {
+	return "ρ{" + HeadingString(r1) + "}/{" + HeadingString(r1.source1) + "}(" + r1.source1.String() + ")"
 }
 
 // Project creates a new relation with less than or equal degree

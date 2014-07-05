@@ -67,7 +67,7 @@ package rel
 
 // variable naming conventions
 //
-// r, r1, r2, r3, ... all represent relations.  If there is an operation which
+// r1, r2, r3, ... all represent relations.  If there is an operation which
 // has an output relation, the output relation will have the highest number
 // after the r.
 //

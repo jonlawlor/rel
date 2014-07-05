@@ -281,9 +281,8 @@ func NewProject(r1 Relation, z2 interface{}) Relation {
 	if Deg(r1) == len(att2) && err == nil {
 		// projection is a no op
 		return r1
-	} else {
-		return &projectExpr{r1, z2, err}
 	}
+	return &projectExpr{r1, z2, err}
 }
 
 // NewRestrict creates a new relation expression with less than or equal cardinality.
@@ -372,7 +371,7 @@ func NewGroupBy(r1 Relation, t2, gfcn interface{}) Relation {
 	// gfcn has to be a function with one input, and one output, where the
 	// input is a subdomain of r1, and where the output is a subdomain of t2.
 	rgfcn := reflect.ValueOf(gfcn)
-	err, intup, outtup := EnsureGroupFunc(rgfcn.Type(), r1.Zero(), t2)
+	intup, outtup, err := EnsureGroupFunc(rgfcn.Type(), r1.Zero(), t2)
 	return &groupByExpr{r1, t2, intup, outtup, rgfcn, err}
 }
 
@@ -385,7 +384,7 @@ func NewMap(r1 Relation, mfcn interface{}, ckeystr [][]string) Relation {
 	}
 	// determine the type of the returned tuples
 	rmfcn := reflect.ValueOf(mfcn)
-	err, intup, outtup := EnsureMapFunc(rmfcn.Type(), r1.Zero())
+	intup, outtup, err := EnsureMapFunc(rmfcn.Type(), r1.Zero())
 	z2 := reflect.Indirect(reflect.New(outtup)).Interface()
 
 	if len(ckeystr) == 0 {

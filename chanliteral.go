@@ -3,7 +3,6 @@
 // queried as a whole, or that has been preprocessed.  It can also be used as
 // an adapter to interface with other sources of data.  Basically anything
 // that can produce a chan of structs.
-//
 
 package rel
 
@@ -35,20 +34,20 @@ type chanLiteral struct {
 // TupleChan sends each tuple in the relation to a channel
 // note: this consumes the values of the relation, and when it is finished it
 // closes the input channel.
-func (r *chanLiteral) TupleChan(t interface{}) chan<- struct{} {
+func (r1 *chanLiteral) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := EnsureChan(chv.Type(), r.zero)
+	err := EnsureChan(chv.Type(), r1.zero)
 	if err != nil {
-		r.err = err
+		r1.err = err
 		return cancel
 	}
-	if r.err != nil {
+	if r1.err != nil {
 		chv.Close()
 		return cancel
 	}
-	if r.sourceDistinct {
+	if r1.sourceDistinct {
 		go func(rbody, res reflect.Value) {
 			// input channel
 			sourceSel := reflect.SelectCase{Dir: reflect.SelectRecv, Chan: rbody}
@@ -79,7 +78,7 @@ func (r *chanLiteral) TupleChan(t interface{}) chan<- struct{} {
 				}
 			}
 			res.Close()
-		}(r.rbody, chv)
+		}(r1.rbody, chv)
 		return cancel
 	}
 	// Build up a map where each key is one of the tuples.  This consumes
@@ -118,28 +117,28 @@ func (r *chanLiteral) TupleChan(t interface{}) chan<- struct{} {
 			}
 		}
 		res.Close()
-	}(r.rbody, chv)
+	}(r1.rbody, chv)
 	return cancel
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *chanLiteral) Zero() interface{} {
-	return r.zero
+func (r1 *chanLiteral) Zero() interface{} {
+	return r1.zero
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *chanLiteral) CKeys() CandKeys {
-	return r.cKeys
+func (r1 *chanLiteral) CKeys() CandKeys {
+	return r1.cKeys
 }
 
 // GoString returns a text representation of the Relation
-func (r *chanLiteral) GoString() string {
-	return goStringTabTable(r)
+func (r1 *chanLiteral) GoString() string {
+	return goStringTabTable(r1)
 }
 
 // String returns a text representation of the Relation
-func (r *chanLiteral) String() string {
-	return "Relation(" + HeadingString(r) + ")"
+func (r1 *chanLiteral) String() string {
+	return "Relation(" + HeadingString(r1) + ")"
 }
 
 // Project creates a new relation with less than or equal degree

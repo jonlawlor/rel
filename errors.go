@@ -38,55 +38,51 @@ func (e *ElemError) Error() string {
 // EnsureChan returns an error if the the input is not a channel with elements
 // of the specified type.
 func EnsureChan(ch reflect.Type, zero interface{}) error {
-	if t := ch.Kind(); t == reflect.Chan {
-		// now check that the zero element can be sent to the channel
-		te := ch.Elem()
-		ze := reflect.TypeOf(zero)
-		if te != ze {
-			return &ElemError{ze, te}
-		}
-		return nil
-	} else {
+	if t := ch.Kind(); t != reflect.Chan {
 		return &ContainerError{t, reflect.Chan}
 	}
+	// now check that the zero element can be sent to the channel
+	te := ch.Elem()
+	ze := reflect.TypeOf(zero)
+	if te != ze {
+		return &ElemError{ze, te}
+	}
+	return nil
 }
 
 // EnsureSlice returns an error if the the input is not a slice with elements
 // of the specified type.
 func EnsureSlice(sl reflect.Type, zero interface{}) error {
-	if t := sl.Kind(); t == reflect.Slice {
-		// now check that the zero element can be sent to the channel
-		te := sl.Elem()
-		ze := reflect.TypeOf(zero)
-		if te != ze {
-			return &ElemError{ze, te}
-		}
-		return nil
-	} else {
+	if t := sl.Kind(); t != reflect.Slice {
 		return &ContainerError{t, reflect.Slice}
 	}
+	// now check that the zero element can be sent to the channel
+	te := sl.Elem()
+	ze := reflect.TypeOf(zero)
+	if te != ze {
+		return &ElemError{ze, te}
+	}
+	return nil
 }
 
 // EnsureMap returns an error if the the input is not a map with key elements
 // of the specified type, and value elements of type struct{}
 func EnsureMap(m reflect.Type, zero interface{}) error {
-	if t := m.Kind(); t == reflect.Map {
-		// now check that the zero element can be sent to the channel
-		tk := m.Key()
-		ze := reflect.TypeOf(zero)
-		if tk != ze {
-			return &ElemError{ze, tk}
-		} else {
-			te := m.Elem()
-			empty := reflect.TypeOf(struct{}{})
-			if te != empty {
-				return fmt.Errorf("rel: Non-empty map value type, '%v'", te)
-			}
-			return nil
-		}
-	} else {
+	if t := m.Kind(); t != reflect.Map {
 		return &ContainerError{t, reflect.Map}
 	}
+	// now check that the zero element can be sent to the channel
+	tk := m.Key()
+	ze := reflect.TypeOf(zero)
+	if tk != ze {
+		return &ElemError{ze, tk}
+	}
+	te := m.Elem()
+	empty := reflect.TypeOf(struct{}{})
+	if te != empty {
+		return fmt.Errorf("rel: Non-empty map value type, '%v'", te)
+	}
+	return nil
 }
 
 // funcArityError represents an error that occurs when the wrong number of
@@ -96,7 +92,7 @@ type funcArityError struct {
 	Found    int
 }
 
-// InputFuncArityError represents an error that occurs when the wrong number of
+// NumInError represents an error that occurs when the wrong number of
 // inputs to a function are provided to groupby or map
 type NumInError funcArityError
 
@@ -104,7 +100,7 @@ func (e *NumInError) Error() string {
 	return fmt.Sprintf("rel: expected input arity %d, found %d", e.Expected, e.Found)
 }
 
-// OutputFuncArityError represents an error that occurs when the wrong number of
+// NumOutError represents an error that occurs when the wrong number of
 // outputs to a function are provided to groupby or map
 type NumOutError funcArityError
 
@@ -138,7 +134,7 @@ func (e *OutDomainError) Error() string {
 // EnsureGroupFunc returns an error if the input is not a function with only
 // one input and one output, where the input and output are subdomains of given
 // tuples.
-func EnsureGroupFunc(gfcn reflect.Type, inSuper, outSuper interface{}) (err error, inTup, outTup reflect.Type) {
+func EnsureGroupFunc(gfcn reflect.Type, inSuper, outSuper interface{}) (inTup, outTup reflect.Type, err error) {
 	if t := gfcn.Kind(); t != reflect.Func {
 		err = &ContainerError{t, reflect.Func}
 		return
@@ -180,7 +176,7 @@ func EnsureGroupFunc(gfcn reflect.Type, inSuper, outSuper interface{}) (err erro
 // EnsureMapFunc returns an error if the input is not a function with only
 // one input and one output, where the input is a subdomain of given
 // tuple.
-func EnsureMapFunc(mfcn reflect.Type, inSuper interface{}) (err error, inTup, outTup reflect.Type) {
+func EnsureMapFunc(mfcn reflect.Type, inSuper interface{}) (inTup, outTup reflect.Type, err error) {
 	if t := mfcn.Kind(); t != reflect.Func {
 		err = &ContainerError{t, reflect.Func}
 		return

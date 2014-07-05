@@ -25,47 +25,49 @@ type joinExpr struct {
 // I haven't implemented sorting yet so it was much easier to implement.
 
 // TupleChan sends each tuple in the relation to a channel
-func (r *joinExpr) TupleChan(t interface{}) chan<- struct{} {
+func (r1 *joinExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := EnsureChan(chv.Type(), r.zero)
+	err := EnsureChan(chv.Type(), r1.zero)
 	if err != nil {
-		r.err = err
+		r1.err = err
 		return cancel
 	}
-	if r.err != nil {
+	if r1.err != nil {
 		chv.Close()
 		return cancel
 	}
 
 	mc := runtime.GOMAXPROCS(-1)
-	e3 := reflect.TypeOf(r.zero)
+	e3 := reflect.TypeOf(r1.zero)
 
 	// create indexes between the three headings
-	h1 := Heading(r.source1)
-	h2 := Heading(r.source2)
-	h3 := Heading(r)
+	h1 := Heading(r1.source1)
+	h2 := Heading(r1.source2)
+	h3 := Heading(r1)
 
 	map12 := AttributeMap(h1, h2) // used to determine equality
 	map31 := AttributeMap(h3, h1) // used to construct returned values
 	map32 := AttributeMap(h3, h2) // used to construct returned values
 
 	// the types of the source tuples
-	e1 := reflect.TypeOf(r.source1.Zero())
-	e2 := reflect.TypeOf(r.source2.Zero())
+	e1 := reflect.TypeOf(r1.source1.Zero())
+	e2 := reflect.TypeOf(r1.source2.Zero())
 
 	// create channels over the body of the source relations
 	body1 := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e1), 0)
-	bcancel1 := r.source1.TupleChan(body1.Interface())
+	bcancel1 := r1.source1.TupleChan(body1.Interface())
 	body2 := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e2), 0)
-	bcancel2 := r.source2.TupleChan(body2.Interface())
+	bcancel2 := r1.source2.TupleChan(body2.Interface())
 
 	// Create the memory of previously sent tuples so that the joins can
 	// continue to compare against old values.
-	var mu sync.Mutex
-	mem1 := make([]reflect.Value, 0)
-	mem2 := make([]reflect.Value, 0)
+	var (
+		mu   sync.Mutex
+		mem1 []reflect.Value
+		mem2 []reflect.Value
+	)
 
 	// wg is used to signal when each of the worker goroutines finishes
 	// processing the join operation
@@ -79,10 +81,10 @@ func (r *joinExpr) TupleChan(t interface{}) chan<- struct{} {
 			close(bcancel1)
 			close(bcancel2)
 		default:
-			if err := r.source1.Err(); err != nil {
-				r.err = err
-			} else if err := r.source2.Err(); err != nil {
-				r.err = err
+			if err := r1.source1.Err(); err != nil {
+				r1.err = err
+			} else if err := r1.source2.Err(); err != nil {
+				r1.err = err
 			}
 			res.Close()
 		}
@@ -176,17 +178,17 @@ func (r *joinExpr) TupleChan(t interface{}) chan<- struct{} {
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *joinExpr) Zero() interface{} {
-	return r.zero
+func (r1 *joinExpr) Zero() interface{} {
+	return r1.zero
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *joinExpr) CKeys() CandKeys {
+func (r1 *joinExpr) CKeys() CandKeys {
 	// the candidate keys of a join are a join of the candidate keys as well
-	cKeys1 := r.source1.CKeys()
-	cKeys2 := r.source2.CKeys()
+	cKeys1 := r1.source1.CKeys()
+	cKeys2 := r1.source2.CKeys()
 
-	cKeysRes := make([][]Attribute, 0)
+	var cKeysRes [][]Attribute
 
 	// kind of merge join
 	for _, ck1 := range cKeys1 {
@@ -210,13 +212,13 @@ func (r *joinExpr) CKeys() CandKeys {
 }
 
 // GoString returns a text representation of the Relation
-func (r *joinExpr) GoString() string {
-	return r.source1.GoString() + ".Join(" + r.source2.GoString() + ")"
+func (r1 *joinExpr) GoString() string {
+	return r1.source1.GoString() + ".Join(" + r1.source2.GoString() + ")"
 }
 
 // String returns a text representation of the Relation
-func (r *joinExpr) String() string {
-	return r.source1.String() + " ⋈ " + r.source2.String()
+func (r1 *joinExpr) String() string {
+	return r1.source1.String() + " ⋈ " + r1.source2.String()
 }
 
 // Project creates a new relation with less than or equal degree
@@ -245,14 +247,13 @@ func (r1 *joinExpr) Restrict(p Predicate) Relation {
 	if IsSubDomain(dom, h1) {
 		if IsSubDomain(dom, h2) {
 			return r1.source1.Restrict(p).Join(r1.source2.Restrict(p), r1.zero)
-		} else {
-			return r1.source1.Restrict(p).Join(r1.source2, r1.zero)
 		}
-	} else if IsSubDomain(dom, h2) {
-		return r1.source1.Join(r1.source2.Restrict(p), r1.zero)
-	} else {
-		return NewRestrict(r1, p)
+		return r1.source1.Restrict(p).Join(r1.source2, r1.zero)
 	}
+	if IsSubDomain(dom, h2) {
+		return r1.source1.Join(r1.source2.Restrict(p), r1.zero)
+	}
+	return NewRestrict(r1, p)
 }
 
 // Rename creates a new relation with new column names

@@ -42,27 +42,27 @@ type groupByExpr struct {
 // can then close the result channel.
 
 // TupleChan sends each tuple in the relation to a channel
-func (r *groupByExpr) TupleChan(t interface{}) chan<- struct{} {
+func (r1 *groupByExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := EnsureChan(chv.Type(), r.zero)
+	err := EnsureChan(chv.Type(), r1.zero)
 	if err != nil {
-		r.err = err
+		r1.err = err
 		return cancel
 	}
-	if r.err != nil {
+	if r1.err != nil {
 		chv.Close()
 		return cancel
 	}
 
 	// figure out the new elements used for each of the derived types
-	e1 := reflect.TypeOf(r.source1.Zero())
+	e1 := reflect.TypeOf(r1.source1.Zero())
 
 	// create the channel of tuples from source
 	// TODO(jonlawlor): restrict the channel direction
 	body := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e1), 0)
-	bcancel := r.source1.TupleChan(body.Interface())
+	bcancel := r1.source1.TupleChan(body.Interface())
 
 	// for each of the tuples, extract the group values out and set
 	// the ones that are not in vtup to the values in the tuple.
@@ -81,8 +81,8 @@ func (r *groupByExpr) TupleChan(t interface{}) chan<- struct{} {
 
 		// figure out where in each of the structs the group and value
 		// attributes are found
-		e2 := reflect.TypeOf(r.zero) // type of the resulting relation's tuples
-		ev := r.valType              // type of the tuples put into groupby values
+		e2 := reflect.TypeOf(r1.zero) // type of the resulting relation's tuples
+		ev := r1.valType              // type of the tuples put into groupby values
 		e2fieldMap := FieldMap(e1, e2)
 		evfieldMap := FieldMap(e1, ev)
 
@@ -90,7 +90,7 @@ func (r *groupByExpr) TupleChan(t interface{}) chan<- struct{} {
 		// I couldn't figure out a way to assign the values into the group
 		// by modifying it using reflection though so we end up allocating a
 		// new element.
-		er := r.resType
+		er := r1.resType
 		rgfieldMap := FieldMap(e2, er)
 
 		// create the select statement reflections
@@ -132,7 +132,7 @@ func (r *groupByExpr) TupleChan(t interface{}) chan<- struct{} {
 					// reflect.Value
 					resSel := reflect.SelectCase{Dir: reflect.SelectSend, Chan: res}
 
-					vals := r.gfcn.Call([]reflect.Value{groupChan})
+					vals := r1.gfcn.Call([]reflect.Value{groupChan})
 					// combine the returned values with the group tuple
 					// to create the new complete tuple
 					resSel.Send = CombineTuples(gtup, vals[0], e2, rgfieldMap)
@@ -157,8 +157,8 @@ func (r *groupByExpr) TupleChan(t interface{}) chan<- struct{} {
 		case <-cancel:
 			return
 		default:
-			if err := r.source1.Err(); err != nil {
-				r.err = err
+			if err := r1.source1.Err(); err != nil {
+				r1.err = err
 			}
 			res.Close()
 		}
@@ -167,21 +167,21 @@ func (r *groupByExpr) TupleChan(t interface{}) chan<- struct{} {
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *groupByExpr) Zero() interface{} {
-	return r.zero
+func (r1 *groupByExpr) Zero() interface{} {
+	return r1.zero
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *groupByExpr) CKeys() CandKeys {
+func (r1 *groupByExpr) CKeys() CandKeys {
 	// determine the new candidate keys, which can be any of the original
 	// candidate keys that are a subset of the group (which would also
 	// mean that every tuple in the original relation is in its own group
 	// in the resulting relation, which means the groupby function was
 	// just a map) or the group itself.
 
-	e1 := reflect.TypeOf(r.source1.Zero())
-	e2 := r.resType // type of the resulting relation's tuples
-	ev := r.valType // type of the tuples put into groupby values
+	e1 := reflect.TypeOf(r1.source1.Zero())
+	e2 := r1.resType // type of the resulting relation's tuples
+	ev := r1.valType // type of the tuples put into groupby values
 
 	// note: if for some reason this is called on a grouping that includes
 	// a candidate key, then this function should instead act as a map, and
@@ -207,7 +207,7 @@ func (r *groupByExpr) CKeys() CandKeys {
 	}
 	names := FieldNames(e2)
 
-	ck2 := SubsetCandidateKeys(r.source1.CKeys(), names, groupFieldMap)
+	ck2 := SubsetCandidateKeys(r1.source1.CKeys(), names, groupFieldMap)
 
 	// determine the new names and types
 	cn := FieldNames(e2)
@@ -220,13 +220,13 @@ func (r *groupByExpr) CKeys() CandKeys {
 }
 
 // GoString returns a text representation of the Relation
-func (r *groupByExpr) GoString() string {
-	return goStringTabTable(r)
+func (r1 *groupByExpr) GoString() string {
+	return goStringTabTable(r1)
 }
 
 // String returns a text representation of the Relation
-func (r *groupByExpr) String() string {
-	h := FieldNames(r.resType)
+func (r1 *groupByExpr) String() string {
+	h := FieldNames(r1.resType)
 	s := make([]string, len(h))
 	for i, v := range h {
 		s[i] = string(v)
@@ -234,18 +234,18 @@ func (r *groupByExpr) String() string {
 
 	// TODO(jonlawlor) add better identification to the grouping func,
 	// maybe by using runtime.FuncForPC
-	return r.source1.String() + ".GroupBy({" + HeadingString(r) + "}->{" + strings.Join(s, ", ") + "})"
+	return r1.source1.String() + ".GroupBy({" + HeadingString(r1) + "}->{" + strings.Join(s, ", ") + "})"
 
 }
 
 // Project creates a new relation with less than or equal degree
-// t2 has to be a new type which is a subdomain of r.
+// t2 has to be a new type which is a subdomain of r1.
 func (r1 *groupByExpr) Project(z2 interface{}) Relation {
 	return NewProject(r1, z2)
 }
 
 // Restrict creates a new relation with less than or equal cardinality
-// p has to be a func(tup T) bool where tup is a subdomain of the input r.
+// p has to be a func(tup T) bool where tup is a subdomain of the input r1.
 func (r1 *groupByExpr) Restrict(p Predicate) Relation {
 	// TODO(jonlawlor): this can be passed through if the predicate only
 	// depends upon the attributes that are not in valZero

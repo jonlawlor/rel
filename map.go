@@ -39,32 +39,32 @@ type mapExpr struct {
 }
 
 // TupleChan sends each tuple in the relation to a channel
-func (r *mapExpr) TupleChan(t interface{}) chan<- struct{} {
+func (r1 *mapExpr) TupleChan(t interface{}) chan<- struct{} {
 	cancel := make(chan struct{})
 	// reflect on the channel
 	chv := reflect.ValueOf(t)
-	err := EnsureChan(chv.Type(), r.zero)
+	err := EnsureChan(chv.Type(), r1.zero)
 	if err != nil {
-		r.err = err
+		r1.err = err
 		return cancel
 	}
-	if r.err != nil {
+	if r1.err != nil {
 		chv.Close()
 		return cancel
 	}
 
 	// figure out the new elements used for each of the derived types
-	e1 := reflect.TypeOf(r.source1.Zero())
+	e1 := reflect.TypeOf(r1.source1.Zero())
 
 	// figure out which fields stay, and where they are in each of the tuple
 	// types.
 	// TODO(jonlawlor): error if fields in e2 are not in r1's tuples.
-	fMap := FieldMap(e1, r.valType)
+	fMap := FieldMap(e1, r1.valType)
 
 	body1 := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, e1), 0)
-	bcancel := r.source1.TupleChan(body1.Interface())
+	bcancel := r1.source1.TupleChan(body1.Interface())
 
-	if r.isDistinct {
+	if r1.isDistinct {
 		// assign fields from the old relation to fields in the new
 		// TODO(jonlawlor): add parallelism here
 		go func(body, res reflect.Value) {
@@ -90,14 +90,14 @@ func (r *mapExpr) TupleChan(t interface{}) chan<- struct{} {
 				}
 
 				// construct the function input
-				fcnin := reflect.Indirect(reflect.New(r.valType))
+				fcnin := reflect.Indirect(reflect.New(r1.valType))
 				for _, fm := range fMap {
 					fcninf := fcnin.Field(fm.J)
 					fcninf.Set(tup.Field(fm.I))
 				}
 				// set the field in the new tuple to the value from the old one
 
-				fcnout := r.rmfcn.Call([]reflect.Value{fcnin})[0]
+				fcnout := r1.rmfcn.Call([]reflect.Value{fcnin})[0]
 				resSel.Send = fcnout
 				chosen, _, ok = reflect.Select([]reflect.SelectCase{canSel, resSel})
 				if chosen == 0 {
@@ -105,8 +105,8 @@ func (r *mapExpr) TupleChan(t interface{}) chan<- struct{} {
 					return
 				}
 			}
-			if err := r.source1.Err(); err != nil {
-				r.err = err
+			if err := r1.source1.Err(); err != nil {
+				r1.err = err
 			}
 			res.Close()
 		}(body1, chv)
@@ -138,14 +138,14 @@ func (r *mapExpr) TupleChan(t interface{}) chan<- struct{} {
 			}
 
 			// construct the function input
-			fcnin := reflect.Indirect(reflect.New(r.valType))
+			fcnin := reflect.Indirect(reflect.New(r1.valType))
 			for _, fm := range fMap {
 				fcninf := fcnin.Field(fm.J)
 				fcninf.Set(tup.Field(fm.I))
 			}
 			// set the field in the new tuple to the value from the old one
 
-			fcnout := r.rmfcn.Call([]reflect.Value{fcnin})[0]
+			fcnout := r1.rmfcn.Call([]reflect.Value{fcnin})[0]
 
 			// check that the output from the function is not a duplicate
 			if _, isdup := m[fcnout.Interface()]; !isdup {
@@ -160,8 +160,8 @@ func (r *mapExpr) TupleChan(t interface{}) chan<- struct{} {
 			}
 		}
 
-		if err := r.source1.Err(); err != nil {
-			r.err = err
+		if err := r1.source1.Err(); err != nil {
+			r1.err = err
 		}
 		chv.Close()
 	}(body1, chv)
@@ -171,23 +171,23 @@ func (r *mapExpr) TupleChan(t interface{}) chan<- struct{} {
 }
 
 // Zero returns the zero value of the relation (a blank tuple)
-func (r *mapExpr) Zero() interface{} {
-	return r.zero
+func (r1 *mapExpr) Zero() interface{} {
+	return r1.zero
 }
 
 // CKeys is the set of candidate keys in the relation
-func (r *mapExpr) CKeys() CandKeys {
-	return r.cKeys
+func (r1 *mapExpr) CKeys() CandKeys {
+	return r1.cKeys
 }
 
 // GoString returns a text representation of the Relation
-func (r *mapExpr) GoString() string {
-	return goStringTabTable(r)
+func (r1 *mapExpr) GoString() string {
+	return goStringTabTable(r1)
 }
 
 // String returns a text representation of the Relation
-func (r *mapExpr) String() string {
-	return r.source1.String() + ".Map({" + HeadingString(r.source1) + "}->{" + HeadingString(r) + "})"
+func (r1 *mapExpr) String() string {
+	return r1.source1.String() + ".Map({" + HeadingString(r1.source1) + "}->{" + HeadingString(r1) + "})"
 }
 
 // Project creates a new relation with less than or equal degree

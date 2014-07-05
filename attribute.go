@@ -33,7 +33,7 @@ func FieldNames(e reflect.Type) []Attribute {
 	return names
 }
 
-// fieldTypes takes a reflect.Type of a struct and returns field types in order
+// FieldTypes takes a reflect.Type of a struct and returns field types in order
 func FieldTypes(e reflect.Type) []reflect.Type {
 	n := e.NumField()
 	types := make([]reflect.Type, n)
@@ -44,7 +44,7 @@ func FieldTypes(e reflect.Type) []reflect.Type {
 	return types
 }
 
-// Sorts candidate keys by number of attributes and then alphabetically.
+// OrderCandidateKeys sorts candidate keys by number of attributes and then alphabetically.
 func OrderCandidateKeys(ckeys CandKeys) {
 	// first go through each set of keys and alphabetize
 	// this is used to compare sets of candidate keys
@@ -63,6 +63,9 @@ func OrderCandidateKeys(ckeys CandKeys) {
 	sort.Sort(ckeys)
 }
 
+// String2CandKeys converts a slice of string slices into a set of candidate keys.
+// The result is not sorted, so OrderCandidateKeys should be called afterwards if the
+// input is not already sorted in the same way.
 func String2CandKeys(ckeystrs [][]string) CandKeys {
 	cks := make([][]Attribute, len(ckeystrs))
 	for i, ckstr := range ckeystrs {
@@ -106,7 +109,7 @@ func (cks CandKeys) Less(i, j int) bool {
 	return less(cks[i], cks[j])
 }
 
-// defaultkey provides the default candidate key for a relation
+// DefaultKeys provides the default candidate key for a relation
 // This is used when no candidate keys are provided.
 // note that this will not be sorted correctly
 func DefaultKeys(z interface{}) CandKeys {
@@ -115,7 +118,7 @@ func DefaultKeys(z interface{}) CandKeys {
 	return CandKeys{FieldNames(e)}
 }
 
-// subsetCandidateKeys subsets candidate keys so they only include given fields
+// SubsetCandidateKeys subsets candidate keys so they only include given fields
 func SubsetCandidateKeys(cKeys1 [][]Attribute, names1 []Attribute, fMap map[Attribute]FieldIndex) [][]Attribute {
 
 	remNames := make(map[Attribute]struct{})
@@ -125,7 +128,7 @@ func SubsetCandidateKeys(cKeys1 [][]Attribute, names1 []Attribute, fMap map[Attr
 		}
 	}
 
-	cKeys2 := make([][]Attribute, 0)
+	var cKeys2 [][]Attribute
 KeyLoop:
 	for _, ck := range cKeys1 {
 		// if the candidate key contains a name we want to remove, then
@@ -151,7 +154,7 @@ func FieldMap(e1, e2 reflect.Type) map[Attribute]FieldIndex {
 	return AttributeMap(fn1, fn2)
 }
 
-// Attribute creates a map from positions of one set of attributes to another.
+// AttributeMap creates a map from positions of one set of attributes to another.
 // The returned map's values have two fields i,j , which indicate the location of
 // the field name in the input types
 // if the field is absent from either of the inputs, it is not returned.
@@ -210,8 +213,9 @@ func PartialProject(tup reflect.Value, ltyp, rtyp reflect.Type, lFieldMap, rFiel
 	return ltup, rtup
 }
 
-// CombineTuples takes the values in rtup and assigns them to the fields
-// in ltup with the same names
+// CombineTuples takes the values in rtup and ltup and creates a new tuple that
+// takes fields from the right tuple if possible, otherwise takes fields from
+// the left tuple.
 func CombineTuples(ltup, rtup reflect.Value, ltyp reflect.Type, fMap map[Attribute]FieldIndex) reflect.Value {
 	tup2 := reflect.Indirect(reflect.New(ltyp))
 	leftNames := FieldNames(ltyp)
@@ -227,7 +231,8 @@ func CombineTuples(ltup, rtup reflect.Value, ltyp reflect.Type, fMap map[Attribu
 	return tup2
 }
 
-// CombineTuples
+// CombineTuples2 takes the values in from and assigns them to the fields in to
+// with the same names.
 // TODO(jonlawlor): figure out how to combine with CombineTuples, or rename
 // this func.  Very ugly.
 func CombineTuples2(to *reflect.Value, from reflect.Value, fMap map[Attribute]FieldIndex) {
