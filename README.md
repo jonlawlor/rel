@@ -1,5 +1,6 @@
 rel
 ===
+[![Build Status](https://drone.io/github.com/jonlawlor/rel/status.png)](https://drone.io/github.com/jonlawlor/rel/latest)
 
 Relational Algebra in Go.  Go's interfaces & duck typing are used to provide an extensible ORM that is capable of query rewrite, and can perform relational operations both in native go and on source dbms's. Go's concurrency mechanisms (will) allow for fine control of the inherent parallelism in relational operations.  It is my hope that this package will produce some interesting approaches to implement relational expressions.  This package is currently experimental and its interfaces may change.
 
